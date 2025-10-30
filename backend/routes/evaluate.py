@@ -7,10 +7,10 @@ from typing import List, Dict, Optional
 from pydantic import BaseModel
 from datetime import datetime
 
-from database import get_db
-from models.flight import ListenRanking, TeamDraftResult, Rating, Flight
-from utils.parse_duration import interleave_rankings
-from utils.listen_algorithms import ListenU, ListenT
+from ..database import get_db
+from ..models.flight import ListenRanking, TeamDraftResult, Rating, Flight
+from ..utils.parse_duration import interleave_rankings
+from ..utils.listen_algorithms import ListenU, ListenT
 
 router = APIRouter(prefix="/api/evaluate", tags=["evaluate"])
 

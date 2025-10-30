@@ -8,10 +8,10 @@ from typing import List, Optional
 from datetime import datetime
 import json
 
-from database import get_db
-from models.flight import Flight
-from amadeus_client import AmadeusClient
-from utils.parse_duration import (
+from ..database import get_db
+from ..models.flight import Flight
+from ..amadeus_client import AmadeusClient
+from ..utils.parse_duration import (
     parse_duration_to_minutes,
     calculate_flight_distances,
     calculate_time_of_day_seconds,

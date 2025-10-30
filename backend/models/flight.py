@@ -3,7 +3,7 @@ SQLAlchemy ORM models for flight metrics application.
 """
 from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Boolean, JSON
 from sqlalchemy.sql import func
-from database import Base
+from ..database import Base
 
 
 class Flight(Base):

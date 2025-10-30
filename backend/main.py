@@ -9,8 +9,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 
-from database import test_connection, init_db
-from routes import flights, evaluate
+from .database import test_connection, init_db
+from .routes import flights, evaluate
 
 # Create FastAPI application
 app = FastAPI(
