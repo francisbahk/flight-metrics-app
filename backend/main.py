@@ -3,14 +3,22 @@ FastAPI main application entry point.
 Flight Metrics Web Application Backend.
 """
 import os
+import sys
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 
-from .database import test_connection, init_db
-from .routes import flights, evaluate
+# Support both development mode (python backend/main.py) and production mode (uvicorn backend.main:app)
+try:
+    # Try relative imports first (for uvicorn backend.main:app)
+    from .database import test_connection, init_db
+    from .routes import flights, evaluate
+except ImportError:
+    # Fall back to absolute imports (for python backend/main.py)
+    from database import test_connection, init_db
+    from routes import flights, evaluate
 
 # Create FastAPI application
 app = FastAPI(
