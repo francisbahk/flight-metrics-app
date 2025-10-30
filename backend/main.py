@@ -44,9 +44,16 @@ async def startup_event():
     Run on application startup.
     Test database connection and initialize tables if needed.
     """
-    print("\n" + "=" * 60)
-    print("Starting Flight Metrics API Server")
-    print("=" * 60)
+    import sys
+    print("\n" + "=" * 60, flush=True)
+    print("Starting Flight Metrics API Server", flush=True)
+    print("=" * 60, flush=True)
+    print(f"Python version: {sys.version}", flush=True)
+    print(f"FastAPI version: {app.version}", flush=True)
+    print(f"PORT env var: {os.getenv('PORT', 'not set')}", flush=True)
+    print(f"MYSQL_HOST: {os.getenv('MYSQL_HOST', 'localhost')}", flush=True)
+    print(f"MYSQL_PORT: {os.getenv('MYSQL_PORT', '3306')}", flush=True)
+    print(f"MYSQL_DB: {os.getenv('MYSQL_DB', 'flights')}", flush=True)
 
     try:
         # Test database connection
@@ -56,26 +63,48 @@ async def startup_event():
         # Comment out if you prefer to use schema.sql manually
         # init_db()
 
-        print("✓ Server startup complete")
-        print("=" * 60 + "\n")
+        print("✓ Server startup complete", flush=True)
+        print("=" * 60 + "\n", flush=True)
 
     except Exception as e:
-        print(f"✗ Startup error: {str(e)}")
-        print("=" * 60 + "\n")
+        print(f"✗ Startup error: {str(e)}", flush=True)
+        print("⚠ Server will start anyway (database not required for health check)", flush=True)
+        print("=" * 60 + "\n", flush=True)
         # Don't raise exception - allow server to start even if DB is not ready
         # This allows troubleshooting via health check endpoint
+
+
+@app.get("/")
+async def root():
+    """
+    Root endpoint - simple health check that doesn't require database.
+    """
+    return {
+        "service": "Flight Metrics API",
+        "status": "running",
+        "version": "1.0.0",
+        "endpoints": {
+            "health": "/api/health",
+            "docs": "/docs",
+            "flights": "/api/flights/*",
+            "evaluate": "/api/evaluate/*"
+        }
+    }
 
 
 @app.get("/api/health")
 async def health_check():
     """
-    Health check endpoint to verify API is running.
+    Health check endpoint to verify API is running and database connection.
     """
+    print("Health check called", flush=True)
     try:
         test_connection()
         db_status = "connected"
-    except:
+        print("Database connection: OK", flush=True)
+    except Exception as e:
         db_status = "disconnected"
+        print(f"Database connection: FAILED - {str(e)}", flush=True)
 
     return {
         "status": "healthy",
