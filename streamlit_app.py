@@ -1,6 +1,6 @@
 """
 Flight Metrics Web Application - Streamlit Version
-Combines flight search, LISTEN algorithms, and evaluation in one app.
+Algorithm-based flight ranking with interleaved results.
 """
 import streamlit as st
 import os
@@ -14,9 +14,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend'))
 # Import backend modules
 from backend.amadeus_client import AmadeusClient
 from backend.database import get_db, test_connection, get_session_local
-from backend.models.flight import Flight, ListenRanking, TeamDraftResult, Rating
-from backend.utils.listen_algorithms import ListenU, ListenT
+from backend.utils.builtin_algorithms import BUILTIN_ALGORITHMS, get_algorithm, list_algorithms
 from backend.utils.parse_duration import parse_duration_to_minutes
+from backend.utils.nl_parser import parse_flight_query
 
 # Page configuration
 st.set_page_config(
@@ -29,12 +29,12 @@ st.set_page_config(
 # Initialize session state
 if 'flights' not in st.session_state:
     st.session_state.flights = []
-if 'selected_flights' not in st.session_state:
-    st.session_state.selected_flights = []
-if 'listen_u_results' not in st.session_state:
-    st.session_state.listen_u_results = None
-if 'listen_t_results' not in st.session_state:
-    st.session_state.listen_t_results = None
+if 'interleaved_results' not in st.session_state:
+    st.session_state.interleaved_results = []
+if 'parsed_query' not in st.session_state:
+    st.session_state.parsed_query = None
+if 'uploaded_algorithms' not in st.session_state:
+    st.session_state.uploaded_algorithms = {}
 
 # Initialize Amadeus client
 @st.cache_resource
@@ -54,11 +54,13 @@ def check_database():
 
 db_connected = check_database()
 
-# Title and header
-st.title("✈️ Flight Metrics & LISTEN Evaluation")
-st.markdown("Search flights, evaluate with LISTEN algorithms, and compare rankings")
+# ============================================================================
+# HEADER
+# ============================================================================
+st.title("✈️ Flight Ranking with Algorithm Interleaving")
+st.markdown("Search flights and compare results from two different ranking algorithms")
 
-# Sidebar for database status
+# Sidebar
 with st.sidebar:
     st.header("System Status")
     if db_connected:
@@ -70,86 +72,154 @@ with st.sidebar:
     st.header("About")
     st.markdown("""
     This app demonstrates:
-    - **Flight Search** via Amadeus API
-    - **LISTEN-U** (Utility Refinement)
-    - **LISTEN-T** (Tournament Selection)
-    - **Manual Ranking & Evaluation**
+    - **Natural Language** flight search
+    - **Multiple ranking algorithms** (LISTEN-U, LISTEN-T, simple heuristics)
+    - **Interleaved results** from two algorithms
+    - **Custom algorithm upload**
     """)
 
-# Main tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Search Flights", "🤖 LISTEN Algorithms", "🏆 Team Draft (Interleaved)", "📊 Manual Ranking", "📈 Results"])
+    st.markdown("---")
+    st.header("Available Algorithms")
+
+    # Group by category
+    simple_algos = [name for name, info in BUILTIN_ALGORITHMS.items() if info['category'] == 'Simple']
+    advanced_algos = [name for name, info in BUILTIN_ALGORITHMS.items() if info['category'] == 'Advanced']
+    smart_algos = [name for name, info in BUILTIN_ALGORITHMS.items() if info['category'] == 'Smart']
+
+    if simple_algos:
+        st.markdown("**Simple:**")
+        for name in simple_algos:
+            st.markdown(f"• {name}")
+
+    if smart_algos:
+        st.markdown("**Smart:**")
+        for name in smart_algos:
+            st.markdown(f"• {name}")
+
+    if advanced_algos:
+        st.markdown("**Advanced:**")
+        for name in advanced_algos:
+            st.markdown(f"• {name}")
+
+    if st.session_state.uploaded_algorithms:
+        st.markdown("**Custom:**")
+        for name in st.session_state.uploaded_algorithms.keys():
+            st.markdown(f"• {name}")
 
 # ============================================================================
-# TAB 1: FLIGHT SEARCH
+# MAIN FLOW
 # ============================================================================
-with tab1:
-    st.header("Search Flights")
 
-    # Natural Language Input
-    st.markdown("### 🗣️ Tell us what you want")
-    st.markdown("*Examples: 'I want to go from Ithaca to San Francisco on 10/31' or 'Fly from NYC to LA in November as cheap as possible'*")
+# Step 1: Natural Language Input
+st.header("🗣️ Step 1: Describe Your Flight Search")
+st.markdown("*Examples: 'I want to go from Ithaca to San Francisco on 10/31' or 'Fly from NYC to LA in November as cheap as possible'*")
 
-    nl_query = st.text_area(
-        "Describe your flight search:",
-        value="I want to go from Ithaca to San Francisco on 10/31",
-        height=80,
-        placeholder="I want to go from [origin] to [destination] on [date]..."
-    )
+nl_query = st.text_area(
+    "What flight are you looking for?",
+    value="I want to go from New York to Los Angeles on November 15th",
+    height=80,
+    placeholder="I want to go from [origin] to [destination] on [date]..."
+)
 
-    if st.button("✨ Parse My Request", type="secondary"):
-        from backend.utils.nl_parser import parse_flight_query
+col_parse1, col_parse2 = st.columns([1, 3])
+with col_parse1:
+    if st.button("✨ Parse Request", type="secondary", use_container_width=True):
         parsed = parse_flight_query(nl_query)
+        st.session_state.parsed_query = parsed
 
         if parsed['parsed_successfully']:
-            st.success("✅ Successfully parsed your request!")
+            st.rerun()
 
-            # Show what was extracted
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.info(f"**Origin:** {parsed['origin']}")
-                if 'original_origin' in parsed:
-                    st.caption(f"(Originally: {parsed['original_origin']})")
-            with col2:
-                st.info(f"**Destination:** {parsed['destination']}")
-                if 'original_destination' in parsed:
-                    st.caption(f"(Originally: {parsed['original_destination']})")
-            with col3:
-                st.info(f"**Date:** {parsed['date']}")
+# Show parsed results if available
+if st.session_state.parsed_query and st.session_state.parsed_query['parsed_successfully']:
+    parsed = st.session_state.parsed_query
 
-            # Show warnings
-            if parsed['warnings']:
-                for warning in parsed['warnings']:
-                    st.warning(f"ℹ️ {warning}")
+    st.success("✅ Successfully parsed your request!")
 
-            # Show preferences
-            if parsed['preferences']:
-                st.markdown("**Detected preferences:**")
-                prefs_text = []
-                if parsed['preferences'].get('prefer_nonstop'):
-                    prefs_text.append("Direct flights preferred")
-                if parsed['preferences'].get('prefer_cheap'):
-                    prefs_text.append("Budget-friendly")
-                if parsed['preferences'].get('prefer_fast'):
-                    prefs_text.append("Fastest route")
-                if parsed['preferences'].get('prefer_comfort'):
-                    prefs_text.append("Comfortable seating")
-                if prefs_text:
-                    st.info(" • " + " • ".join(prefs_text))
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.info(f"**Origin:** {parsed['origin']}")
+        if 'original_origin' in parsed:
+            st.caption(f"(Originally: {parsed['original_origin']})")
+    with col2:
+        st.info(f"**Destination:** {parsed['destination']}")
+        if 'original_destination' in parsed:
+            st.caption(f"(Originally: {parsed['original_destination']})")
+    with col3:
+        st.info(f"**Date:** {parsed['date']}")
 
-            # Store parsed values in session state
-            st.session_state.parsed_query = parsed
-        else:
-            st.error("❌ Couldn't parse your request. Please use the manual form below.")
+    # Show warnings
+    if parsed['warnings']:
+        for warning in parsed['warnings']:
+            st.warning(f"ℹ️ {warning}")
 
-    st.markdown("---")
-    st.markdown("### 🔧 Or use manual controls")
+    # Show preferences
+    if parsed['preferences']:
+        st.markdown("**Detected preferences:**")
+        prefs_text = []
+        if parsed['preferences'].get('prefer_nonstop'):
+            prefs_text.append("Direct flights preferred")
+        if parsed['preferences'].get('prefer_cheap'):
+            prefs_text.append("Budget-friendly")
+        if parsed['preferences'].get('prefer_fast'):
+            prefs_text.append("Fastest route")
+        if parsed['preferences'].get('prefer_comfort'):
+            prefs_text.append("Comfortable seating")
+        if prefs_text:
+            st.info(" • " + " • ".join(prefs_text))
 
-    # Check if we have parsed values
+st.markdown("---")
+
+# Step 2: Algorithm Selection
+st.header("🤖 Step 2: Choose Two Algorithms to Compare")
+st.markdown("Results will be interleaved: A1, B1, A2, B2, A3, B3...")
+
+# Get all available algorithms
+all_algorithms = list(BUILTIN_ALGORITHMS.keys()) + list(st.session_state.uploaded_algorithms.keys())
+
+col1, col2 = st.columns(2)
+with col1:
+    algo_a = st.selectbox(
+        "Algorithm A",
+        options=all_algorithms,
+        index=0 if "Cheapest" in all_algorithms else 0,
+        help="First ranking algorithm"
+    )
+
+    # Show algorithm description
+    if algo_a in BUILTIN_ALGORITHMS:
+        st.caption(f"📝 {BUILTIN_ALGORITHMS[algo_a]['description']}")
+    elif algo_a in st.session_state.uploaded_algorithms:
+        st.caption(f"📝 Custom uploaded algorithm")
+
+with col2:
+    algo_b = st.selectbox(
+        "Algorithm B",
+        options=all_algorithms,
+        index=1 if len(all_algorithms) > 1 else 0,
+        help="Second ranking algorithm"
+    )
+
+    # Show algorithm description
+    if algo_b in BUILTIN_ALGORITHMS:
+        st.caption(f"📝 {BUILTIN_ALGORITHMS[algo_b]['description']}")
+    elif algo_b in st.session_state.uploaded_algorithms:
+        st.caption(f"📝 Custom uploaded algorithm")
+
+st.markdown("---")
+
+# Step 3: Search Parameters (optional refinement)
+with st.expander("🔧 Advanced Search Parameters (Optional)", expanded=False):
+    st.markdown("These will override the natural language parsing above")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    # Use parsed values as defaults if available
     default_origin = "JFK"
     default_destination = "LAX"
     default_date = datetime.now() + timedelta(days=30)
 
-    if 'parsed_query' in st.session_state and st.session_state.parsed_query['parsed_successfully']:
+    if st.session_state.parsed_query and st.session_state.parsed_query['parsed_successfully']:
         parsed = st.session_state.parsed_query
         default_origin = parsed.get('origin', 'JFK')
         default_destination = parsed.get('destination', 'LAX')
@@ -158,8 +228,6 @@ with tab1:
                 default_date = datetime.strptime(parsed['date'], "%Y-%m-%d").date()
             except:
                 pass
-
-    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         origin = st.text_input("Origin (IATA Code)", value=default_origin, max_chars=3).upper()
@@ -171,396 +239,335 @@ with tab1:
         departure_date = st.date_input("Departure Date", value=default_date)
 
     with col4:
-        adults = st.number_input("Number of Adults", min_value=1, max_value=9, value=1)
+        adults = st.number_input("Adults", min_value=1, max_value=9, value=1)
 
-    col5, col6 = st.columns(2)
-    with col5:
-        max_results = st.slider("Max Results", min_value=5, max_value=50, value=10)
+    max_results = st.slider("Max Results", min_value=5, max_value=50, value=10)
 
-    if st.button("🔍 Search Flights", type="primary", use_container_width=True):
-        with st.spinner("Searching flights via Amadeus API..."):
-            try:
-                # Check API credentials
-                import os
-                api_key = os.getenv("AMADEUS_API_KEY") or st.secrets.get("AMADEUS_API_KEY", "")
-                api_secret = os.getenv("AMADEUS_API_SECRET") or st.secrets.get("AMADEUS_API_SECRET", "")
+# Step 4: Search and Rank Button
+if st.button("🚀 Search Flights & Show Interleaved Rankings", type="primary", use_container_width=True):
+    with st.spinner("Searching flights and computing rankings..."):
+        try:
+            # Check API credentials
+            api_key = os.getenv("AMADEUS_API_KEY") or st.secrets.get("AMADEUS_API_KEY", "")
+            api_secret = os.getenv("AMADEUS_API_SECRET") or st.secrets.get("AMADEUS_API_SECRET", "")
 
-                if not api_key or not api_secret:
-                    st.error("⚠️ Amadeus API credentials not found! Please add them to Streamlit secrets.")
-                    st.info("Go to Settings → Secrets and add AMADEUS_API_KEY and AMADEUS_API_SECRET")
+            if not api_key or not api_secret:
+                st.error("⚠️ Amadeus API credentials not found! Please add them to Streamlit secrets.")
+                st.info("Go to Settings → Secrets and add AMADEUS_API_KEY and AMADEUS_API_SECRET")
+                st.stop()
+
+            # Call Amadeus API
+            results = amadeus.search_flights(
+                origin=origin,
+                destination=destination,
+                departure_date=departure_date.strftime("%Y-%m-%d"),
+                adults=adults,
+                max_results=max_results
+            )
+
+            # Handle both dict with 'data' key and direct list
+            flight_offers = []
+            if isinstance(results, dict) and 'data' in results:
+                flight_offers = results['data']
+            elif isinstance(results, list):
+                flight_offers = results
+
+            if flight_offers and len(flight_offers) > 0:
+                # Parse flight data
+                flights_data = []
+                for offer in flight_offers[:max_results]:
+                    itinerary = offer['itineraries'][0]
+                    segments = itinerary['segments']
+
+                    flight_info = {
+                        'id': offer['id'],
+                        'price': float(offer['price']['total']),
+                        'currency': offer['price']['currency'],
+                        'duration_min': parse_duration_to_minutes(itinerary['duration']),
+                        'stops': len(segments) - 1,
+                        'departure_time': segments[0]['departure']['at'],
+                        'arrival_time': segments[-1]['arrival']['at'],
+                        'airline': segments[0]['carrierCode'],
+                        'flight_number': segments[0]['number'],
+                        'origin': segments[0]['departure']['iataCode'],
+                        'destination': segments[-1]['arrival']['iataCode']
+                    }
+                    flights_data.append(flight_info)
+
+                st.session_state.flights = flights_data
+
+                # Extract preferences for algorithms
+                preferences = {
+                    'original_query': nl_query,
+                    'prefer_cheap': False,
+                    'prefer_fast': False,
+                    'prefer_nonstop': False,
+                    'prefer_comfort': False
+                }
+
+                if st.session_state.parsed_query and st.session_state.parsed_query.get('preferences'):
+                    preferences.update(st.session_state.parsed_query['preferences'])
+
+                # Get algorithm functions
+                algo_a_func = get_algorithm(algo_a) or st.session_state.uploaded_algorithms.get(algo_a)
+                algo_b_func = get_algorithm(algo_b) or st.session_state.uploaded_algorithms.get(algo_b)
+
+                if not algo_a_func or not algo_b_func:
+                    st.error("❌ Selected algorithms not found!")
                     st.stop()
 
-                # Call Amadeus API
-                results = amadeus.search_flights(
-                    origin=origin,
-                    destination=destination,
-                    departure_date=departure_date.strftime("%Y-%m-%d"),
-                    adults=adults,
-                    max_results=max_results
-                )
+                # Run both algorithms
+                ranked_a = algo_a_func(flights_data.copy(), preferences)
+                ranked_b = algo_b_func(flights_data.copy(), preferences)
 
-                # Debug: Show what we got back
-                st.write("🔍 DEBUG INFO:")
-                st.write(f"- API Response type: {type(results)}")
-                if isinstance(results, dict):
-                    st.write(f"- Response keys: {list(results.keys())}")
-                    if 'errors' in results:
-                        st.error(f"API Error: {results['errors']}")
-                    if 'data' in results:
-                        st.write(f"- Number of flights: {len(results['data'])}")
-                        st.write(f"- First flight type: {type(results['data'][0])}")
-                elif isinstance(results, list):
-                    st.write(f"- Response is a list with {len(results)} items")
-                    st.write(f"- First item type: {type(results[0])}")
+                # Interleave results (A1, B1, A2, B2, A3, B3...)
+                interleaved = []
+                max_len = max(len(ranked_a), len(ranked_b))
 
-                # Handle both dict with 'data' key and direct list
-                flight_offers = []
-                if isinstance(results, dict) and 'data' in results:
-                    flight_offers = results['data']
-                elif isinstance(results, list):
-                    flight_offers = results
+                for i in range(max_len):
+                    if i < len(ranked_a):
+                        interleaved.append({
+                            'flight': ranked_a[i],
+                            'source': 'A',
+                            'algorithm': algo_a,
+                            'position_in_algo': i + 1
+                        })
+                    if i < len(ranked_b):
+                        interleaved.append({
+                            'flight': ranked_b[i],
+                            'source': 'B',
+                            'algorithm': algo_b,
+                            'position_in_algo': i + 1
+                        })
 
-                if flight_offers and len(flight_offers) > 0:
-                    flights_data = []
-                    for offer in flight_offers[:max_results]:
-                        # Parse flight data
-                        itinerary = offer['itineraries'][0]
-                        segments = itinerary['segments']
+                st.session_state.interleaved_results = interleaved
+                st.session_state.algo_a_name = algo_a
+                st.session_state.algo_b_name = algo_b
 
-                        flight_info = {
-                            'id': offer['id'],
-                            'price': float(offer['price']['total']),
-                            'currency': offer['price']['currency'],
-                            'duration_min': parse_duration_to_minutes(itinerary['duration']),
-                            'stops': len(segments) - 1,
-                            'departure_time': segments[0]['departure']['at'],
-                            'arrival_time': segments[-1]['arrival']['at'],
-                            'airline': segments[0]['carrierCode'],
-                            'flight_number': segments[0]['number'],
-                            'segments': len(segments)
-                        }
-                        flights_data.append(flight_info)
+                st.success(f"✅ Found {len(flights_data)} flights and computed rankings!")
+                st.rerun()
 
-                    st.session_state.flights = flights_data
-                    st.success(f"✅ Found {len(flights_data)} flights!")
-                else:
-                    st.error("No flights found. Try different search criteria.")
-                    st.info("Tips: Use valid IATA codes (JFK, LAX, etc.) and a future date (at least 1 day ahead)")
-                    if results:
-                        st.write("Full API response:", results)
+            else:
+                st.error("No flights found. Try different search criteria.")
+                st.info("Tips: Use valid IATA codes (JFK, LAX, etc.) and a future date (at least 1 day ahead)")
 
-            except Exception as e:
-                st.error(f"Error searching flights: {str(e)}")
-                import traceback
-                st.code(traceback.format_exc())
-
-    # Display flights
-    if st.session_state.flights:
-        st.subheader(f"Found {len(st.session_state.flights)} Flights")
-
-        # Convert to DataFrame for display
-        df = pd.DataFrame(st.session_state.flights)
-
-        # Format columns
-        df['duration_hrs'] = df['duration_min'] / 60
-        df['departure_time'] = pd.to_datetime(df['departure_time']).dt.strftime('%Y-%m-%d %H:%M')
-        df['arrival_time'] = pd.to_datetime(df['arrival_time']).dt.strftime('%Y-%m-%d %H:%M')
-
-        # Display table
-        display_cols = ['airline', 'flight_number', 'price', 'currency', 'duration_hrs', 'stops', 'departure_time', 'arrival_time']
-        st.dataframe(
-            df[display_cols].style.format({
-                'price': '${:.2f}',
-                'duration_hrs': '{:.2f}h'
-            }),
-            use_container_width=True,
-            hide_index=True
-        )
-
-        # Flight selection for LISTEN
-        st.markdown("### Select Flights for LISTEN Evaluation")
-        selected_indices = st.multiselect(
-            "Choose flights to evaluate:",
-            options=range(len(st.session_state.flights)),
-            format_func=lambda x: f"Flight {x+1}: {st.session_state.flights[x]['airline']}{st.session_state.flights[x]['flight_number']} - ${st.session_state.flights[x]['price']}"
-        )
-
-        if selected_indices:
-            st.session_state.selected_flights = [st.session_state.flights[i] for i in selected_indices]
-            st.success(f"✅ Selected {len(selected_indices)} flights for evaluation")
+        except Exception as e:
+            st.error(f"Error: {str(e)}")
+            import traceback
+            st.code(traceback.format_exc())
 
 # ============================================================================
-# TAB 2: LISTEN ALGORITHMS
+# DISPLAY INTERLEAVED RESULTS
 # ============================================================================
-with tab2:
-    st.header("LISTEN Algorithms")
+if st.session_state.interleaved_results:
+    st.markdown("---")
+    st.header("🏆 Interleaved Results")
 
-    if not st.session_state.selected_flights:
-        st.info("👈 Please search and select flights in the 'Search Flights' tab first")
-    else:
-        st.success(f"✅ {len(st.session_state.selected_flights)} flights selected for evaluation")
+    algo_a_name = st.session_state.get('algo_a_name', 'Algorithm A')
+    algo_b_name = st.session_state.get('algo_b_name', 'Algorithm B')
 
-        # Algorithm selection
-        algorithm = st.radio(
-            "Choose LISTEN Algorithm:",
-            ["LISTEN-U (Utility Refinement)", "LISTEN-T (Tournament Selection)"],
-            horizontal=True
-        )
+    st.info(f"📊 Results alternating between **{algo_a_name}** and **{algo_b_name}**")
 
-        # Preference utterance
-        st.markdown("### Enter Your Preferences")
-        preference = st.text_area(
-            "Describe what you're looking for in natural language:",
-            value="I want the cheapest flight with minimal stops",
-            height=100
-        )
+    # Create display table
+    display_data = []
+    for idx, item in enumerate(st.session_state.interleaved_results, 1):
+        flight = item['flight']
+        source_label = f"🔵 {item['algorithm']}" if item['source'] == 'A' else f"🟢 {item['algorithm']}"
 
-        col1, col2 = st.columns(2)
+        display_data.append({
+            'Rank': idx,
+            'Source': source_label,
+            'Algo Position': f"#{item['position_in_algo']}",
+            'Airline': flight['airline'],
+            'Flight': flight['flight_number'],
+            'Price': f"${flight['price']:.2f}",
+            'Duration': f"{flight['duration_min']:.0f} min",
+            'Stops': flight['stops'],
+            'Departure': pd.to_datetime(flight['departure_time']).strftime('%H:%M'),
+            'Arrival': pd.to_datetime(flight['arrival_time']).strftime('%H:%M')
+        })
 
-        if "LISTEN-U" in algorithm:
-            with col1:
-                max_iterations = st.slider("Max Iterations", min_value=1, max_value=10, value=3)
+    # Display table
+    st.dataframe(
+        pd.DataFrame(display_data),
+        use_container_width=True,
+        hide_index=True,
+        height=600
+    )
 
-            if st.button("▶️ Run LISTEN-U", type="primary"):
-                with st.spinner("Running LISTEN-U algorithm..."):
-                    try:
-                        listen_u = ListenU()
-                        results = listen_u.rank_flights(
-                            st.session_state.selected_flights,
-                            preference,
-                            max_iterations
-                        )
-                        st.session_state.listen_u_results = results
-                        st.success("✅ LISTEN-U completed!")
-                    except Exception as e:
-                        st.error(f"Error running LISTEN-U: {str(e)}")
-
-            # Display LISTEN-U results
-            if st.session_state.listen_u_results:
-                st.markdown("### LISTEN-U Results")
-
-                # Show learned weights
-                st.markdown("#### Learned Attribute Weights")
-                weights_df = pd.DataFrame([st.session_state.listen_u_results['final_weights']])
-                st.dataframe(weights_df.style.format("{:.3f}"), use_container_width=True)
-
-                # Show ranked flights
-                st.markdown("#### Ranked Flights")
-                ranked_flights = st.session_state.listen_u_results['ranked_flights']
-                ranked_df = pd.DataFrame(ranked_flights)
-
-                if 'utility_score' in ranked_df.columns:
-                    display_cols = ['airline', 'flight_number', 'price', 'duration_min', 'stops', 'utility_score']
-                    st.dataframe(
-                        ranked_df[display_cols].style.format({
-                            'price': '${:.2f}',
-                            'duration_min': '{:.0f} min',
-                            'utility_score': '{:.4f}'
-                        }),
-                        use_container_width=True,
-                        hide_index=True
-                    )
-
-        else:  # LISTEN-T
-            with col1:
-                num_rounds = st.slider("Number of Rounds", min_value=1, max_value=10, value=3)
-            with col2:
-                batch_size = st.slider("Batch Size", min_value=2, max_value=8, value=4)
-
-            if st.button("▶️ Run LISTEN-T", type="primary"):
-                with st.spinner("Running LISTEN-T tournament..."):
-                    try:
-                        listen_t = ListenT()
-                        results = listen_t.rank_flights(
-                            st.session_state.selected_flights,
-                            preference,
-                            num_rounds,
-                            batch_size
-                        )
-                        st.session_state.listen_t_results = results
-                        st.success("✅ LISTEN-T completed!")
-                    except Exception as e:
-                        st.error(f"Error running LISTEN-T: {str(e)}")
-
-            # Display LISTEN-T results
-            if st.session_state.listen_t_results:
-                st.markdown("### LISTEN-T Results")
-
-                # Show winner
-                winner = st.session_state.listen_t_results['winner']
-                st.markdown("#### 🏆 Tournament Winner")
-                st.success(f"**{winner['airline']}{winner['flight_number']}** - ${winner['price']:.2f}")
-
-                # Show champions
-                st.markdown("#### Round Champions")
-                champions = st.session_state.listen_t_results['champions']
-                champions_df = pd.DataFrame(champions)
-                display_cols = ['airline', 'flight_number', 'price', 'duration_min', 'stops']
-                st.dataframe(
-                    champions_df[display_cols].style.format({
-                        'price': '${:.2f}',
-                        'duration_min': '{:.0f} min'
-                    }),
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-# ============================================================================
-# TAB 3: TEAM DRAFT (INTERLEAVED RANKINGS)
-# ============================================================================
-with tab3:
-    st.header("🏆 Team Draft: Interleaved Rankings")
-
-    st.markdown("""
-    This tab interleaves flights from two different ranking algorithms:
-    - **Cheapest First**: Flights sorted by price (ascending)
-    - **LISTEN Algorithm**: Flights ranked by your preference
-
-    The interleaved list alternates between the two rankings for comparison.
-    """)
-
-    if not st.session_state.flights:
-        st.info("👈 Please search for flights in the 'Search Flights' tab first")
-    elif not st.session_state.listen_u_results and not st.session_state.listen_t_results:
-        st.info("👈 Please run a LISTEN algorithm in the 'LISTEN Algorithms' tab first")
-    else:
-        # Get cheapest flights ranking (sort by price)
-        cheapest_flights = sorted(st.session_state.flights, key=lambda x: x['price'])
-
-        # Get LISTEN ranking
-        listen_flights = None
-        listen_source = ""
-        if st.session_state.listen_u_results:
-            listen_flights = st.session_state.listen_u_results['ranked_flights']
-            listen_source = "LISTEN-U"
-        elif st.session_state.listen_t_results:
-            # For LISTEN-T, we'll use champions as the ranking
-            listen_flights = st.session_state.listen_t_results['champions']
-            listen_source = "LISTEN-T"
-
-        if listen_flights:
-            from backend.utils.parse_duration import interleave_rankings
-
-            # Create ID lists for interleaving
-            cheapest_ids = [f['id'] for f in cheapest_flights]
-            listen_ids = [f['id'] for f in listen_flights]
-
-            # Interleave the rankings
-            interleaved = interleave_rankings(cheapest_ids, listen_ids)
-
-            # Create a mapping of flight IDs to flight objects
-            flight_map = {f['id']: f for f in st.session_state.flights}
-
-            # Display interleaved results
-            st.markdown(f"### Interleaved Results: Cheapest vs {listen_source}")
-            st.info(f"📊 Showing {len(interleaved)} flights alternating between price-based and preference-based rankings")
-
-            # Create DataFrame for display
-            interleaved_data = []
-            for idx, item in enumerate(interleaved, 1):
-                flight = flight_map.get(item['flight_id'])
-                if flight:
-                    source_label = "💰 Cheapest" if item['source'] == 'a' else f"🤖 {listen_source}"
-                    interleaved_data.append({
-                        'Position': idx,
-                        'Source': source_label,
-                        'Airline': flight['airline'],
-                        'Flight': flight['flight_number'],
-                        'Price': f"${flight['price']:.2f}",
-                        'Duration': f"{flight['duration_min']:.0f} min",
-                        'Stops': flight['stops']
-                    })
-
-            if interleaved_data:
-                st.dataframe(
-                    pd.DataFrame(interleaved_data),
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-                # Summary statistics
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("Total Flights", len(interleaved))
-                with col2:
-                    cheapest_count = sum(1 for item in interleaved if item['source'] == 'a')
-                    listen_count = len(interleaved) - cheapest_count
-                    st.metric(f"Cheapest / {listen_source}", f"{cheapest_count} / {listen_count}")
-
-# ============================================================================
-# TAB 4: MANUAL RANKING
-# ============================================================================
-with tab4:
-    st.header("Manual Flight Ranking")
-
-    if not st.session_state.selected_flights:
-        st.info("👈 Please search and select flights in the 'Search Flights' tab first")
-    else:
-        st.markdown("Rank the flights by dragging them in your preferred order:")
-
-        # Simple ranking with selectbox
-        st.markdown("### Rank Your Flights (1 = Best)")
-
-        rankings = {}
-        for i, flight in enumerate(st.session_state.selected_flights):
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.write(f"**{flight['airline']}{flight['flight_number']}** - ${flight['price']:.2f}, {flight['duration_min']:.0f} min, {flight['stops']} stops")
-            with col2:
-                rank = st.number_input(
-                    f"Rank",
-                    min_value=1,
-                    max_value=len(st.session_state.selected_flights),
-                    value=i+1,
-                    key=f"rank_{i}"
-                )
-                rankings[i] = rank
-
-        if st.button("💾 Save Rankings", type="primary"):
-            st.success("✅ Rankings saved!")
-
-            # Store rankings in session
-            sorted_flights = sorted(
-                zip(st.session_state.selected_flights, rankings.values()),
-                key=lambda x: x[1]
-            )
-            st.session_state.manual_ranking = [f for f, r in sorted_flights]
-
-# ============================================================================
-# TAB 5: RESULTS COMPARISON
-# ============================================================================
-with tab5:
-    st.header("Results & Comparison")
-
-    col1, col2, col3 = st.columns(3)
+    # Summary statistics
+    st.markdown("### 📈 Summary")
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        if st.session_state.listen_u_results:
-            st.markdown("### LISTEN-U Top 3")
-            top3 = st.session_state.listen_u_results['ranked_flights'][:3]
-            for i, flight in enumerate(top3, 1):
-                st.write(f"{i}. {flight['airline']}{flight['flight_number']} (${flight['price']:.2f})")
-        else:
-            st.info("No LISTEN-U results yet")
+        st.metric("Total Results", len(st.session_state.interleaved_results))
 
     with col2:
-        if st.session_state.listen_t_results:
-            st.markdown("### LISTEN-T Winner")
-            winner = st.session_state.listen_t_results['winner']
-            st.success(f"🏆 {winner['airline']}{winner['flight_number']}")
-            st.write(f"${winner['price']:.2f}")
-        else:
-            st.info("No LISTEN-T results yet")
+        count_a = sum(1 for item in st.session_state.interleaved_results if item['source'] == 'A')
+        st.metric(f"{algo_a_name} Results", count_a)
 
     with col3:
-        if 'manual_ranking' in st.session_state:
-            st.markdown("### Your Top Choice")
-            top = st.session_state.manual_ranking[0]
-            st.success(f"⭐ {top['airline']}{top['flight_number']}")
-            st.write(f"${top['price']:.2f}")
-        else:
-            st.info("No manual ranking yet")
+        count_b = sum(1 for item in st.session_state.interleaved_results if item['source'] == 'B')
+        st.metric(f"{algo_b_name} Results", count_b)
+
+    with col4:
+        avg_price = sum(item['flight']['price'] for item in st.session_state.interleaved_results) / len(st.session_state.interleaved_results)
+        st.metric("Avg Price", f"${avg_price:.2f}")
+
+    # Show top 3 from each algorithm
+    st.markdown("### 🥇 Top 3 Comparison")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown(f"**{algo_a_name} - Top 3**")
+        top_a = [item for item in st.session_state.interleaved_results if item['source'] == 'A'][:3]
+        for i, item in enumerate(top_a, 1):
+            f = item['flight']
+            st.write(f"{i}. {f['airline']}{f['flight_number']} - ${f['price']:.2f} ({f['duration_min']:.0f} min, {f['stops']} stops)")
+
+    with col2:
+        st.markdown(f"**{algo_b_name} - Top 3**")
+        top_b = [item for item in st.session_state.interleaved_results if item['source'] == 'B'][:3]
+        for i, item in enumerate(top_b, 1):
+            f = item['flight']
+            st.write(f"{i}. {f['airline']}{f['flight_number']} - ${f['price']:.2f} ({f['duration_min']:.0f} min, {f['stops']} stops)")
+
+# ============================================================================
+# ALGORITHM UPLOAD SECTION
+# ============================================================================
+st.markdown("---")
+st.header("📤 Upload Custom Algorithm")
+
+with st.expander("ℹ️ Algorithm Interface Requirements", expanded=False):
+    st.markdown("""
+    ### Required Function Signature
+
+    Your algorithm must implement this exact function signature:
+
+    ```python
+    def rank_flights(flights: List[Dict], preferences: Dict) -> List[Dict]:
+        \"\"\"
+        Rank flights based on your custom logic.
+
+        Args:
+            flights: List of flight dictionaries with these fields:
+                - id (str): Unique flight identifier
+                - price (float): Total price
+                - currency (str): Currency code (e.g., 'USD')
+                - duration_min (int): Flight duration in minutes
+                - stops (int): Number of stops
+                - departure_time (str): ISO datetime string
+                - arrival_time (str): ISO datetime string
+                - airline (str): Airline code (e.g., 'AA')
+                - flight_number (str): Flight number
+                - origin (str): Origin airport code
+                - destination (str): Destination airport code
+
+            preferences: Dictionary with these optional fields:
+                - original_query (str): User's natural language query
+                - prefer_cheap (bool): User prefers cheap flights
+                - prefer_fast (bool): User prefers fast flights
+                - prefer_nonstop (bool): User prefers direct flights
+                - prefer_comfort (bool): User prefers comfortable flights
+                - max_stops (int): Maximum acceptable stops
+
+        Returns:
+            List[Dict]: Same flights list, sorted by your ranking (best first)
+        \"\"\"
+        # Your ranking logic here
+        return sorted(flights, key=lambda x: ...)
+    ```
+
+    ### Example Algorithms
+
+    **Simple Price-based:**
+    ```python
+    def rank_flights(flights, preferences):
+        return sorted(flights, key=lambda x: x['price'])
+    ```
+
+    **Multi-factor scoring:**
+    ```python
+    def rank_flights(flights, preferences):
+        def score(flight):
+            price_score = flight['price'] / 1000  # Normalize
+            time_score = flight['duration_min'] / 600  # Normalize
+            stop_penalty = flight['stops'] * 0.3
+            return price_score + time_score + stop_penalty
+
+        return sorted(flights, key=score)
+    ```
+
+    ### Upload Your Code
+
+    1. Create a Python file with your `rank_flights` function
+    2. Upload it below
+    3. Give it a unique name
+    4. It will be added to the algorithm list!
+    """)
+
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    uploaded_file = st.file_uploader(
+        "Upload Python file (.py)",
+        type=['py'],
+        help="File must contain a 'rank_flights' function with the correct signature"
+    )
+
+with col2:
+    algorithm_name = st.text_input(
+        "Algorithm Name",
+        placeholder="My Custom Ranker",
+        help="Unique name for your algorithm"
+    )
+
+if uploaded_file and algorithm_name:
+    if st.button("➕ Add Algorithm", type="primary"):
+        try:
+            # Read the uploaded file
+            code = uploaded_file.read().decode('utf-8')
+
+            # Create a namespace and execute the code
+            namespace = {}
+            exec(code, namespace)
+
+            # Check if rank_flights function exists
+            if 'rank_flights' not in namespace:
+                st.error("❌ Error: File must contain a function named 'rank_flights'")
+            else:
+                # Validate function signature
+                import inspect
+                func = namespace['rank_flights']
+                sig = inspect.signature(func)
+                params = list(sig.parameters.keys())
+
+                if len(params) != 2:
+                    st.error(f"❌ Error: rank_flights must take exactly 2 parameters, got {len(params)}")
+                else:
+                    # Store the algorithm
+                    st.session_state.uploaded_algorithms[algorithm_name] = func
+                    st.success(f"✅ Successfully added algorithm: {algorithm_name}")
+                    st.info(f"You can now select '{algorithm_name}' from the algorithm dropdowns above!")
+                    st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Error loading algorithm: {str(e)}")
+            import traceback
+            st.code(traceback.format_exc())
+
+# Show currently uploaded algorithms
+if st.session_state.uploaded_algorithms:
+    st.markdown("### Your Uploaded Algorithms")
+    for name in st.session_state.uploaded_algorithms.keys():
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.write(f"✅ **{name}**")
+        with col2:
+            if st.button(f"Remove", key=f"remove_{name}"):
+                del st.session_state.uploaded_algorithms[name]
+                st.rerun()
 
 # Footer
 st.markdown("---")
-st.markdown("Built with Streamlit • Powered by Amadeus Flight API • LISTEN Algorithms")
+st.markdown("Built with Streamlit • Powered by Amadeus Flight API • Algorithm-Based Ranking System")
