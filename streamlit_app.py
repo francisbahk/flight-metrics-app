@@ -77,7 +77,7 @@ with st.sidebar:
     """)
 
 # Main tabs
-tab1, tab2, tab3, tab4 = st.tabs(["🔍 Search Flights", "🤖 LISTEN Algorithms", "📊 Manual Ranking", "📈 Results"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Search Flights", "🤖 LISTEN Algorithms", "🏆 Team Draft (Interleaved)", "📊 Manual Ranking", "📈 Results"])
 
 # ============================================================================
 # TAB 1: FLIGHT SEARCH
@@ -333,9 +333,91 @@ with tab2:
                 )
 
 # ============================================================================
-# TAB 3: MANUAL RANKING
+# TAB 3: TEAM DRAFT (INTERLEAVED RANKINGS)
 # ============================================================================
 with tab3:
+    st.header("🏆 Team Draft: Interleaved Rankings")
+
+    st.markdown("""
+    This tab interleaves flights from two different ranking algorithms:
+    - **Cheapest First**: Flights sorted by price (ascending)
+    - **LISTEN Algorithm**: Flights ranked by your preference
+
+    The interleaved list alternates between the two rankings for comparison.
+    """)
+
+    if not st.session_state.flights:
+        st.info("👈 Please search for flights in the 'Search Flights' tab first")
+    elif not st.session_state.listen_u_results and not st.session_state.listen_t_results:
+        st.info("👈 Please run a LISTEN algorithm in the 'LISTEN Algorithms' tab first")
+    else:
+        # Get cheapest flights ranking (sort by price)
+        cheapest_flights = sorted(st.session_state.flights, key=lambda x: x['price'])
+
+        # Get LISTEN ranking
+        listen_flights = None
+        listen_source = ""
+        if st.session_state.listen_u_results:
+            listen_flights = st.session_state.listen_u_results['ranked_flights']
+            listen_source = "LISTEN-U"
+        elif st.session_state.listen_t_results:
+            # For LISTEN-T, we'll use champions as the ranking
+            listen_flights = st.session_state.listen_t_results['champions']
+            listen_source = "LISTEN-T"
+
+        if listen_flights:
+            from backend.utils.parse_duration import interleave_rankings
+
+            # Create ID lists for interleaving
+            cheapest_ids = [f['id'] for f in cheapest_flights]
+            listen_ids = [f['id'] for f in listen_flights]
+
+            # Interleave the rankings
+            interleaved = interleave_rankings(cheapest_ids, listen_ids)
+
+            # Create a mapping of flight IDs to flight objects
+            flight_map = {f['id']: f for f in st.session_state.flights}
+
+            # Display interleaved results
+            st.markdown(f"### Interleaved Results: Cheapest vs {listen_source}")
+            st.info(f"📊 Showing {len(interleaved)} flights alternating between price-based and preference-based rankings")
+
+            # Create DataFrame for display
+            interleaved_data = []
+            for idx, item in enumerate(interleaved, 1):
+                flight = flight_map.get(item['flight_id'])
+                if flight:
+                    source_label = "💰 Cheapest" if item['source'] == 'a' else f"🤖 {listen_source}"
+                    interleaved_data.append({
+                        'Position': idx,
+                        'Source': source_label,
+                        'Airline': flight['airline'],
+                        'Flight': flight['flight_number'],
+                        'Price': f"${flight['price']:.2f}",
+                        'Duration': f"{flight['duration_min']:.0f} min",
+                        'Stops': flight['stops']
+                    })
+
+            if interleaved_data:
+                st.dataframe(
+                    pd.DataFrame(interleaved_data),
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                # Summary statistics
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Total Flights", len(interleaved))
+                with col2:
+                    cheapest_count = sum(1 for item in interleaved if item['source'] == 'a')
+                    listen_count = len(interleaved) - cheapest_count
+                    st.metric(f"Cheapest / {listen_source}", f"{cheapest_count} / {listen_count}")
+
+# ============================================================================
+# TAB 4: MANUAL RANKING
+# ============================================================================
+with tab4:
     st.header("Manual Flight Ranking")
 
     if not st.session_state.selected_flights:
@@ -372,9 +454,9 @@ with tab3:
             st.session_state.manual_ranking = [f for f, r in sorted_flights]
 
 # ============================================================================
-# TAB 4: RESULTS COMPARISON
+# TAB 5: RESULTS COMPARISON
 # ============================================================================
-with tab4:
+with tab5:
     st.header("Results & Comparison")
 
     col1, col2, col3 = st.columns(3)
