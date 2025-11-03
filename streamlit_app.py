@@ -107,6 +107,16 @@ with tab1:
     if st.button("🔍 Search Flights", type="primary", use_container_width=True):
         with st.spinner("Searching flights via Amadeus API..."):
             try:
+                # Check API credentials
+                import os
+                api_key = os.getenv("AMADEUS_API_KEY") or st.secrets.get("AMADEUS_API_KEY", "")
+                api_secret = os.getenv("AMADEUS_API_SECRET") or st.secrets.get("AMADEUS_API_SECRET", "")
+
+                if not api_key or not api_secret:
+                    st.error("⚠️ Amadeus API credentials not found! Please add them to Streamlit secrets.")
+                    st.info("Go to Settings → Secrets and add AMADEUS_API_KEY and AMADEUS_API_SECRET")
+                    st.stop()
+
                 # Call Amadeus API
                 results = amadeus.search_flights(
                     origin=origin,
@@ -116,7 +126,17 @@ with tab1:
                     max_results=max_results
                 )
 
-                if results and 'data' in results:
+                # Debug: Show what we got back
+                if results:
+                    st.write(f"API Response type: {type(results)}")
+                    if isinstance(results, dict):
+                        st.write(f"Response keys: {list(results.keys())}")
+                        if 'errors' in results:
+                            st.error(f"API Error: {results['errors']}")
+                        if 'data' in results:
+                            st.write(f"Number of flights in response: {len(results['data'])}")
+
+                if results and 'data' in results and len(results['data']) > 0:
                     flights_data = []
                     for offer in results['data'][:max_results]:
                         # Parse flight data
@@ -141,9 +161,14 @@ with tab1:
                     st.success(f"✅ Found {len(flights_data)} flights!")
                 else:
                     st.error("No flights found. Try different search criteria.")
+                    st.info("Tips: Use valid IATA codes (JFK, LAX, etc.) and a future date (at least 1 day ahead)")
+                    if results:
+                        st.write("Full API response:", results)
 
             except Exception as e:
                 st.error(f"Error searching flights: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
 
     # Display flights
     if st.session_state.flights:
