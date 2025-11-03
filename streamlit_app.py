@@ -127,14 +127,18 @@ with tab1:
                 )
 
                 # Debug: Show what we got back
-                if results:
-                    st.write(f"API Response type: {type(results)}")
-                    if isinstance(results, dict):
-                        st.write(f"Response keys: {list(results.keys())}")
-                        if 'errors' in results:
-                            st.error(f"API Error: {results['errors']}")
-                        if 'data' in results:
-                            st.write(f"Number of flights in response: {len(results['data'])}")
+                st.write("🔍 DEBUG INFO:")
+                st.write(f"- API Response type: {type(results)}")
+                if isinstance(results, dict):
+                    st.write(f"- Response keys: {list(results.keys())}")
+                    if 'errors' in results:
+                        st.error(f"API Error: {results['errors']}")
+                    if 'data' in results:
+                        st.write(f"- Number of flights: {len(results['data'])}")
+                        st.write(f"- First flight type: {type(results['data'][0])}")
+                elif isinstance(results, list):
+                    st.write(f"- Response is a list with {len(results)} items")
+                    st.write(f"- First item type: {type(results[0])}")
 
                 if results and 'data' in results and len(results['data']) > 0:
                     flights_data = []
