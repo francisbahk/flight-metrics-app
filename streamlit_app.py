@@ -140,9 +140,16 @@ with tab1:
                     st.write(f"- Response is a list with {len(results)} items")
                     st.write(f"- First item type: {type(results[0])}")
 
-                if results and 'data' in results and len(results['data']) > 0:
+                # Handle both dict with 'data' key and direct list
+                flight_offers = []
+                if isinstance(results, dict) and 'data' in results:
+                    flight_offers = results['data']
+                elif isinstance(results, list):
+                    flight_offers = results
+
+                if flight_offers and len(flight_offers) > 0:
                     flights_data = []
-                    for offer in results['data'][:max_results]:
+                    for offer in flight_offers[:max_results]:
                         # Parse flight data
                         itinerary = offer['itineraries'][0]
                         segments = itinerary['segments']
