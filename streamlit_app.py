@@ -85,16 +85,89 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Search Flights", "🤖 LISTEN Algo
 with tab1:
     st.header("Search Flights")
 
+    # Natural Language Input
+    st.markdown("### 🗣️ Tell us what you want")
+    st.markdown("*Examples: 'I want to go from Ithaca to San Francisco on 10/31' or 'Fly from NYC to LA in November as cheap as possible'*")
+
+    nl_query = st.text_area(
+        "Describe your flight search:",
+        value="I want to go from Ithaca to San Francisco on 10/31",
+        height=80,
+        placeholder="I want to go from [origin] to [destination] on [date]..."
+    )
+
+    if st.button("✨ Parse My Request", type="secondary"):
+        from backend.utils.nl_parser import parse_flight_query
+        parsed = parse_flight_query(nl_query)
+
+        if parsed['parsed_successfully']:
+            st.success("✅ Successfully parsed your request!")
+
+            # Show what was extracted
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.info(f"**Origin:** {parsed['origin']}")
+                if 'original_origin' in parsed:
+                    st.caption(f"(Originally: {parsed['original_origin']})")
+            with col2:
+                st.info(f"**Destination:** {parsed['destination']}")
+                if 'original_destination' in parsed:
+                    st.caption(f"(Originally: {parsed['original_destination']})")
+            with col3:
+                st.info(f"**Date:** {parsed['date']}")
+
+            # Show warnings
+            if parsed['warnings']:
+                for warning in parsed['warnings']:
+                    st.warning(f"ℹ️ {warning}")
+
+            # Show preferences
+            if parsed['preferences']:
+                st.markdown("**Detected preferences:**")
+                prefs_text = []
+                if parsed['preferences'].get('prefer_nonstop'):
+                    prefs_text.append("Direct flights preferred")
+                if parsed['preferences'].get('prefer_cheap'):
+                    prefs_text.append("Budget-friendly")
+                if parsed['preferences'].get('prefer_fast'):
+                    prefs_text.append("Fastest route")
+                if parsed['preferences'].get('prefer_comfort'):
+                    prefs_text.append("Comfortable seating")
+                if prefs_text:
+                    st.info(" • " + " • ".join(prefs_text))
+
+            # Store parsed values in session state
+            st.session_state.parsed_query = parsed
+        else:
+            st.error("❌ Couldn't parse your request. Please use the manual form below.")
+
+    st.markdown("---")
+    st.markdown("### 🔧 Or use manual controls")
+
+    # Check if we have parsed values
+    default_origin = "JFK"
+    default_destination = "LAX"
+    default_date = datetime.now() + timedelta(days=30)
+
+    if 'parsed_query' in st.session_state and st.session_state.parsed_query['parsed_successfully']:
+        parsed = st.session_state.parsed_query
+        default_origin = parsed.get('origin', 'JFK')
+        default_destination = parsed.get('destination', 'LAX')
+        if parsed.get('date'):
+            try:
+                default_date = datetime.strptime(parsed['date'], "%Y-%m-%d").date()
+            except:
+                pass
+
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        origin = st.text_input("Origin (IATA Code)", value="JFK", max_chars=3).upper()
+        origin = st.text_input("Origin (IATA Code)", value=default_origin, max_chars=3).upper()
 
     with col2:
-        destination = st.text_input("Destination (IATA Code)", value="LAX", max_chars=3).upper()
+        destination = st.text_input("Destination (IATA Code)", value=default_destination, max_chars=3).upper()
 
     with col3:
-        default_date = datetime.now() + timedelta(days=30)
         departure_date = st.date_input("Departure Date", value=default_date)
 
     with col4:
