@@ -65,12 +65,18 @@ git push origin main
 
 5. **Click "Advanced settings"** → **Secrets**
 
-   Add your environment variables (copy from `.streamlit/secrets.toml`):
+   Add your environment variables:
 
    ```toml
-   AMADEUS_API_KEY = "GQdGZH8pnDIdGq3aQXaNUFiyx842pow2"
-   AMADEUS_API_SECRET = "xCunc6wQAYWgpwQI"
+   AMADEUS_API_KEY = "your_api_key_here"
+   AMADEUS_API_SECRET = "your_api_secret_here"
    ```
+
+   **Get your credentials from**: https://developers.amadeus.com/
+
+   **IMPORTANT**: Never commit these keys to GitHub! They should only be added in:
+   - Local: `.env` file (already in .gitignore)
+   - Streamlit Cloud: Settings → Secrets (shown above)
 
    **Note**: You can skip the MySQL variables for now - the app works without a database!
 
