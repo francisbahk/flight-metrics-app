@@ -38,17 +38,87 @@ This is a **flight ranking evaluation research platform** that:
                  │
                  ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│ STEP 2: AMADEUS FLIGHT SEARCH (backend/amadeus_client.py)          │
+│ STEP 1.5: HOW PARSED DATA BECOMES AMADEUS API CALLS                │
 │                                                                     │
-│ For each origin/destination pair:                                  │
-│   1. OAuth2 authentication (get access token)                      │
-│   2. GET /v2/shopping/flight-offers?origin=IAH&destination=JFK... │
-│   3. Parse response → ~50 flight offers                            │
+│ The parsed JSON from Step 1 maps directly to Amadeus parameters:   │
 │                                                                     │
-│ Each flight has:                                                   │
-│   - id, price, currency, duration_min, stops                       │
-│   - departure_time, arrival_time, airline, flight_number          │
-│   - origin, destination                                            │
+│ PARSED DATA:                          AMADEUS API CALL:            │
+│ ─────────────────────────────────────────────────────────────────  │
+│ origins: ["IAH", "HOU"]          →    origin=IAH (first one used)  │
+│ destinations: ["JFK","LGA","EWR"]→    destination=JFK (first used) │
+│ departure_date: "2025-11-20"     →    departureDate=2025-11-20     │
+│ preferences.prefer_cheap: true   →    (used for ranking later)     │
+│                                                                     │
+│ ACTUAL API CALL (via app.py:166-172):                              │
+│ ```python                                                           │
+│ results = amadeus.search_flights(                                  │
+│     origin="IAH",              # First origin from parsed list     │
+│     destination="JFK",         # First destination from list       │
+│     departure_date="2025-11-20",                                   │
+│     max_results=50             # Get plenty of options             │
+│ )                                                                   │
+│ ```                                                                 │
+│                                                                     │
+│ NOTE: Currently we only use the FIRST origin and FIRST destination │
+│       from the parsed lists. Future enhancement could search all   │
+│       origin/destination pairs and combine results.                │
+└────────────────┬────────────────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│ STEP 2: AMADEUS API REQUEST & RESPONSE                             │
+│ (backend/amadeus_client.py)                                        │
+│                                                                     │
+│ 2a. OAuth2 Authentication:                                         │
+│     POST https://api.amadeus.com/v1/security/oauth2/token          │
+│     Headers: Content-Type: application/x-www-form-urlencoded       │
+│     Body: grant_type=client_credentials                            │
+│           client_id=YOUR_API_KEY                                   │
+│           client_secret=YOUR_SECRET                                │
+│     Response: {"access_token": "xyz123", "expires_in": 1799}       │
+│                                                                     │
+│ 2b. Flight Search Request:                                         │
+│     GET https://api.amadeus.com/v2/shopping/flight-offers          │
+│     Headers: Authorization: Bearer xyz123                          │
+│     Params: originLocationCode=IAH                                 │
+│             destinationLocationCode=JFK                            │
+│             departureDate=2025-11-20                               │
+│             adults=1                                               │
+│             max=50                                                 │
+│                                                                     │
+│ 2c. Amadeus Response (simplified):                                 │
+│     {                                                               │
+│       "data": [                                                    │
+│         {                                                           │
+│           "id": "1",                                               │
+│           "price": {"total": "250.00", "currency": "USD"},         │
+│           "itineraries": [{                                        │
+│             "duration": "PT3H30M",  // 3 hours 30 minutes          │
+│             "segments": [{                                         │
+│               "departure": {                                       │
+│                 "iataCode": "IAH",                                 │
+│                 "at": "2025-11-20T08:00:00"                        │
+│               },                                                   │
+│               "arrival": {                                         │
+│                 "iataCode": "JFK",                                 │
+│                 "at": "2025-11-20T11:30:00"                        │
+│               },                                                   │
+│               "carrierCode": "UA",  // United Airlines             │
+│               "number": "1234"                                     │
+│             }]                                                     │
+│           }]                                                       │
+│         },                                                          │
+│         // ... 49 more flights ...                                 │
+│       ]                                                             │
+│     }                                                               │
+│                                                                     │
+│ 2d. Parse to Simple Format (amadeus_client.py:180-210):           │
+│     For each flight, extract:                                      │
+│     - id, price (float), currency, duration_min (int), stops       │
+│     - departure_time, arrival_time, airline, flight_number         │
+│     - origin, destination                                          │
+│                                                                     │
+│     Result: List of ~50 flight dicts ready for ranking             │
 └────────────────┬────────────────────────────────────────────────────┘
                  │
                  ▼

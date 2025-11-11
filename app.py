@@ -20,6 +20,14 @@ from backend.utils.parse_duration import parse_duration_to_minutes
 
 load_dotenv()
 
+# Initialize database (create tables if they don't exist)
+try:
+    from backend.db import init_db
+    init_db()
+except Exception as e:
+    # Don't crash the app if database setup fails, just log it
+    print(f"Database initialization: {str(e)}")
+
 # Page config
 st.set_page_config(
     page_title="Flight Ranker",
