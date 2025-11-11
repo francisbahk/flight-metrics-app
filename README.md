@@ -1,384 +1,237 @@
-# Flight Metrics Web Application
+# Flight Ranking Research Application
 
-A full-stack flight search and evaluation system built with FastAPI, React, MySQL, and the Amadeus Flight API. This application enables users to search for flights, store results, and evaluate different ranking algorithms using LISTEN and Team Draft methodologies.
+A Streamlit-based flight search and evaluation system that collects user preference data to compare ranking algorithms. Users search for flights using natural language, view results from three different algorithms (Cheapest, Fastest, LISTEN-U), and submit their top 5 preferences.
 
-## 🚀 Features
+## Overview
 
-- **Flight Search**: Real-time flight search using Amadeus Flight Offers Search API v2
-- **Data Storage**: MySQL database with computed flight metrics (distance, duration, time-of-day)
-- **LISTEN Ranking**: Drag-and-drop interface for manual flight ranking
-- **Team Draft Evaluation**: Interleaved ranking comparison between two algorithms
-- **Flight Metrics**: Aggregated statistics and analytics on flight data
-- **Responsive UI**: Modern React interface with Tailwind CSS
+This application helps research how well different flight ranking algorithms match user preferences by:
+1. Parsing natural language flight queries using Gemini
+2. Fetching flight data from Amadeus API
+3. Ranking flights using three algorithms
+4. Collecting user feedback (top 5 selections)
+5. Storing data in Railway MySQL for analysis
 
-## 📋 Tech Stack
+## Tech Stack
 
-### Backend
-- **FastAPI** - Modern Python web framework
-- **SQLAlchemy** - ORM for MySQL database operations
-- **Amadeus API** - Flight search data provider
-- **Python 3.9+** - Programming language
+- **Streamlit** - Web interface
+- **Amadeus API** - Flight search data
+- **Gemini API** - Natural language parsing and LISTEN-U preference learning
+- **LISTEN** - Utility-based preference learning algorithm
+- **Railway MySQL** - Persistent data storage
+- **Python 3.11+** - Required for LISTEN compatibility
 
-### Frontend
-- **React 18** - UI framework
-- **Tailwind CSS** - Utility-first CSS framework
-- **Axios** - HTTP client
-- **react-beautiful-dnd** - Drag-and-drop functionality
-- **date-fns** - Date formatting
+## Architecture
 
-### Database
-- **MySQL 8.0+** - Relational database
+### Data Flow
 
-## 🏗️ Project Structure
+1. User enters natural language query (e.g., "Fly from NYC to LA on Nov 20")
+2. Gemini parses query to extract airports, dates, preferences
+3. Amadeus API returns ~50 flights for the route
+4. Three ranking algorithms process the same 50 flights:
+   - **Cheapest**: Sorts by price
+   - **Fastest**: Sorts by duration
+   - **LISTEN-U**: Learns utility function over 25 iterations using Gemini
+5. Top 10 from each algorithm are interleaved (up to 30 unique flights shown)
+6. User selects and ranks their top 5 flights
+7. Data saved to Railway MySQL for analysis
+
+### Project Structure
 
 ```
 flight_app/
+├── app.py                          # Main Streamlit application
 ├── backend/
-│   ├── main.py                 # FastAPI application entry point
-│   ├── database.py             # Database connection and configuration
-│   ├── amadeus_client.py       # Amadeus API client
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── flight.py           # SQLAlchemy ORM models
-│   ├── routes/
-│   │   ├── __init__.py
-│   │   ├── flights.py          # Flight search endpoints
-│   │   └── evaluate.py         # Evaluation endpoints
+│   ├── amadeus_client.py           # Amadeus API client
+│   ├── prompt_parser.py            # Gemini-based query parser
+│   ├── listen_main_wrapper.py      # LISTEN algorithm wrapper
+│   ├── listen_data_converter.py    # Convert flights to LISTEN format
+│   ├── db.py                       # Railway MySQL database
 │   └── utils/
-│       ├── __init__.py
-│       └── parse_duration.py   # Utility functions
-├── frontend/
-│   ├── public/
-│   │   └── index.html          # HTML template
-│   ├── src/
-│   │   ├── App.jsx             # Main React component
-│   │   ├── index.js            # React entry point
-│   │   ├── index.css           # Global styles
-│   │   ├── api/
-│   │   │   └── flights.js      # API client
-│   │   └── components/
-│   │       ├── FlightSearch.jsx    # Search form component
-│   │       ├── FlightTable.jsx     # Results table component
-│   │       ├── ListenRanking.jsx   # LISTEN evaluation UI
-│   │       └── TeamDraft.jsx       # Team Draft evaluation UI
-│   └── package.json            # Frontend dependencies
-├── database/
-│   └── schema.sql              # MySQL database schema
-├── .env.example                # Environment variables template
-├── requirements.txt            # Python dependencies
-└── README.md                   # This file
+│       └── parse_duration.py       # ISO 8601 duration parsing
+├── LISTEN/                         # Symlink to LISTEN repository
+├── view_data.py                    # View collected data from terminal
+├── test_listen.py                  # Test LISTEN integration
+├── .env                            # API keys and database credentials
+├── .python-version                 # Python 3.11.0 (required for LISTEN)
+└── requirements.txt                # Python dependencies
 ```
 
-## ⚙️ Setup Instructions
+## Setup
 
 ### Prerequisites
 
-- Python 3.9 or higher
-- Node.js 16 or higher
-- MySQL 8.0 or higher
-- Amadeus API credentials ([Get them here](https://developers.amadeus.com/))
+- Python 3.11 or higher (required for LISTEN)
+- Amadeus API credentials (https://developers.amadeus.com/)
+- Gemini API key (https://aistudio.google.com/app/apikey)
+- Railway MySQL database (or local MySQL)
+- LISTEN repository cloned locally
 
-### 1. Clone and Navigate
+### Installation
+
+1. Clone and configure environment:
 
 ```bash
 cd flight_app
-```
-
-### 2. Database Setup
-
-Create the MySQL database:
-
-```bash
-mysql -u root -p
-```
-
-```sql
-CREATE DATABASE flights;
-EXIT;
-```
-
-Load the schema:
-
-```bash
-mysql -u root -p flights < database/schema.sql
-```
-
-### 3. Backend Setup
-
-Create and configure environment variables:
-
-```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your credentials:
+2. Edit `.env` with your credentials:
 
-```env
+```bash
+# Amadeus API
 AMADEUS_API_KEY=your_key_here
 AMADEUS_API_SECRET=your_secret_here
+AMADEUS_BASE_URL=https://api.amadeus.com
+
+# Gemini API (used for parsing and LISTEN)
+GEMINI_API_KEY=your_gemini_key_here
+GOOGLE_API_KEY=your_gemini_key_here
+
+# Railway MySQL
+DB_TYPE=mysql
+MYSQL_HOST=maglev.proxy.rlwy.net
+MYSQL_PORT=50981
+MYSQL_DATABASE=railway
 MYSQL_USER=root
-MYSQL_PASSWORD=your_password
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_DB=flights
+MYSQL_PASSWORD=your_railway_password
 ```
 
-Install Python dependencies:
+3. Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Frontend Setup
-
-Navigate to frontend directory and install dependencies:
+4. Create symbolic link to LISTEN repository:
 
 ```bash
-cd frontend
-npm install
+ln -s /path/to/LISTEN LISTEN
 ```
 
-### 5. Running the Application
-
-#### Option A: Development Mode (Recommended)
-
-**Terminal 1 - Backend:**
-```bash
-cd backend
-python main.py
-```
-
-The backend will start on `http://localhost:8000`
-
-**Terminal 2 - Frontend:**
-```bash
-cd frontend
-npm start
-```
-
-The frontend will start on `http://localhost:3000`
-
-#### Option B: Production Mode
-
-Build the frontend:
+5. Initialize database:
 
 ```bash
-cd frontend
-npm run build
+python backend/db.py
 ```
 
-Run the backend (which will serve the built frontend):
+### Running Locally
 
 ```bash
-cd backend
-python main.py
+streamlit run app.py
 ```
 
-Access the application at `http://localhost:8000`
+Access at http://localhost:8501
 
-## 📚 API Documentation
+### Deployment
 
-Once the backend is running, interactive API documentation is available at:
+Deployed on Streamlit Cloud with:
+- Python 3.11 runtime (`.python-version`)
+- Railway MySQL for persistence
+- Environment variables configured in Streamlit Cloud settings
 
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+## Data Collection
 
-### Key Endpoints
+### Database Schema
 
-#### Flight Search
-- `GET /api/flights/search` - Search flights via Amadeus API
-- `GET /api/flights/all` - Get all stored flights with filters
-- `GET /api/flights/metrics` - Get aggregated flight metrics
-- `GET /api/flights/{id}` - Get specific flight by ID
+**searches** - Each flight search query
+- search_id, session_id, user_prompt, parsed_origins, parsed_destinations, departure_date, created_at
 
-#### Evaluation
-- `POST /api/evaluate/listen/ranking` - Submit LISTEN ranking
-- `GET /api/evaluate/listen/rankings` - Get LISTEN rankings
-- `POST /api/evaluate/teamdraft/start` - Start Team Draft session
-- `POST /api/evaluate/teamdraft/submit` - Submit Team Draft preferences
-- `GET /api/evaluate/teamdraft/results/{id}` - Get Team Draft results
-- `POST /api/evaluate/rating` - Submit individual flight rating
+**flights_shown** - All 30 flights displayed to user
+- id, search_id, flight_data (JSON), algorithm (Cheapest/Fastest/LISTEN-U), algorithm_rank, display_position
 
-#### System
-- `GET /api/health` - Health check
-- `GET /api/info` - System information
+**user_rankings** - User's top 5 selections
+- id, search_id, flight_id, user_rank (1-5), submitted_at
 
-## 🎯 Usage Guide
+### Viewing Data
 
-### 1. Search for Flights
-
-1. Enter origin and destination airport codes (e.g., JFK, LAX)
-2. Select departure date
-3. Set number of adults and max results
-4. Click "Search Flights"
-
-### 2. LISTEN Ranking Evaluation
-
-1. Select flights using checkboxes in the results table
-2. Click "LISTEN Ranking" button
-3. Drag and drop flights to rank them (best to worst)
-4. Add optional notes
-5. Submit ranking
-
-### 3. Team Draft Evaluation
-
-1. Select flights using checkboxes in the results table
-2. Click "Team Draft" button
-3. Configure algorithm names (or use defaults)
-4. Start evaluation
-5. For each flight presented, click "Yes" (like) or "No" (dislike)
-6. View final scores and winner
-
-## 🗄️ Database Schema
-
-### `flights` Table
-Stores flight offers with computed metrics:
-- Basic flight info (origin, destination, times, price)
-- Computed metrics (duration_min, distances, time-of-day seconds)
-- Raw Amadeus API response (JSON)
-
-### `listen_rankings` Table
-Stores LISTEN evaluation results:
-- User ID and prompt
-- Original flight IDs
-- User's ranked order
-- Timestamp and notes
-
-### `team_draft_results` Table
-Stores Team Draft evaluation results:
-- Algorithm names and rankings
-- Interleaved list
-- User preferences (yes/no for each flight)
-- Computed scores
-
-### `ratings` Table
-Stores individual flight ratings:
-- User ID and flight ID
-- Rating value (1-5)
-- Timestamp
-
-## 🔧 Configuration
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `AMADEUS_API_KEY` | Amadeus API key | Required |
-| `AMADEUS_API_SECRET` | Amadeus API secret | Required |
-| `MYSQL_USER` | MySQL username | root |
-| `MYSQL_PASSWORD` | MySQL password | Required |
-| `MYSQL_HOST` | MySQL host | localhost |
-| `MYSQL_PORT` | MySQL port | 3306 |
-| `MYSQL_DB` | MySQL database name | flights |
-| `BACKEND_HOST` | Backend server host | 0.0.0.0 |
-| `BACKEND_PORT` | Backend server port | 8000 |
-
-### Frontend Configuration
-
-To change the API endpoint in production, set the `REACT_APP_API_URL` environment variable:
-
+Terminal:
 ```bash
-REACT_APP_API_URL=https://your-api-domain.com/api npm run build
+python3 view_data.py          # All searches
+python3 view_data.py latest   # Latest search only
 ```
 
-## 🧪 Testing
+SQL (direct Railway MySQL access):
+```bash
+mysql -h maglev.proxy.rlwy.net -P 50981 -u root -p railway
+```
 
-### Backend Testing
+Example queries:
+```sql
+-- Algorithm performance
+SELECT
+  f.algorithm,
+  COUNT(r.id) as times_selected,
+  AVG(r.user_rank) as avg_rank
+FROM flights_shown f
+JOIN user_rankings r ON f.id = r.flight_id
+GROUP BY f.algorithm;
+
+-- Position bias analysis
+SELECT display_position, COUNT(*) as selections
+FROM flights_shown f
+JOIN user_rankings r ON f.id = r.flight_id
+GROUP BY display_position;
+```
+
+## Algorithm Details
+
+### LISTEN-U (Utility-based Preference Learning)
+
+Uses the official LISTEN repository (https://github.com/AdamJovine/LISTEN) with:
+- **Algorithm**: `utility` (main algorithm from paper)
+- **Iterations**: 25 (learns utility function)
+- **LLM**: Gemini via `--api-model gemini`
+- **Runtime**: ~2-3 minutes per search
+
+LISTEN learns a utility function by querying Gemini 25 times, then uses the learned function to rank all 50 flights and return the top 10.
+
+Test LISTEN locally:
+```bash
+python3 test_listen.py
+```
+
+## Current Limitations
+
+1. **Single origin/destination** - Only searches first airport from parsed list (e.g., JFK from ["JFK", "LGA", "EWR"])
+2. **Test API** - Amadeus test environment has limited airport coverage
+3. **No layover details in UI** - Full segment data stored but not displayed
+4. **25 iteration runtime** - LISTEN-U takes 2-3 minutes per search
+
+## Research Questions
+
+This system can answer:
+- Does LISTEN-U rank flights better than simple heuristics (price/duration)?
+- Do users exhibit position bias (prefer top-ranked results)?
+- What's the correlation between algorithm rank and user rank?
+- How do user preferences vary across different routes/contexts?
+
+## API Costs
+
+Per search:
+- 1 Amadeus API call (free tier)
+- 1 Gemini call for parsing (~$0.00001)
+- 25 Gemini calls for LISTEN (~$0.00025)
+- Total: ~$0.00026 per search
+
+## Testing
+
+Test LISTEN integration:
+```bash
+python3 test_listen.py
+```
 
 Test database connection:
-
 ```bash
-cd backend
-python -c "from database import test_connection; test_connection()"
+python3 backend/db.py
 ```
 
-Test API health:
+## Resources
 
-```bash
-curl http://localhost:8000/api/health
-```
+- LISTEN Repository: https://github.com/AdamJovine/LISTEN
+- Amadeus API Docs: https://developers.amadeus.com/self-service/category/flights
+- Gemini API Docs: https://ai.google.dev/gemini-api/docs
+- Streamlit Docs: https://docs.streamlit.io
 
-### Frontend Testing
+## License
 
-```bash
-cd frontend
-npm test
-```
-
-## 🐛 Troubleshooting
-
-### Database Connection Issues
-
-- Verify MySQL is running: `mysql -u root -p`
-- Check credentials in `.env` file
-- Ensure database exists: `SHOW DATABASES;`
-
-### Amadeus API Issues
-
-- Verify API credentials are correct
-- Check API quota/limits on Amadeus dashboard
-- Ensure using test environment credentials for development
-
-### CORS Issues
-
-- Backend is configured to allow `localhost:3000` and `localhost:8000`
-- For production, update CORS settings in `backend/main.py`
-
-### Frontend Build Issues
-
-- Clear node_modules and reinstall: `rm -rf node_modules && npm install`
-- Check Node.js version: `node --version` (should be 16+)
-
-## 📝 Development Notes
-
-### Adding New Airport Coordinates
-
-Edit `backend/utils/parse_duration.py` and add to `AIRPORT_COORDINATES` dictionary:
-
-```python
-AIRPORT_COORDINATES = {
-    "ABC": (latitude, longitude),
-    # ...
-}
-```
-
-### Custom Ranking Algorithms
-
-Modify `frontend/src/components/TeamDraft.jsx` to implement custom ranking logic:
-
-```javascript
-// Algorithm A: Custom logic
-const rankingA = [...selectedFlights]
-  .sort((a, b) => yourCustomLogic(a, b))
-  .map((f) => f.id);
-```
-
-## 🤝 Contributing
-
-This is a complete implementation following the specifications. To extend:
-
-1. Add new evaluation methods in `backend/routes/evaluate.py`
-2. Create new React components in `frontend/src/components/`
-3. Add database migrations for schema changes
-
-## 📄 License
-
-This project is provided as-is for educational and research purposes.
-
-## 🔗 Resources
-
-- [Amadeus API Documentation](https://developers.amadeus.com/self-service/category/flights)
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [React Documentation](https://react.dev/)
-- [Tailwind CSS Documentation](https://tailwindcss.com/)
-
-## 📧 Support
-
-For issues or questions:
-1. Check the troubleshooting section above
-2. Review API documentation at `/docs` when backend is running
-3. Verify all dependencies are installed correctly
-
----
-
-**Built with FastAPI, React, and Amadeus API** ✈️
+This project is provided for educational and research purposes.
