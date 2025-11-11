@@ -19,16 +19,23 @@ class AmadeusClient:
     - OAuth2 token management with automatic refresh
     - Flight search with comprehensive parameters
     - Error handling and retry logic
+    - Supports both test and production environments
     """
-
-    # API endpoints
-    AUTH_URL = "https://test.api.amadeus.com/v1/security/oauth2/token"
-    FLIGHT_OFFERS_URL = "https://test.api.amadeus.com/v2/shopping/flight-offers"
 
     def __init__(self):
         """Initialize Amadeus client with credentials from environment."""
         self.api_key = os.getenv("AMADEUS_API_KEY")
         self.api_secret = os.getenv("AMADEUS_API_SECRET")
+
+        # Get base URL from environment, default to test environment
+        base_url = os.getenv("AMADEUS_BASE_URL", "https://test.api.amadeus.com")
+
+        # Remove trailing slash if present
+        base_url = base_url.rstrip('/')
+
+        # Set API endpoints based on base URL
+        self.AUTH_URL = f"{base_url}/v1/security/oauth2/token"
+        self.FLIGHT_OFFERS_URL = f"{base_url}/v2/shopping/flight-offers"
 
         if not self.api_key or not self.api_secret:
             raise ValueError(
@@ -38,6 +45,11 @@ class AmadeusClient:
 
         self.access_token = None
         self.token_expires_at = None
+
+        # Log which environment we're using
+        environment = "PRODUCTION" if "api.amadeus.com" in base_url else "TEST"
+        print(f"✓ Amadeus client initialized ({environment} environment)")
+        print(f"  Base URL: {base_url}")
 
     def _get_access_token(self) -> str:
         """

@@ -4,3 +4,16 @@ pymysql==1.1.0
 cryptography==41.0.7
 requests==2.31.0
 python-dotenv==1.0.0
+
+# LLM for prompt parsing
+google-generativeai>=0.3.0
+
+# For drag-drop UI
+streamlit-sortables>=0.2.0
+
+# LISTEN dependencies
+numpy<2
+scipy
+scikit-learn
+groq
+pyyaml
