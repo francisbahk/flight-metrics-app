@@ -94,6 +94,11 @@ def rank_flights_with_listen_main(
 
         print(f"  ✓ LISTEN completed successfully!")
 
+        # VERIFICATION: Print LISTEN output for debugging
+        print(f"\n  📊 LISTEN OUTPUT (last 1000 chars):")
+        print(f"  {result.stdout[-1000:]}")
+        print()
+
     except subprocess.TimeoutExpired:
         print(f"  ⚠️ LISTEN timed out after 15 minutes")
         return sorted(flights, key=lambda x: x.get('price', float('inf')))[:10]

@@ -240,16 +240,17 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
                 try:
                     from backend.listen_main_wrapper import rank_flights_with_listen_main
 
-                    st.info("🤖 Running LISTEN-U algorithm via main.py (this may take 30-60 seconds)...")
+                    st.info("🤖 Running LISTEN-U algorithm via main.py (25 iterations, may take 2-3 minutes)...")
 
+                    # Use default n_iterations=25 from wrapper (LISTEN utility algorithm)
                     listen_u_ranked = rank_flights_with_listen_main(
                         flights=all_flights,
                         user_prompt=prompt,
-                        user_preferences=preferences,
-                        n_iterations=5  # 5 comparison batches
+                        user_preferences=preferences
+                        # n_iterations defaults to 25 in wrapper
                     )
 
-                    st.success("✅ LISTEN-U complete!")
+                    st.success("✅ LISTEN-U complete! Used utility algorithm to rank flights.")
 
                 except Exception as e:
                     st.warning(f"⚠️ LISTEN-U failed ({str(e)}), using fallback preference-aware ranking")
@@ -347,15 +348,24 @@ if st.session_state.interleaved_results:
             col1, col2 = st.columns([1, 4])
 
             with col1:
+                # Toggle button: add if not in list, remove if already in
                 if st.button("+" if not in_shortlist else "✓",
                              key=f"btn_{flight_key}",
-                             disabled=in_shortlist or len(st.session_state.shortlist) >= 5):
-                    st.session_state.shortlist.append({
-                        'key': flight_key,
-                        'flight': flight,
-                        'algorithm': algo,
-                        'rank': rank
-                    })
+                             disabled=(not in_shortlist and len(st.session_state.shortlist) >= 5)):
+                    if in_shortlist:
+                        # Remove from shortlist
+                        st.session_state.shortlist = [
+                            item for item in st.session_state.shortlist
+                            if item['key'] != flight_key
+                        ]
+                    else:
+                        # Add to shortlist
+                        st.session_state.shortlist.append({
+                            'key': flight_key,
+                            'flight': flight,
+                            'algorithm': algo,
+                            'rank': rank
+                        })
                     st.rerun()
 
             with col2:
