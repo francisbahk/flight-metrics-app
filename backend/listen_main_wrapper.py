@@ -15,7 +15,7 @@ def rank_flights_with_listen_main(
     flights: List[Dict],
     user_prompt: str,
     user_preferences: Dict = None,
-    n_iterations: int = 5
+    n_iterations: int = 25
 ) -> List[Dict]:
     """
     Rank flights using LISTEN's main.py framework.
@@ -69,12 +69,9 @@ def rank_flights_with_listen_main(
         "python3",
         "main.py",
         "--scenario", tag,
-        "--algo", "comparison",  # Use comparison-based dueling bandit
+        "--algo", "utility",  # Main LISTEN algorithm - learns utility function over iterations
         "--mode", "User",
-        "--max-iters", str(n_iterations),
-        "--model-type", "gp",  # Gaussian Process
-        "--acq", "eubo",  # Expected Utility-Based Optimization
-        "--comparison-batch-size", "4",  # Show 4 flights at a time
+        "--max-iters", str(n_iterations),  # 25 iterations to learn utility
         "--api-model", "gemini",
         "--seed", "42"
     ]
@@ -85,7 +82,7 @@ def rank_flights_with_listen_main(
             cwd=str(listen_dir),
             capture_output=True,
             text=True,
-            timeout=300  # 5 minute timeout
+            timeout=900  # 15 minute timeout (25 iterations takes longer)
         )
 
         if result.returncode != 0:
@@ -98,7 +95,7 @@ def rank_flights_with_listen_main(
         print(f"  ✓ LISTEN completed successfully!")
 
     except subprocess.TimeoutExpired:
-        print(f"  ⚠️ LISTEN timed out after 5 minutes")
+        print(f"  ⚠️ LISTEN timed out after 15 minutes")
         return sorted(flights, key=lambda x: x.get('price', float('inf')))[:10]
     except Exception as e:
         print(f"  ⚠️ Error running LISTEN: {str(e)}")

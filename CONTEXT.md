@@ -170,17 +170,76 @@ This is a **flight ranking evaluation research platform** that:
                  │
                  ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│ STEP 6: MYSQL STORAGE (backend/db.py - TO BE IMPLEMENTED)          │
+│ STEP 6: RAILWAY MYSQL STORAGE (backend/db.py) ✓ IMPLEMENTED        │
 │                                                                     │
-│ Tables:                                                            │
-│   - searches (search_id, session_id, prompt, timestamp)           │
-│   - flights_shown (flight_id, search_id, flight_data, algorithm)  │
-│   - user_rankings (ranking_id, search_id, flight_id, rank)        │
+│ 6a. Database Schema (SQLAlchemy ORM):                              │
 │                                                                     │
-│ Enables offline analysis:                                          │
-│   - Algorithm comparison (which ranks better?)                     │
-│   - Position bias (do users prefer top results?)                   │
-│   - NDCG, Precision@K metrics                                      │
+│ TABLE: searches                                                    │
+│   - search_id (PK, auto-increment)                                │
+│   - session_id (indexed)                                           │
+│   - user_prompt (text)                                             │
+│   - parsed_origins (JSON: ["IAH", "HOU"])                          │
+│   - parsed_destinations (JSON: ["JFK", "LGA", "EWR"])              │
+│   - parsed_preferences (JSON: {prefer_cheap: true, ...})           │
+│   - departure_date (string)                                        │
+│   - created_at (datetime, indexed)                                 │
+│                                                                     │
+│ TABLE: flights_shown                                               │
+│   - id (PK, auto-increment)                                        │
+│   - search_id (FK → searches.search_id, indexed)                  │
+│   - flight_data (JSON: full Amadeus flight object)                │
+│   - algorithm (string: "Cheapest", "Fastest", "LISTEN-U")         │
+│   - algorithm_rank (int: 1-10, position in that algorithm)        │
+│   - display_position (int: 1-30, position shown to user)          │
+│                                                                     │
+│ TABLE: user_rankings                                               │
+│   - id (PK, auto-increment)                                        │
+│   - search_id (FK → searches.search_id, indexed)                  │
+│   - flight_id (FK → flights_shown.id)                             │
+│   - user_rank (int: 1-5, user's ranking)                          │
+│   - submitted_at (datetime)                                        │
+│                                                                     │
+│ 6b. Railway MySQL Connection:                                      │
+│   Host: maglev.proxy.rlwy.net (public endpoint)                   │
+│   Port: 50981                                                      │
+│   Database: railway                                                │
+│   Note: mysql.railway.internal:3306 only works for Railway-hosted │
+│         apps. Streamlit Cloud uses the public endpoint.           │
+│                                                                     │
+│ 6c. Data Save Flow (app_new.py → backend/db.py):                  │
+│   When user clicks "Submit Rankings":                             │
+│     1. Create Search record with parsed params                    │
+│     2. Create 30 FlightShown records (all displayed flights)      │
+│     3. Create 5 UserRanking records (user's top 5)                │
+│     4. All wrapped in single database transaction                 │
+│                                                                     │
+│ 6d. Environment Variables (.env - NOT committed to GitHub):        │
+│   DB_TYPE=mysql                                                    │
+│   MYSQL_HOST=maglev.proxy.rlwy.net                                │
+│   MYSQL_PORT=50981                                                 │
+│   MYSQL_DATABASE=railway                                           │
+│   MYSQL_USER=root                                                  │
+│   MYSQL_PASSWORD=<Railway password>                               │
+│                                                                     │
+│ 6e. Streamlit Cloud Configuration:                                 │
+│   Same environment variables added to Streamlit Cloud settings    │
+│   Both local and Streamlit Cloud write to same Railway database   │
+│   Ensures persistent storage across deploys                       │
+│                                                                     │
+│ 6f. Viewing Data (view_data.py):                                   │
+│   Run locally: python3 view_data.py                               │
+│   Shows:                                                           │
+│     - All searches with prompts and timestamps                    │
+│     - All 30 flights shown per search                             │
+│     - User's top 5 rankings                                        │
+│     - Algorithm performance stats (times selected, avg rank)      │
+│                                                                     │
+│ 6g. Analysis Capabilities:                                         │
+│   - Algorithm comparison: Which algorithm's flights get selected? │
+│   - Position bias: Do users prefer top-ranked results?            │
+│   - NDCG, Precision@K metrics for evaluation                      │
+│   - Algorithm rank vs user rank correlation                       │
+│   - User preference patterns across searches                      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -297,9 +356,11 @@ flight_app/
 │   ├── listen_main_wrapper.py         # Wrapper to call LISTEN main.py
 │   ├── listen_wrapper.py              # OLD custom LISTEN implementation (NOT USED)
 │   ├── gemini_llm_client.py           # Gemini client for LISTEN (NOT USED - LISTEN has its own)
-│   ├── db.py                           # Database functions (TO BE IMPLEMENTED)
+│   ├── db.py                           # ✓ Database functions (Railway MySQL)
 │   └── utils/
 │       └── parse_duration.py          # Parse ISO 8601 durations
+│
+├── view_data.py                        # View saved rankings from Railway MySQL
 │
 ├── LISTEN/                             # Symbolic link → /Users/francisbahk/LISTEN
 │   ├── main.py                        # LISTEN experimental framework ← WE CALL THIS
@@ -418,7 +479,7 @@ flight_app/
 
 ---
 
-## Database Schema (TO BE IMPLEMENTED)
+## Database Schema (✓ IMPLEMENTED - Railway MySQL)
 
 ### Table: `searches`
 Stores each search query.
@@ -488,25 +549,35 @@ ORDER BY times_selected DESC;
 
 ## Environment Variables
 
-Required in `.env`:
+Required in `.env` (NOT committed to GitHub - protected by .gitignore):
 
 ```bash
 # Amadeus API (get from https://developers.amadeus.com)
 AMADEUS_API_KEY=your_api_key_here
 AMADEUS_API_SECRET=your_api_secret_here
+AMADEUS_BASE_URL=https://api.amadeus.com
 
 # Gemini API (get from https://aistudio.google.com/app/apikey)
 GEMINI_API_KEY=your_gemini_key_here
 # OR
 GOOGLE_API_KEY=your_gemini_key_here
 
-# MySQL Database (for storing rankings)
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_DATABASE=flight_rankings
-MYSQL_USER=your_user
-MYSQL_PASSWORD=your_password
+# Railway MySQL Database (for storing rankings)
+# ✓ CONFIGURED - Using Railway's public endpoint
+DB_TYPE=mysql
+MYSQL_HOST=maglev.proxy.rlwy.net    # Railway public endpoint
+MYSQL_PORT=50981                     # Railway public port
+MYSQL_DATABASE=railway
+MYSQL_USER=root
+MYSQL_PASSWORD=<from_railway>       # Get from Railway dashboard
+
+# Note: mysql.railway.internal:3306 only works for Railway-hosted apps
+#       External apps (Streamlit Cloud, local) must use maglev.proxy.rlwy.net
 ```
+
+**Streamlit Cloud Configuration:**
+Add the same environment variables to Streamlit Cloud app settings (Settings → Secrets).
+Both local and Streamlit Cloud will write to the same Railway MySQL database.
 
 ---
 
@@ -565,12 +636,12 @@ pyyaml                         # For YAML config files
 
 ## Current Limitations
 
-1. **No database storage yet** - Rankings not saved (TODO in app_new.py:396)
+1. ~~**No database storage yet**~~ ✅ **FIXED** - Railway MySQL now saving all rankings
 2. **Test API only** - Amadeus test API has limited routes (ITH not available)
 3. **Single origin/dest** - Only searches first origin/destination pair
 4. **No error recovery** - If LISTEN fails, falls back to simple ranking
 5. **No user authentication** - Anonymous sessions only
-6. **Local deployment only** - Not configured for cloud deployment
+6. ~~**Local deployment only**~~ ✅ **FIXED** - Deployed on Streamlit Cloud with Railway MySQL
 
 ---
 
@@ -578,11 +649,12 @@ pyyaml                         # For YAML config files
 
 1. ✅ Integrate LISTEN main.py framework
 2. ✅ Fix Gemini airport parsing
-3. **⏳ Implement MySQL database storage**
-4. **⏳ Deploy to cloud (Streamlit Cloud + MySQL instance)**
+3. ✅ **Implement MySQL database storage** (Railway MySQL)
+4. ✅ **Deploy to cloud** (Streamlit Cloud + Railway MySQL)
 5. **⏳ Add user authentication (optional)**
 6. **⏳ Switch to Amadeus production API**
 7. **⏳ Add feedback analysis dashboard**
+8. **⏳ Collect more user data for algorithm evaluation**
 
 ---
 
@@ -621,10 +693,14 @@ With the database populated:
 
 **Solution**: `get_test_api_fallback()` maps small airports to nearby major ones (ITH → SYR).
 
-### Rankings not saved
-**Problem**: "TODO: Save to database" placeholder
+### Rankings not appearing in view_data.py
+**Problem**: Submitted rankings on Streamlit Cloud don't show up locally
 
-**Solution**: Implement `save_ranking()` function in backend/db.py (see Database Schema section above).
+**Solution**:
+1. Check Streamlit Cloud environment variables match Railway MySQL credentials
+2. Ensure using `maglev.proxy.rlwy.net:50981` (public endpoint), NOT `mysql.railway.internal:3306`
+3. Reboot Streamlit Cloud app after changing env vars (⋮ menu → Reboot app)
+4. Verify Railway MySQL is accessible: `python3 backend/db.py` (should show "✓ Database connection successful")
 
 ---
 
@@ -638,4 +714,4 @@ With the database populated:
 ---
 
 **Last Updated**: November 10, 2025
-**Version**: 2.0 (with LISTEN main.py integration)
+**Version**: 2.1 (with Railway MySQL database integration)

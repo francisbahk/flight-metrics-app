@@ -56,9 +56,14 @@ def view_all_data():
                     else:
                         price = flight_info.get('price', 'N/A')
 
-                    # Handle duration
+                    # Handle duration (convert minutes to hours:minutes)
                     duration = 'N/A'
-                    if 'itineraries' in flight_info and flight_info['itineraries']:
+                    if 'duration_min' in flight_info:
+                        duration_min = flight_info['duration_min']
+                        hours = int(duration_min // 60)
+                        minutes = int(duration_min % 60)
+                        duration = f"{hours}h {minutes}m"
+                    elif 'itineraries' in flight_info and flight_info['itineraries']:
                         duration = flight_info['itineraries'][0].get('duration', 'N/A')
                     elif 'duration' in flight_info:
                         duration = flight_info.get('duration', 'N/A')
