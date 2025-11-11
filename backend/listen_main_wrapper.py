@@ -66,7 +66,7 @@ def rank_flights_with_listen_main(
     print(f"  ✓ Running LISTEN main.py with {n_iterations} iterations...")
 
     cmd = [
-        "python3",
+        "/usr/local/bin/python3.11",  # Use Python 3.11 (LISTEN requires 3.10+ for union type syntax)
         "main.py",
         "--scenario", tag,
         "--algo", "utility",  # Main LISTEN algorithm - learns utility function over iterations
