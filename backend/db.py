@@ -93,6 +93,84 @@ class UserRanking(Base):
     flight = relationship("FlightShown", back_populates="rankings")
 
 
+class LILOSession(Base):
+    """Stores LILO refinement sessions."""
+    __tablename__ = 'lilo_sessions'
+
+    session_id = Column(String(255), primary_key=True)
+    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=True, index=True)
+    user_id = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+    num_rounds = Column(Integer, default=0)
+    final_utility_scores = Column(JSON, nullable=True)  # Final utilities for all flights
+    feedback_summary = Column(Text, nullable=True)  # Summarized preferences
+
+    # Relationships
+    rounds = relationship("LILORound", back_populates="session", cascade="all, delete-orphan")
+
+
+class LILORound(Base):
+    """Stores each round of LILO refinement."""
+    __tablename__ = 'lilo_rounds'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(255), ForeignKey('lilo_sessions.session_id', ondelete='CASCADE'), nullable=False, index=True)
+    round_number = Column(Integer, nullable=False)
+    flights_shown = Column(JSON, nullable=False)  # List of flight IDs/indices shown this round
+    user_rankings = Column(JSON, nullable=False)  # User's top-k ranking for this round
+    user_feedback = Column(Text, nullable=False)  # Natural language feedback
+    generated_questions = Column(JSON, nullable=True)  # Questions asked by LLM
+    extracted_preferences = Column(JSON, nullable=True)  # LLM-extracted preference signals
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    session = relationship("LILOSession", back_populates="rounds")
+
+
+class EvaluationSession(Base):
+    """Stores human vs LLM evaluation experiments."""
+    __tablename__ = 'evaluation_sessions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(255), unique=True, nullable=False, index=True)
+    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=True)
+
+    # Person A (ground truth provider)
+    person_a_user_id = Column(String(255), nullable=True)
+    person_a_prompt = Column(Text, nullable=False)
+    person_a_rankings = Column(JSON, nullable=False)  # Ground truth top-k
+
+    # Person B (human recommender)
+    person_b_user_id = Column(String(255), nullable=True)
+    person_b_rankings = Column(JSON, nullable=True)  # Person B's guesses
+
+    # Algorithm rankings
+    listen_u_rankings = Column(JSON, nullable=True)  # LISTEN-U recommendations
+    lilo_rankings = Column(JSON, nullable=True)  # LILO recommendations
+    cheapest_rankings = Column(JSON, nullable=True)  # Cheapest algorithm
+    fastest_rankings = Column(JSON, nullable=True)  # Fastest algorithm
+
+    # Comparison results
+    team_draft_results = Column(JSON, nullable=True)  # Who won each comparison
+    metrics = Column(JSON, nullable=True)  # NDCG, Precision@k, etc.
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+
+class InteractionEvent(Base):
+    """Stores user interaction events for offline analysis."""
+    __tablename__ = 'interaction_events'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(255), nullable=False, index=True)
+    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=True, index=True)
+    event_type = Column(String(50), nullable=False, index=True)  # 'flight_click', 'flight_view', etc.
+    event_data = Column(JSON, nullable=False)  # Flexible: flight_id, timestamp, etc.
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 # Database functions
 def init_db():
     """
