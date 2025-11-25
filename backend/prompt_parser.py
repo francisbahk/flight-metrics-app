@@ -38,8 +38,8 @@ Extract and return ONLY a valid JSON object with these fields:
 {{
     "origins": ["AIRPORT_CODE"],  // List of origin airport codes (IATA 3-letter)
     "destinations": ["AIRPORT_CODE"],  // List of destination airport codes
-    "departure_date": "YYYY-MM-DD",  // Departure date
-    "return_date": "YYYY-MM-DD or null",  // Return date if mentioned
+    "departure_dates": ["YYYY-MM-DD"],  // List of departure dates (e.g., ["2024-12-20", "2024-12-21"] for "Friday or Saturday")
+    "return_date": "YYYY-MM-DD or null",  // Return date ONLY if explicitly mentioned
     "preferences": {{
         "prefer_direct": true/false,  // Wants nonstop flights
         "prefer_cheap": true/false,  // Price sensitive
@@ -62,6 +62,8 @@ CRITICAL INSTRUCTIONS:
 2. Use null for missing fields
 3. Infer preferences from context (e.g., "as cheap as possible" → prefer_cheap: true)
 4. Parse dates relative to today if needed (today is {datetime.now().strftime("%Y-%m-%d")})
+5. **MULTIPLE DATES**: If user mentions multiple dates (e.g., "weekend of Jan 5", "Friday or Saturday", "Jan 5 or 6"), extract ALL dates as separate items in departure_dates list
+6. **RETURN FLIGHTS**: ONLY set return_date if user explicitly mentions returning, coming back, or round-trip. If only one-way is mentioned, set return_date to null
 
 **MOST IMPORTANT - AIRPORT CODE EXTRACTION:**
 You MUST use your knowledge of world airports to convert city/region names into proper IATA airport codes (3-letter codes).
@@ -107,11 +109,17 @@ For small cities, include nearby major airports within 100 miles as alternatives
         parsed = json.loads(response_text)
 
         # Validate and clean up
+        departure_dates = parsed.get('departure_dates', [])
+
+        # Handle legacy single date format for backward compatibility
+        if not departure_dates and parsed.get('departure_date'):
+            departure_dates = [parsed.get('departure_date')]
+
         result = {
             'parsed_successfully': True,
             'origins': parsed.get('origins', []),
             'destinations': parsed.get('destinations', []),
-            'departure_date': parsed.get('departure_date'),
+            'departure_dates': departure_dates,  # Now a list
             'return_date': parsed.get('return_date'),
             'preferences': parsed.get('preferences', {}),
             'constraints': parsed.get('constraints', {}),
@@ -134,7 +142,8 @@ def parse_flight_prompt_simple(prompt: str) -> Dict:
         'parsed_successfully': False,
         'origins': [],
         'destinations': [],
-        'departure_date': None,
+        'departure_dates': [],  # Changed to list
+        'return_date': None,
         'preferences': {},
         'warnings': ['Using simple parser - LLM parsing failed'],
         'original_prompt': prompt
@@ -164,21 +173,21 @@ def parse_flight_prompt_simple(prompt: str) -> Dict:
                 if len(match.groups()) == 3 and match.group(1).isdigit():
                     # Numeric date MM/DD/YYYY or MM-DD-YYYY
                     month, day, year = match.groups()
-                    result['departure_date'] = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+                    result['departure_dates'].append(f"{year}-{month.zfill(2)}-{day.zfill(2)}")
                 elif len(match.groups()) == 3:
                     # Month name with year: "January 5, 2026"
                     month_name = match.group(1)
                     day = match.group(2)
                     year = match.group(3)
                     month_num = datetime.strptime(month_name, "%B").month
-                    result['departure_date'] = f"{year}-{month_num:02d}-{int(day):02d}"
+                    result['departure_dates'].append(f"{year}-{month_num:02d}-{int(day):02d}")
                 else:
                     # Month name without year: "January 5"
                     month_name = match.group(1)
                     day = match.group(2)
                     year = datetime.now().year
                     month_num = datetime.strptime(month_name, "%B").month
-                    result['departure_date'] = f"{year}-{month_num:02d}-{int(day):02d}"
+                    result['departure_dates'].append(f"{year}-{month_num:02d}-{int(day):02d}")
                 break
             except:
                 pass

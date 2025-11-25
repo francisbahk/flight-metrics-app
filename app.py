@@ -212,6 +212,13 @@ if 'parsed_params' not in st.session_state:
     st.session_state.parsed_params = None
 if 'csv_generated' not in st.session_state:
     st.session_state.csv_generated = False
+# New: for return flights
+if 'all_return_flights' not in st.session_state:
+    st.session_state.all_return_flights = []
+if 'selected_return_flights' not in st.session_state:
+    st.session_state.selected_return_flights = []
+if 'has_return' not in st.session_state:
+    st.session_state.has_return = False
 
 # TEMPORARY COMMENT: Old session state for algorithm-based ranking
 # if 'interleaved_results' not in st.session_state:
@@ -292,6 +299,9 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
         # Clear previous selections when starting new search
         st.session_state.selected_flights = []
         st.session_state.all_flights = []
+        st.session_state.selected_return_flights = []
+        st.session_state.all_return_flights = []
+        st.session_state.has_return = False
         st.session_state.csv_generated = False
 
         with st.spinner("✨ Parsing your request and searching flights..."):
@@ -315,7 +325,15 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
                 # Show what we understood
                 st.success("✅ Understood your request!")
 
-                col1, col2, col3 = st.columns(3)
+                # Check if return flight is present
+                has_return = parsed.get('return_date') is not None
+                st.session_state.has_return = has_return
+
+                if has_return:
+                    col1, col2, col3, col4 = st.columns(4)
+                else:
+                    col1, col2, col3 = st.columns(3)
+
                 with col1:
                     origins_str = " or ".join(parsed['origins'])
                     st.info(f"**From:** {origins_str}")
@@ -323,12 +341,25 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
                     dests_str = " or ".join(parsed['destinations'])
                     st.info(f"**To:** {dests_str}")
                 with col3:
-                    st.info(f"**Date:** {parsed.get('departure_date', 'Not specified')}")
+                    departure_dates = parsed.get('departure_dates', [])
+                    dates_str = ", ".join(departure_dates) if departure_dates else 'Not specified'
+                    st.info(f"**Depart:** {dates_str}")
+
+                if has_return:
+                    with col4:
+                        st.info(f"**Return:** {parsed.get('return_date')}")
 
                 # Search flights from all origin/destination combinations
                 all_flights = []
+                all_return_flights = []
 
-                st.info("✈️ Searching flights from Amadeus API...")
+                st.info("✈️ Searching outbound flights from Amadeus API...")
+
+                # Get departure dates (list)
+                departure_dates = parsed.get('departure_dates', [])
+                if not departure_dates:
+                    st.error("No departure dates found. Please specify when you want to fly.")
+                    st.stop()
 
                 for origin_code in parsed['origins'][:1]:  # Limit to first origin for speed
                     for dest_code in parsed['destinations'][:1]:  # Limit to first dest
@@ -341,67 +372,129 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
                         if dest_warning:
                             st.warning(dest_warning)
 
-                        st.info(f"Searching: {origin} → {dest} on {parsed['departure_date']}")
+                        # Search flights for ALL departure dates
+                        for departure_date in departure_dates:
+                            st.info(f"Searching: {origin} → {dest} on {departure_date}")
 
-                        # Search flights
-                        results = amadeus.search_flights(
-                            origin=origin,
-                            destination=dest,
-                            departure_date=parsed['departure_date'],
-                            adults=1,
-                            max_results=250  # Get ALL available flights (increased from 50)
-                        )
+                            # Search outbound flights
+                            results = amadeus.search_flights(
+                                origin=origin,
+                                destination=dest,
+                                departure_date=departure_date,
+                                adults=1,
+                                max_results=250  # Get ALL available flights (increased from 50)
+                            )
 
-                        # Debug: show raw results
-                        with st.expander("🔍 Debug: Amadeus API Response"):
-                            st.write(f"Type: {type(results)}")
-                            if isinstance(results, dict):
-                                st.write(f"Keys: {results.keys()}")
-                                if 'data' in results:
-                                    st.write(f"Number of flights: {len(results['data'])}")
-                            elif isinstance(results, list):
-                                st.write(f"Number of flights: {len(results)}")
-                            st.json(results if isinstance(results, (dict, list)) else str(results))
+                            # Debug: show raw results
+                            with st.expander(f"🔍 Debug: Amadeus API Response ({origin}→{dest} on {departure_date})"):
+                                st.write(f"Type: {type(results)}")
+                                if isinstance(results, dict):
+                                    st.write(f"Keys: {results.keys()}")
+                                    if 'data' in results:
+                                        st.write(f"Number of flights: {len(results['data'])}")
+                                elif isinstance(results, list):
+                                    st.write(f"Number of flights: {len(results)}")
+                                st.json(results if isinstance(results, (dict, list)) else str(results))
 
-                        # Parse results
-                        if isinstance(results, list):
-                            flight_offers = results
-                        elif isinstance(results, dict) and 'data' in results:
-                            flight_offers = results['data']
-                        else:
-                            flight_offers = []
+                            # Parse results
+                            if isinstance(results, list):
+                                flight_offers = results
+                            elif isinstance(results, dict) and 'data' in results:
+                                flight_offers = results['data']
+                            else:
+                                flight_offers = []
 
-                        for offer in flight_offers:
-                            itinerary = offer['itineraries'][0]
-                            segments = itinerary['segments']
+                            for offer in flight_offers:
+                                itinerary = offer['itineraries'][0]
+                                segments = itinerary['segments']
 
-                            flight_info = {
-                                'id': offer['id'],
-                                'price': float(offer['price']['total']),
-                                'currency': offer['price']['currency'],
-                                'duration_min': parse_duration_to_minutes(itinerary['duration']),
-                                'stops': len(segments) - 1,
-                                'departure_time': segments[0]['departure']['at'],
-                                'arrival_time': segments[-1]['arrival']['at'],
-                                'airline': segments[0]['carrierCode'],
-                                'flight_number': segments[0]['number'],
-                                'origin': segments[0]['departure']['iataCode'],
-                                'destination': segments[-1]['arrival']['iataCode']
-                            }
-                            all_flights.append(flight_info)
+                                flight_info = {
+                                    'id': offer['id'],
+                                    'price': float(offer['price']['total']),
+                                    'currency': offer['price']['currency'],
+                                    'duration_min': parse_duration_to_minutes(itinerary['duration']),
+                                    'stops': len(segments) - 1,
+                                    'departure_time': segments[0]['departure']['at'],
+                                    'arrival_time': segments[-1]['arrival']['at'],
+                                    'airline': segments[0]['carrierCode'],
+                                    'flight_number': segments[0]['number'],
+                                    'origin': segments[0]['departure']['iataCode'],
+                                    'destination': segments[-1]['arrival']['iataCode']
+                                }
+                                all_flights.append(flight_info)
+
+                        # If return flight requested, search return flights
+                        if has_return:
+                            return_date = parsed.get('return_date')
+                            st.info(f"✈️ Searching return flights: {dest} → {origin} on {return_date}")
+
+                            return_results = amadeus.search_flights(
+                                origin=dest,  # Swap: destination becomes origin
+                                destination=origin,  # Swap: origin becomes destination
+                                departure_date=return_date,
+                                adults=1,
+                                max_results=250
+                            )
+
+                            # Debug: show return flight results
+                            with st.expander(f"🔍 Debug: Return Flight Response ({dest}→{origin} on {return_date})"):
+                                st.write(f"Type: {type(return_results)}")
+                                if isinstance(return_results, dict):
+                                    st.write(f"Keys: {return_results.keys()}")
+                                    if 'data' in return_results:
+                                        st.write(f"Number of flights: {len(return_results['data'])}")
+                                elif isinstance(return_results, list):
+                                    st.write(f"Number of flights: {len(return_results)}")
+                                st.json(return_results if isinstance(return_results, (dict, list)) else str(return_results))
+
+                            # Parse return flight results
+                            if isinstance(return_results, list):
+                                return_flight_offers = return_results
+                            elif isinstance(return_results, dict) and 'data' in return_results:
+                                return_flight_offers = return_results['data']
+                            else:
+                                return_flight_offers = []
+
+                            for offer in return_flight_offers:
+                                itinerary = offer['itineraries'][0]
+                                segments = itinerary['segments']
+
+                                flight_info = {
+                                    'id': offer['id'],
+                                    'price': float(offer['price']['total']),
+                                    'currency': offer['price']['currency'],
+                                    'duration_min': parse_duration_to_minutes(itinerary['duration']),
+                                    'stops': len(segments) - 1,
+                                    'departure_time': segments[0]['departure']['at'],
+                                    'arrival_time': segments[-1]['arrival']['at'],
+                                    'airline': segments[0]['carrierCode'],
+                                    'flight_number': segments[0]['number'],
+                                    'origin': segments[0]['departure']['iataCode'],
+                                    'destination': segments[-1]['arrival']['iataCode']
+                                }
+                                all_return_flights.append(flight_info)
 
                 if not all_flights:
-                    st.error("No flights found. Try different dates or airports.")
+                    st.error("No outbound flights found. Try different dates or airports.")
                     st.stop()
 
                 # Look up airline names using Amadeus API
-                unique_airlines = list(set([f['airline'] for f in all_flights]))
+                all_airline_codes = [f['airline'] for f in all_flights]
+                if has_return and all_return_flights:
+                    all_airline_codes.extend([f['airline'] for f in all_return_flights])
+
+                unique_airlines = list(set(all_airline_codes))
                 airline_name_map = amadeus.get_airline_names(unique_airlines)
                 st.session_state.airline_names = airline_name_map
 
                 # Store all flights (no algorithm ranking)
                 st.session_state.all_flights = all_flights
-                st.success(f"✅ Found {len(all_flights)} flights!")
+                st.session_state.all_return_flights = all_return_flights
+
+                if has_return:
+                    st.success(f"✅ Found {len(all_flights)} outbound flights and {len(all_return_flights)} return flights!")
+                else:
+                    st.success(f"✅ Found {len(all_flights)} flights!")
                 st.rerun()
 
                 # TEMPORARY COMMENT: Algorithm-based ranking code (old version)
@@ -457,67 +550,90 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
 # Display results - NEW SIMPLIFIED VERSION (no algorithm ranking)
 if st.session_state.all_flights:
     st.markdown("---")
-    st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Flights")
-    st.markdown("**Select your top 5 flights and drag to rank them →**")
 
-    col_flights, col_ranking = st.columns([2, 1])
+    # Check if we have return flights
+    has_return = st.session_state.has_return and st.session_state.all_return_flights
 
-    with col_flights:
-        st.markdown("#### All Available Flights")
+    if has_return:
+        st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Outbound Flights and {len(st.session_state.all_return_flights)} Return Flights")
+        st.markdown("**Select your top 5 flights for EACH direction and drag to rank them →**")
+    else:
+        st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Flights")
+        st.markdown("**Select your top 5 flights and drag to rank them →**")
 
-        # Display all flights with checkboxes
-        for idx, flight in enumerate(st.session_state.all_flights):
-            # Generate unique_id for display
-            unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
+    # CONDITIONAL UI: Show single or dual panels based on has_return
+    if has_return:
+        # DUAL PANEL LAYOUT: Outbound + Return
+        st.markdown("---")
+        st.markdown("## 🛫 Outbound Flights")
 
-            # Check if already selected
-            is_selected = flight['id'] in [f['id'] for f in st.session_state.selected_flights]
+        col_flights_out, col_ranking_out = st.columns([2, 1])
 
-            col1, col2 = st.columns([1, 5])
+        with col_flights_out:
+            st.markdown("#### All Outbound Flights")
 
-            with col1:
-                # Checkbox to select/deselect
-                selected = st.checkbox(
-                    "✓" if is_selected else "",
-                    value=is_selected,
-                    key=f"select_{flight['id']}_{idx}",
-                    label_visibility="collapsed",
-                    disabled=(not is_selected and len(st.session_state.selected_flights) >= 5)
-                )
+            # Display all outbound flights with checkboxes
+            for idx, flight in enumerate(st.session_state.all_flights):
+    else:
+        # SINGLE PANEL LAYOUT: Outbound only
+        col_flights, col_ranking = st.columns([2, 1])
 
-                if selected and not is_selected:
-                    # Add to selected flights
-                    st.session_state.selected_flights.append(flight)
-                    st.rerun()
-                elif not selected and is_selected:
-                    # Remove from selected flights
-                    st.session_state.selected_flights = [
-                        f for f in st.session_state.selected_flights if f['id'] != flight['id']
-                    ]
-                    st.rerun()
+        with col_flights:
+            st.markdown("#### All Available Flights")
 
-            with col2:
-                # Show flight metrics as requested
-                dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
-                arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
-                dept_time_display = dept_dt.strftime("%I:%M %p")
-                arr_time_display = arr_dt.strftime("%I:%M %p")
+            # Display all flights with checkboxes
+            for idx, flight in enumerate(st.session_state.all_flights):
+                # Generate unique_id for display
+                unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
 
-                # Format duration as "X hr Y min"
-                duration_hours = flight['duration_min'] // 60
-                duration_mins = flight['duration_min'] % 60
-                duration_display = f"{duration_hours} hr {duration_mins} min" if duration_hours > 0 else f"{duration_mins} min"
+                # Check if already selected
+                is_selected = flight['id'] in [f['id'] for f in st.session_state.selected_flights]
 
-                # Get full airline name
-                airline_name = get_airline_name(flight['airline'])
+                col1, col2 = st.columns([1, 5])
 
-                st.markdown(f"""
-                <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
-                <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
-                <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | {dept_time_display} - {arr_time_display}</span><br>
-                <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
-                </div>
-                """, unsafe_allow_html=True)
+                with col1:
+                    # Checkbox to select/deselect
+                    selected = st.checkbox(
+                        "✓" if is_selected else "",
+                        value=is_selected,
+                        key=f"select_{flight['id']}_{idx}",
+                        label_visibility="collapsed",
+                        disabled=(not is_selected and len(st.session_state.selected_flights) >= 5)
+                    )
+
+                    if selected and not is_selected:
+                        # Add to selected flights
+                        st.session_state.selected_flights.append(flight)
+                        st.rerun()
+                    elif not selected and is_selected:
+                        # Remove from selected flights
+                        st.session_state.selected_flights = [
+                            f for f in st.session_state.selected_flights if f['id'] != flight['id']
+                        ]
+                        st.rerun()
+
+                with col2:
+                    # Show flight metrics as requested
+                    dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
+                    arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
+                    dept_time_display = dept_dt.strftime("%I:%M %p")
+                    arr_time_display = arr_dt.strftime("%I:%M %p")
+
+                    # Format duration as "X hr Y min"
+                    duration_hours = flight['duration_min'] // 60
+                    duration_mins = flight['duration_min'] % 60
+                    duration_display = f"{duration_hours} hr {duration_mins} min" if duration_hours > 0 else f"{duration_mins} min"
+
+                    # Get full airline name
+                    airline_name = get_airline_name(flight['airline'])
+
+                    st.markdown(f"""
+                    <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
+                    <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
+                    <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | {dept_time_display} - {arr_time_display}</span><br>
+                    <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
+                    </div>
+                    """, unsafe_allow_html=True)
 
     with col_ranking:
         st.markdown("#### 📋 Your Top 5 (Drag to Rank)")
