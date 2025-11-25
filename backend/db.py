@@ -211,6 +211,19 @@ class SequentialEvaluation(Base):
     comparison_metrics = Column(JSON, nullable=True)  # Overlap, NDCG, etc.
 
 
+class FlightCSV(Base):
+    """Stores CSV exports for each user session."""
+    __tablename__ = 'flight_csvs'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(255), nullable=False, index=True)
+    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=True, index=True)
+    csv_data = Column(Text, nullable=False)  # The actual CSV content
+    num_flights = Column(Integer, nullable=False)  # Total number of flights
+    num_selected = Column(Integer, nullable=False)  # Number of selected flights (should be 5)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 # Database functions
 def init_db():
     """
@@ -337,6 +350,68 @@ def get_algorithm_stats() -> Dict:
             }
 
         return result
+
+    finally:
+        db.close()
+
+
+def save_search_and_csv(
+    session_id: str,
+    user_prompt: str,
+    parsed_params: Dict,
+    all_flights: List[Dict],
+    selected_flights: List[Dict],
+    csv_data: str
+) -> int:
+    """
+    Save a search session with CSV export (new simplified version).
+
+    Args:
+        session_id: Unique session identifier
+        user_prompt: Original natural language query
+        parsed_params: Parsed search parameters from LLM
+        all_flights: All flights returned by Amadeus
+        selected_flights: User's top 5 selected flights (in ranked order)
+        csv_data: Generated CSV content
+
+    Returns:
+        search_id of the created search record
+    """
+    db = SessionLocal()
+
+    try:
+        # Create search record
+        search = Search(
+            session_id=session_id,
+            user_prompt=user_prompt,
+            parsed_origins=parsed_params.get('origins'),
+            parsed_destinations=parsed_params.get('destinations'),
+            parsed_preferences=parsed_params.get('preferences'),
+            departure_date=parsed_params.get('departure_date')
+        )
+        db.add(search)
+        db.flush()  # Get search_id
+
+        search_id = search.search_id
+
+        # Save CSV data
+        csv_record = FlightCSV(
+            session_id=session_id,
+            search_id=search_id,
+            csv_data=csv_data,
+            num_flights=len(all_flights),
+            num_selected=len(selected_flights)
+        )
+        db.add(csv_record)
+
+        db.commit()
+        print(f"✓ Saved search {search_id} with CSV export ({len(all_flights)} flights, {len(selected_flights)} selected)")
+        return search_id
+
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Error saving to database: {str(e)}")
+        raise
 
     finally:
         db.close()
