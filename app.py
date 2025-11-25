@@ -30,6 +30,75 @@ except Exception as e:
     # Don't crash the app if database setup fails, just log it
     print(f"Database initialization: {str(e)}")
 
+# Airline code to name mapping (common IATA codes)
+AIRLINE_NAMES = {
+    'AA': 'American Airlines',
+    'DL': 'Delta Air Lines',
+    'UA': 'United Airlines',
+    'WN': 'Southwest Airlines',
+    'B6': 'JetBlue Airways',
+    'AS': 'Alaska Airlines',
+    'NK': 'Spirit Airlines',
+    'F9': 'Frontier Airlines',
+    'G4': 'Allegiant Air',
+    'SY': 'Sun Country Airlines',
+    'AC': 'Air Canada',
+    'AM': 'Aeromexico',
+    'BA': 'British Airways',
+    'LH': 'Lufthansa',
+    'AF': 'Air France',
+    'KL': 'KLM',
+    'IB': 'Iberia',
+    'AY': 'Finnair',
+    'SK': 'SAS',
+    'TP': 'TAP Air Portugal',
+    'LX': 'Swiss International Air Lines',
+    'OS': 'Austrian Airlines',
+    'SN': 'Brussels Airlines',
+    'AZ': 'ITA Airways',
+    'EI': 'Aer Lingus',
+    'FR': 'Ryanair',
+    'U2': 'easyJet',
+    'EW': 'Eurowings',
+    'VY': 'Vueling',
+    'I2': 'Iberia Express',
+    'UX': 'Air Europa',
+    'TO': 'Transavia',
+    'W6': 'Wizz Air',
+    'QR': 'Qatar Airways',
+    'EK': 'Emirates',
+    'EY': 'Etihad Airways',
+    'TK': 'Turkish Airlines',
+    'SQ': 'Singapore Airlines',
+    'CX': 'Cathay Pacific',
+    'JL': 'Japan Airlines',
+    'NH': 'All Nippon Airways',
+    'KE': 'Korean Air',
+    'OZ': 'Asiana Airlines',
+    'TG': 'Thai Airways',
+    'MH': 'Malaysia Airlines',
+    'BR': 'EVA Air',
+    'CI': 'China Airlines',
+    'CA': 'Air China',
+    'MU': 'China Eastern',
+    'CZ': 'China Southern',
+    'QF': 'Qantas',
+    'NZ': 'Air New Zealand',
+    'LA': 'LATAM Airlines',
+    'AR': 'Aerolineas Argentinas',
+    'CM': 'Copa Airlines',
+    'AV': 'Avianca',
+    'SA': 'South African Airways',
+    'ET': 'Ethiopian Airlines',
+    'MS': 'EgyptAir',
+    'WY': 'Oman Air',
+    'GF': 'Gulf Air',
+}
+
+def get_airline_name(code):
+    """Convert airline IATA code to full name."""
+    return AIRLINE_NAMES.get(code, code)  # Return code if not found
+
 # CSV Generation Function
 def generate_flight_csv(all_flights, selected_flights, k=5):
     """
@@ -60,8 +129,8 @@ def generate_flight_csv(all_flights, selected_flights, k=5):
         # Generate unique_id
         unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
 
-        # Get airline name (carrier code for now, could map to full names)
-        name = flight['airline']
+        # Get airline name (convert code to full name)
+        name = get_airline_name(flight['airline'])
 
         # Parse departure and arrival times
         try:
@@ -423,11 +492,19 @@ if st.session_state.all_flights:
                 dept_time_display = dept_dt.strftime("%I:%M %p")
                 arr_time_display = arr_dt.strftime("%I:%M %p")
 
+                # Format duration as "X hr Y min"
+                duration_hours = flight['duration_min'] // 60
+                duration_mins = flight['duration_min'] % 60
+                duration_display = f"{duration_hours} hr {duration_mins} min" if duration_hours > 0 else f"{duration_mins} min"
+
+                # Get full airline name
+                airline_name = get_airline_name(flight['airline'])
+
                 st.markdown(f"""
                 <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
-                <strong>{unique_id}</strong> | <strong>{flight['airline']}</strong> {flight['flight_number']}<br>
+                <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
                 <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | {dept_time_display} - {arr_time_display}</span><br>
-                <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {flight['duration_min']} min | {flight['stops']} stops</span>
+                <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -439,7 +516,8 @@ if st.session_state.all_flights:
             # Create list of flight labels for sorting
             flight_labels = []
             for i, flight in enumerate(st.session_state.selected_flights):
-                label = f"#{i+1}: {flight['airline']}{flight['flight_number']} - ${flight['price']:.0f}"
+                airline_name = get_airline_name(flight['airline'])
+                label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
                 flight_labels.append(label)
 
             # Display sortable list
