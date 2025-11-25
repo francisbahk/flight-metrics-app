@@ -575,7 +575,10 @@ if st.session_state.all_flights:
             # Display all outbound flights with checkboxes
             for idx, flight in enumerate(st.session_state.all_flights):
                 unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
-                is_selected = flight['id'] in [f['id'] for f in st.session_state.selected_flights]
+
+                # Create unique key using ID + departure time to handle duplicate IDs across dates
+                flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                is_selected = any(f"{f['id']}_{f['departure_time']}" == flight_unique_key for f in st.session_state.selected_flights)
 
                 col1, col2 = st.columns([1, 5])
 
@@ -583,7 +586,7 @@ if st.session_state.all_flights:
                     selected = st.checkbox(
                         "✓" if is_selected else "",
                         value=is_selected,
-                        key=f"select_out_{flight['id']}_{idx}",
+                        key=f"select_out_{flight_unique_key}",
                         label_visibility="collapsed",
                         disabled=(not is_selected and len(st.session_state.selected_flights) >= 5)
                     )
@@ -593,7 +596,8 @@ if st.session_state.all_flights:
                         st.rerun()
                     elif not selected and is_selected:
                         st.session_state.selected_flights = [
-                            f for f in st.session_state.selected_flights if f['id'] != flight['id']
+                            f for f in st.session_state.selected_flights
+                            if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                         ]
                         st.rerun()
 
@@ -602,6 +606,7 @@ if st.session_state.all_flights:
                     arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
                     dept_time_display = dept_dt.strftime("%I:%M %p")
                     arr_time_display = arr_dt.strftime("%I:%M %p")
+                    dept_date_display = dept_dt.strftime("%a, %b %d")  # e.g., "Fri, Jan 5"
 
                     duration_hours = flight['duration_min'] // 60
                     duration_mins = flight['duration_min'] % 60
@@ -612,7 +617,7 @@ if st.session_state.all_flights:
                     st.markdown(f"""
                     <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
                     <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
-                    <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | {dept_time_display} - {arr_time_display}</span><br>
+                    <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
                     <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
                     </div>
                     """, unsafe_allow_html=True)
@@ -656,7 +661,10 @@ if st.session_state.all_flights:
             # Display all return flights with checkboxes
             for idx, flight in enumerate(st.session_state.all_return_flights):
                 unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
-                is_selected = flight['id'] in [f['id'] for f in st.session_state.selected_return_flights]
+
+                # Create unique key using ID + departure time to handle duplicate IDs
+                flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                is_selected = any(f"{f['id']}_{f['departure_time']}" == flight_unique_key for f in st.session_state.selected_return_flights)
 
                 col1, col2 = st.columns([1, 5])
 
@@ -664,7 +672,7 @@ if st.session_state.all_flights:
                     selected = st.checkbox(
                         "✓" if is_selected else "",
                         value=is_selected,
-                        key=f"select_ret_{flight['id']}_{idx}",
+                        key=f"select_ret_{flight_unique_key}",
                         label_visibility="collapsed",
                         disabled=(not is_selected and len(st.session_state.selected_return_flights) >= 5)
                     )
@@ -674,7 +682,8 @@ if st.session_state.all_flights:
                         st.rerun()
                     elif not selected and is_selected:
                         st.session_state.selected_return_flights = [
-                            f for f in st.session_state.selected_return_flights if f['id'] != flight['id']
+                            f for f in st.session_state.selected_return_flights
+                            if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                         ]
                         st.rerun()
 
@@ -683,6 +692,7 @@ if st.session_state.all_flights:
                     arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
                     dept_time_display = dept_dt.strftime("%I:%M %p")
                     arr_time_display = arr_dt.strftime("%I:%M %p")
+                    dept_date_display = dept_dt.strftime("%a, %b %d")  # e.g., "Fri, Jan 5"
 
                     duration_hours = flight['duration_min'] // 60
                     duration_mins = flight['duration_min'] % 60
@@ -693,7 +703,7 @@ if st.session_state.all_flights:
                     st.markdown(f"""
                     <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
                     <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
-                    <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | {dept_time_display} - {arr_time_display}</span><br>
+                    <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
                     <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
                     </div>
                     """, unsafe_allow_html=True)
@@ -812,8 +822,9 @@ if st.session_state.all_flights:
                 # Generate unique_id for display
                 unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
 
-                # Check if already selected
-                is_selected = flight['id'] in [f['id'] for f in st.session_state.selected_flights]
+                # Create unique key using ID + departure time to handle duplicate IDs across dates
+                flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                is_selected = any(f"{f['id']}_{f['departure_time']}" == flight_unique_key for f in st.session_state.selected_flights)
 
                 col1, col2 = st.columns([1, 5])
 
@@ -822,7 +833,7 @@ if st.session_state.all_flights:
                     selected = st.checkbox(
                         "✓" if is_selected else "",
                         value=is_selected,
-                        key=f"select_{flight['id']}_{idx}",
+                        key=f"select_{flight_unique_key}",
                         label_visibility="collapsed",
                         disabled=(not is_selected and len(st.session_state.selected_flights) >= 5)
                     )
@@ -834,7 +845,8 @@ if st.session_state.all_flights:
                     elif not selected and is_selected:
                         # Remove from selected flights
                         st.session_state.selected_flights = [
-                            f for f in st.session_state.selected_flights if f['id'] != flight['id']
+                            f for f in st.session_state.selected_flights
+                            if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                         ]
                         st.rerun()
 
@@ -844,6 +856,7 @@ if st.session_state.all_flights:
                     arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
                     dept_time_display = dept_dt.strftime("%I:%M %p")
                     arr_time_display = arr_dt.strftime("%I:%M %p")
+                    dept_date_display = dept_dt.strftime("%a, %b %d")  # e.g., "Fri, Jan 5"
 
                     # Format duration as "X hr Y min"
                     duration_hours = flight['duration_min'] // 60
@@ -856,7 +869,7 @@ if st.session_state.all_flights:
                     st.markdown(f"""
                     <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
                     <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
-                    <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | {dept_time_display} - {arr_time_display}</span><br>
+                    <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
                     <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
                     </div>
                     """, unsafe_allow_html=True)
