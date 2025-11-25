@@ -97,6 +97,12 @@ AIRLINE_NAMES = {
 
 def get_airline_name(code):
     """Convert airline IATA code to full name."""
+    # First try session state (Amadeus API lookup)
+    if 'airline_names' in st.session_state:
+        if code in st.session_state.airline_names:
+            return st.session_state.airline_names[code]
+
+    # Fallback to hardcoded mapping
     return AIRLINE_NAMES.get(code, code)  # Return code if not found
 
 # CSV Generation Function
@@ -388,6 +394,11 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
                     st.error("No flights found. Try different dates or airports.")
                     st.stop()
 
+                # Look up airline names using Amadeus API
+                unique_airlines = list(set([f['airline'] for f in all_flights]))
+                airline_name_map = amadeus.get_airline_names(unique_airlines)
+                st.session_state.airline_names = airline_name_map
+
                 # Store all flights (no algorithm ranking)
                 st.session_state.all_flights = all_flights
                 st.success(f"✅ Found {len(all_flights)} flights!")
@@ -577,18 +588,18 @@ if st.session_state.all_flights:
         else:
             st.info("Check boxes on the left to select flights")
 
-    # Show CSV download button if rankings were submitted
-    if st.session_state.csv_generated and hasattr(st.session_state, 'csv_data'):
-        st.markdown("---")
-        st.markdown("### 📥 Download Your Results")
-        st.download_button(
-            label="Download CSV File",
-            data=st.session_state.csv_data,
-            file_name=f"flight_rankings_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            type="primary"
-        )
+        # Show CSV download button if rankings were submitted (moved to right panel)
+        if st.session_state.csv_generated and hasattr(st.session_state, 'csv_data'):
+            st.markdown("---")
+            st.markdown("**📥 Download Results**")
+            st.download_button(
+                label="Download CSV File",
+                data=st.session_state.csv_data,
+                file_name=f"flight_rankings_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                type="secondary"
+            )
 
 # Footer
 st.markdown("---")

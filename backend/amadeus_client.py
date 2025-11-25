@@ -36,6 +36,7 @@ class AmadeusClient:
         # Set API endpoints based on base URL
         self.AUTH_URL = f"{base_url}/v1/security/oauth2/token"
         self.FLIGHT_OFFERS_URL = f"{base_url}/v2/shopping/flight-offers"
+        self.AIRLINE_LOOKUP_URL = f"{base_url}/v1/reference-data/airlines"
 
         if not self.api_key or not self.api_secret:
             raise ValueError(
@@ -168,6 +169,53 @@ class AmadeusClient:
 
         except requests.exceptions.RequestException as e:
             raise Exception(f"Failed to search flights: {str(e)}")
+
+    def get_airline_names(self, airline_codes: List[str]) -> Dict[str, str]:
+        """
+        Look up airline names from IATA codes using Amadeus API.
+
+        Args:
+            airline_codes: List of IATA airline codes (e.g., ["AA", "DL", "UA"])
+
+        Returns:
+            Dictionary mapping airline codes to names (e.g., {"AA": "American Airlines"})
+        """
+        if not airline_codes:
+            return {}
+
+        # Get access token
+        token = self._get_access_token()
+
+        # Build comma-separated list of codes
+        codes_param = ",".join(set(airline_codes))  # Remove duplicates
+
+        try:
+            response = requests.get(
+                self.AIRLINE_LOOKUP_URL,
+                headers={"Authorization": f"Bearer {token}"},
+                params={"airlineCodes": codes_param},
+                timeout=10,
+            )
+            response.raise_for_status()
+
+            data = response.json()
+            airlines = data.get("data", [])
+
+            # Build mapping of code to name
+            airline_map = {}
+            for airline in airlines:
+                code = airline.get("iataCode")
+                name = airline.get("businessName") or airline.get("commonName")
+                if code and name:
+                    airline_map[code] = name
+
+            print(f"✓ Looked up {len(airline_map)} airline names")
+            return airline_map
+
+        except requests.exceptions.RequestException as e:
+            print(f"⚠ Failed to lookup airline names: {str(e)}")
+            # Return empty dict on failure, fallback to codes
+            return {}
 
     def parse_flight_offer(self, offer: Dict) -> Dict:
         """
