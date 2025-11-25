@@ -1,16 +1,17 @@
 """
-Simple script to view saved flight ranking data.
+Simple script to view saved flight ranking data with CSV exports.
 """
-from backend.db import SessionLocal, Search, FlightShown, UserRanking
-from sqlalchemy import func
+from backend.db import SessionLocal, Search, FlightCSV
+import pandas as pd
+import io
 
 def view_all_data():
-    """Display all saved searches and rankings."""
+    """Display all saved searches and CSV exports."""
     db = SessionLocal()
 
     try:
         print("=" * 80)
-        print("FLIGHT RANKING DATA")
+        print("FLIGHT RANKING DATA (CSV Export Version)")
         print("=" * 80)
 
         # Get all searches
@@ -27,77 +28,41 @@ def view_all_data():
             print(f"Search ID: {search.search_id}")
             print(f"Session ID: {search.session_id}")
             print(f"Date: {search.created_at}")
-            print(f"\nUser Prompt: {search.user_prompt}")
-            print(f"\nOrigins: {search.parsed_origins}")
-            print(f"Destinations: {search.parsed_destinations}")
-            print(f"Departure Date: {search.departure_date}")
+            print(f"\nUser Prompt:")
+            print(f"  {search.user_prompt}")
+            print(f"\nParsed Parameters:")
+            print(f"  Origins: {search.parsed_origins}")
+            print(f"  Destinations: {search.parsed_destinations}")
+            print(f"  Departure Date: {search.departure_date}")
+            print(f"  Preferences: {search.parsed_preferences}")
 
-            # Count flights shown
-            flights_count = db.query(func.count(FlightShown.id))\
-                .filter(FlightShown.search_id == search.search_id)\
-                .scalar()
-            print(f"\nFlights shown: {flights_count}")
+            # Get CSV exports for this search
+            csvs = db.query(FlightCSV).filter(FlightCSV.search_id == search.search_id).all()
 
-            # Get user rankings
-            rankings = db.query(UserRanking, FlightShown)\
-                .join(FlightShown, UserRanking.flight_id == FlightShown.id)\
-                .filter(UserRanking.search_id == search.search_id)\
-                .order_by(UserRanking.user_rank)\
-                .all()
+            if csvs:
+                print(f"\n✓ CSV Exports: {len(csvs)}")
+                for idx, csv in enumerate(csvs, 1):
+                    print(f"\n  CSV #{idx} (ID: {csv.id}):")
+                    print(f"    - Total flights: {csv.num_flights}")
+                    print(f"    - Selected (top 5): {csv.num_selected}")
+                    print(f"    - Created: {csv.created_at}")
 
-            if rankings:
-                print(f"\nUser's Top {len(rankings)} Rankings:")
-                for ranking, flight in rankings:
-                    flight_info = flight.flight_data
+                    # Parse CSV and show top 5
+                    try:
+                        df = pd.read_csv(io.StringIO(csv.csv_data), sep='\t')
+                        selected = df[df['is_best'] == True].sort_values('rank')
 
-                    # Handle different price formats
-                    if isinstance(flight_info.get('price'), dict):
-                        price = flight_info.get('price', {}).get('total', 'N/A')
-                    else:
-                        price = flight_info.get('price', 'N/A')
-
-                    # Handle duration (convert minutes to hours:minutes)
-                    duration = 'N/A'
-                    if 'duration_min' in flight_info:
-                        duration_min = flight_info['duration_min']
-                        hours = int(duration_min // 60)
-                        minutes = int(duration_min % 60)
-                        duration = f"{hours}h {minutes}m"
-                    elif 'itineraries' in flight_info and flight_info['itineraries']:
-                        duration = flight_info['itineraries'][0].get('duration', 'N/A')
-                    elif 'duration' in flight_info:
-                        duration = flight_info.get('duration', 'N/A')
-
-                    print(f"  #{ranking.user_rank}: {flight.algorithm} (rank {flight.algorithm_rank})")
-                    print(f"       Price: ${price}, Duration: {duration}")
+                        if len(selected) > 0:
+                            print(f"\n    Top 5 Selected Flights:")
+                            for _, row in selected.iterrows():
+                                print(f"      #{int(row['rank'])}: {row['name']} - {row['origin']}→{row['destination']}")
+                                print(f"           ${row['price']:.0f}, {row['duration']}, {int(row['stops'])} stops")
+                    except Exception as e:
+                        print(f"    Error parsing CSV: {e}")
             else:
-                print("\nNo rankings submitted yet.")
+                print("\n  No CSV exports found")
 
             print()
-
-        print("=" * 80)
-        print("\nALGORITHM PERFORMANCE SUMMARY")
-        print("=" * 80)
-
-        # Get algorithm stats
-        stats = db.query(
-            FlightShown.algorithm,
-            func.count(UserRanking.id).label('times_selected'),
-            func.avg(UserRanking.user_rank).label('avg_rank')
-        ).join(UserRanking)\
-         .group_by(FlightShown.algorithm)\
-         .order_by(func.count(UserRanking.id).desc())\
-         .all()
-
-        if stats:
-            print(f"\n{'Algorithm':<15} {'Times Selected':<18} {'Avg Rank':<10}")
-            print("-" * 50)
-            for algo, count, avg_rank in stats:
-                print(f"{algo:<15} {count:<18} {avg_rank:.2f}")
-        else:
-            print("\nNo ranking data available yet.")
-
-        print()
 
     finally:
         db.close()
@@ -120,17 +85,51 @@ def view_latest():
         print(f"\nSearch ID: {search.search_id}")
         print(f"Prompt: {search.user_prompt}")
 
-        rankings = db.query(UserRanking, FlightShown)\
-            .join(FlightShown, UserRanking.flight_id == FlightShown.id)\
-            .filter(UserRanking.search_id == search.search_id)\
-            .order_by(UserRanking.user_rank)\
-            .all()
+        csvs = db.query(FlightCSV).filter(FlightCSV.search_id == search.search_id).all()
 
-        if rankings:
-            print(f"\nUser Rankings:")
-            for ranking, flight in rankings:
-                print(f"  #{ranking.user_rank}: {flight.algorithm} (algorithm rank {flight.algorithm_rank})")
+        if csvs:
+            for idx, csv in enumerate(csvs, 1):
+                print(f"\nCSV #{idx}: {csv.num_flights} flights, {csv.num_selected} selected")
+
+                # Parse and show top 5
+                try:
+                    df = pd.read_csv(io.StringIO(csv.csv_data), sep='\t')
+                    selected = df[df['is_best'] == True].sort_values('rank')
+
+                    if len(selected) > 0:
+                        print(f"\nTop 5 Rankings:")
+                        for _, row in selected.iterrows():
+                            print(f"  #{int(row['rank'])}: {row['name']} - {row['origin']}→{row['destination']} (${row['price']:.0f})")
+                except Exception as e:
+                    print(f"Error parsing CSV: {e}")
         print()
+
+    finally:
+        db.close()
+
+
+def export_csv(search_id: int, output_dir: str = "."):
+    """Export CSV data to files."""
+    import os
+    from datetime import datetime
+
+    db = SessionLocal()
+
+    try:
+        csvs = db.query(FlightCSV).filter(FlightCSV.search_id == search_id).all()
+
+        if not csvs:
+            print(f"No CSV data found for search ID {search_id}")
+            return
+
+        for idx, csv in enumerate(csvs, 1):
+            filename = f"search_{search_id}_csv_{idx}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            filepath = os.path.join(output_dir, filename)
+
+            with open(filepath, 'w') as f:
+                f.write(csv.csv_data)
+
+            print(f"✓ Exported CSV #{idx} to: {filepath}")
 
     finally:
         db.close()
@@ -139,7 +138,17 @@ def view_latest():
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) > 1 and sys.argv[1] == "latest":
-        view_latest()
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "latest":
+            view_latest()
+        elif sys.argv[1] == "export" and len(sys.argv) > 2:
+            search_id = int(sys.argv[2])
+            output_dir = sys.argv[3] if len(sys.argv) > 3 else "."
+            export_csv(search_id, output_dir)
+        else:
+            print("Usage:")
+            print("  python view_data.py              # View all searches")
+            print("  python view_data.py latest       # View latest search")
+            print("  python view_data.py export <id>  # Export CSV for search ID")
     else:
         view_all_data()
