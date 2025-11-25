@@ -4,12 +4,12 @@
   "private": true,
   "description": "Flight Metrics Web Application - Frontend",
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-scripts": "5.0.1",
     "axios": "^1.6.0",
+    "date-fns": "^2.30.0",
+    "react": "^18.2.0",
     "react-beautiful-dnd": "^13.1.1",
-    "date-fns": "^2.30.0"
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1"
   },
   "scripts": {
     "start": "react-scripts start",

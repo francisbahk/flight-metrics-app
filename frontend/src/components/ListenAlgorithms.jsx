@@ -3,7 +3,7 @@
  * Implements LISTEN-U (Utility Refinement) and LISTEN-T (Tournament Selection)
  */
 import React, { useState } from 'react';
-import { runListenU, runListenT } from '../api/flights';
+import { rankFlightsListenU } from '../api/flights';
 import { format } from 'date-fns';
 
 const ListenAlgorithms = ({ flights, userId = 'user_001' }) => {
@@ -28,27 +28,14 @@ const ListenAlgorithms = ({ flights, userId = 'user_001' }) => {
     setResults(null);
 
     try {
-      const flightIds = flights.map((f) => f.id);
+      // Use new FastAPI ranking endpoint
+      const response = await rankFlightsListenU(
+        flights,
+        preferenceUtterance,
+        null // user_preferences
+      );
 
-      let response;
-      if (algorithm === 'listen-u') {
-        response = await runListenU({
-          user_id: userId,
-          flight_ids: flightIds,
-          preference_utterance: preferenceUtterance,
-          max_iterations: maxIterations,
-        });
-      } else if (algorithm === 'listen-t') {
-        response = await runListenT({
-          user_id: userId,
-          flight_ids: flightIds,
-          preference_utterance: preferenceUtterance,
-          num_rounds: numRounds,
-          batch_size: batchSize,
-        });
-      }
-
-      setResults(response.results);
+      setResults(response);
       setActiveAlgorithm(algorithm);
     } catch (err) {
       console.error('Algorithm error:', err);

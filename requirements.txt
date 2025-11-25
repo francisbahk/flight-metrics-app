@@ -1,15 +1,22 @@
+# Primary: Streamlit application
 streamlit>=1.28.0
+streamlit-sortables>=0.2.0
+
+# Database
 sqlalchemy>=2.0.35
 pymysql==1.1.0
 cryptography==41.0.7
+
+# HTTP and environment
 requests==2.31.0
 python-dotenv==1.0.0
 
-# LLM for prompt parsing
+# LLM for prompt parsing and LILO
 google-generativeai>=0.3.0
 
-# For drag-drop UI
-streamlit-sortables>=0.2.0
+# Data processing
+pandas>=2.0.0
+pydantic>=2.0.0
 
 # LISTEN dependencies
 numpy<2
@@ -17,3 +24,7 @@ scipy
 scikit-learn
 groq
 pyyaml
+
+# Alternative: FastAPI backend (in api/ directory)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0

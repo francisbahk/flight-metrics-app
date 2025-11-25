@@ -15,7 +15,7 @@ def rank_flights_with_listen_main(
     flights: List[Dict],
     user_prompt: str,
     user_preferences: Dict = None,
-    n_iterations: int = 25
+    n_iterations: int = 5
 ) -> List[Dict]:
     """
     Rank flights using LISTEN's main.py framework.
@@ -27,7 +27,7 @@ def rank_flights_with_listen_main(
         n_iterations: Number of LISTEN iterations (batches)
 
     Returns:
-        List of top 10 flights ranked by LISTEN-U
+        List of all flights ranked by LISTEN-U (best to worst)
     """
     if not flights:
         return []
@@ -71,7 +71,7 @@ def rank_flights_with_listen_main(
         "--scenario", tag,
         "--algo", "utility",  # Main LISTEN algorithm - learns utility function over iterations
         "--mode", "User",
-        "--max-iters", str(n_iterations),  # 25 iterations to learn utility
+        "--max-iters", str(n_iterations),  # 5 iterations to learn utility (avoids Gemini quota)
         "--api-model", "gemini",
         "--seed", "42"
     ]
@@ -82,15 +82,16 @@ def rank_flights_with_listen_main(
             cwd=str(listen_dir),
             capture_output=True,
             text=True,
-            timeout=900  # 15 minute timeout (25 iterations takes longer)
+            timeout=300  # 5 minute timeout (5 iterations should complete faster)
         )
 
         if result.returncode != 0:
             print(f"  ⚠️ LISTEN main.py failed:")
             print(f"  STDOUT: {result.stdout[:500]}")
             print(f"  STDERR: {result.stderr[:500]}")
-            # Fall back to simple price ranking
-            return sorted(flights, key=lambda x: x.get('price', float('inf')))[:10]
+            # Return all flights in original order (no biased ranking)
+            print(f"  ⚠️ Returning unranked flights due to LISTEN failure")
+            return flights
 
         print(f"  ✓ LISTEN completed successfully!")
 
@@ -100,11 +101,13 @@ def rank_flights_with_listen_main(
         print()
 
     except subprocess.TimeoutExpired:
-        print(f"  ⚠️ LISTEN timed out after 15 minutes")
-        return sorted(flights, key=lambda x: x.get('price', float('inf')))[:10]
+        print(f"  ⚠️ LISTEN timed out after 5 minutes")
+        print(f"  ⚠️ Returning unranked flights due to timeout")
+        return flights
     except Exception as e:
         print(f"  ⚠️ Error running LISTEN: {str(e)}")
-        return sorted(flights, key=lambda x: x.get('price', float('inf')))[:10]
+        print(f"  ⚠️ Returning unranked flights due to error")
+        return flights
 
     # Step 4: Parse LISTEN output to get ranked flights
     print(f"  ✓ Parsing LISTEN results...")
@@ -127,14 +130,14 @@ def rank_flights_with_listen_main(
                     with open(best_file) as f:
                         best_data = json.load(f)
                     # Extract flight indices in ranked order
-                    ranked_indices = best_data.get('ranked_indices', list(range(min(10, len(flights)))))
+                    ranked_indices = best_data.get('ranked_indices', list(range(len(flights))))
                 else:
                     # Fall back to reading utility scores if available
-                    ranked_indices = list(range(min(10, len(flights))))
+                    ranked_indices = list(range(len(flights)))
 
-                # Map indices back to flights
+                # Map indices back to all flights
                 ranked_flights = []
-                for idx in ranked_indices[:10]:
+                for idx in ranked_indices:
                     if 0 <= idx < len(flights):
                         ranked_flights.append(flights[idx])
 
@@ -159,9 +162,9 @@ def rank_flights_with_listen_main(
                 # This is a placeholder - actual parsing depends on LISTEN output format
                 pass
 
-    # Final fallback: Return first 10 flights (at least they ran through LISTEN)
-    print(f"  ⚠️ Could not parse LISTEN ranking, returning first 10 flights")
-    return flights[:10]
+    # Final fallback: Return all flights in original order (at least they ran through LISTEN)
+    print(f"  ⚠️ Could not parse LISTEN ranking, returning all flights")
+    return flights
 
 
 def cleanup_listen_files(tag: str):

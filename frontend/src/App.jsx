@@ -1,53 +1,70 @@
 /**
  * Main App Component
- * Orchestrates flight search and evaluation workflows
+ * Orchestrates sequential evaluation workflow: Manual → LISTEN → LILO
  */
 import React, { useState } from 'react';
-import FlightSearch from './components/FlightSearch';
-import FlightTable from './components/FlightTable';
-import ListenRanking from './components/ListenRanking';
-import TeamDraft from './components/TeamDraft';
-import ListenAlgorithms from './components/ListenAlgorithms';
+import ManualMethod from './components/ManualMethod';
+import LISTENMethod from './components/LISTENMethod';
+import LILOMethod from './components/LILOMethod';
 
 function App() {
-  // State management
-  const [searchResults, setSearchResults] = useState(null);
-  const [selectedFlights, setSelectedFlights] = useState([]);
-  const [evaluationMode, setEvaluationMode] = useState(null); // null, 'listen', 'teamdraft', or 'listen-algorithms'
+  // Sequential evaluation state
+  const [currentMethod, setCurrentMethod] = useState('manual'); // manual, listen, lilo, complete
+  const [evaluationData, setEvaluationData] = useState({
+    manual: null,
+    listen: null,
+    lilo: null,
+  });
 
-  // Handle search completion
-  const handleSearchComplete = (results) => {
-    setSearchResults(results);
-    setSelectedFlights([]);
-    setEvaluationMode(null);
+  // Handle Manual method completion
+  const handleManualComplete = (data) => {
+    console.log('Manual method completed:', data);
+    setEvaluationData(prev => ({ ...prev, manual: data }));
+    setCurrentMethod('listen');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Handle flight selection (toggle)
-  const handleFlightSelect = (flight) => {
-    setSelectedFlights((prev) => {
-      const isSelected = prev.some((f) => f.id === flight.id);
-      if (isSelected) {
-        return prev.filter((f) => f.id !== flight.id);
-      } else {
-        return [...prev, flight];
-      }
+  // Handle LISTEN method completion
+  const handleLISTENComplete = (data) => {
+    console.log('LISTEN method completed:', data);
+    setEvaluationData(prev => ({ ...prev, listen: data }));
+    setCurrentMethod('lilo');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Handle LILO method completion
+  const handleLILOComplete = (data) => {
+    console.log('LILO method completed:', data);
+    setEvaluationData(prev => ({ ...prev, lilo: data }));
+    setCurrentMethod('complete');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // TODO: Submit all evaluation data to backend
+    console.log('All evaluation data:', {
+      manual: evaluationData.manual,
+      listen: evaluationData.listen,
+      lilo: data,
     });
   };
 
-  // Start evaluation mode
-  const startEvaluation = (mode) => {
-    if (selectedFlights.length === 0) {
-      alert('Please select at least one flight to evaluate');
-      return;
-    }
-    setEvaluationMode(mode);
+  // Reset evaluation (start over)
+  const handleReset = () => {
+    setCurrentMethod('manual');
+    setEvaluationData({ manual: null, listen: null, lilo: null });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Handle Team Draft completion
-  const handleTeamDraftComplete = (results) => {
-    console.log('Team Draft completed:', results);
-    // Could add additional logic here, like showing a success message
+  // Get method info
+  const getMethodInfo = () => {
+    const methods = {
+      manual: { number: 1, name: 'Manual (Baseline)', color: 'from-gray-600 to-gray-700' },
+      listen: { number: 2, name: 'LISTEN (AI Ranking)', color: 'from-blue-600 to-indigo-600' },
+      lilo: { number: 3, name: 'LILO (Interactive Learning)', color: 'from-green-600 to-teal-600' },
+    };
+    return methods[currentMethod] || { number: 0, name: '', color: '' };
   };
+
+  const methodInfo = getMethodInfo();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
@@ -55,182 +72,128 @@ function App() {
       <header className="bg-white shadow-md">
         <div className="container mx-auto px-4 py-6">
           <h1 className="text-4xl font-bold text-gray-800">
-            ✈️ Flight Metrics
+            Flight Ranking Evaluation
           </h1>
           <p className="text-gray-600 mt-2">
-            Search flights and evaluate ranking algorithms
+            Sequential evaluation: Manual → LISTEN → LILO
           </p>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        <div className="space-y-8">
-          {/* Search Section */}
-          <section>
-            <FlightSearch onSearchComplete={handleSearchComplete} />
-          </section>
+        <div className="space-y-6">
+          {/* Progress Indicator */}
+          {currentMethod !== 'complete' && (
+            <div className="card">
+              <div className={`bg-gradient-to-r ${methodInfo.color} text-white px-6 py-4 rounded-lg`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold">
+                      Method {methodInfo.number} of 3: {methodInfo.name}
+                    </h2>
+                    <p className="text-white/90 text-sm mt-1">
+                      Complete all three methods to finish the evaluation
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-3xl font-bold">{methodInfo.number}/3</div>
+                  </div>
+                </div>
+              </div>
 
-          {/* Results Section */}
-          {searchResults && searchResults.flights && searchResults.flights.length > 0 && (
-            <>
-              <section>
-                <FlightTable
-                  flights={searchResults.flights}
-                  onSelectFlight={handleFlightSelect}
-                  selectedFlights={selectedFlights}
-                />
-              </section>
-
-              {/* Evaluation Mode Selection */}
-              {!evaluationMode && selectedFlights.length > 0 && (
-                <section className="card">
-                  <h2 className="text-2xl font-bold mb-4 text-gray-800">
-                    Evaluate Selected Flights
-                  </h2>
-                  <p className="text-gray-600 mb-6">
-                    Choose an evaluation method to rank or compare the selected flights.
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <button
-                      onClick={() => startEvaluation('listen-algorithms')}
-                      className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors text-left border-2 border-yellow-300"
-                    >
-                      <h3 className="text-xl font-semibold mb-2">
-                        🤖 LISTEN-U & LISTEN-T
-                      </h3>
-                      <p className="text-blue-100 text-sm">
-                        Automated ranking using AI algorithms (Utility Refinement & Tournament)
+              {/* Progress Bar */}
+              <div className="mt-4">
+                <div className="flex gap-2">
+                  {[
+                    { key: 'manual', label: 'Manual' },
+                    { key: 'listen', label: 'LISTEN' },
+                    { key: 'lilo', label: 'LILO' }
+                  ].map((method, idx) => (
+                    <div key={method.key} className="flex-1">
+                      <div
+                        className={`h-2 rounded-full ${
+                          evaluationData[method.key]
+                            ? 'bg-green-600'
+                            : currentMethod === method.key
+                            ? 'bg-blue-600'
+                            : 'bg-gray-300'
+                        }`}
+                      />
+                      <p className="text-xs text-gray-600 mt-1 text-center">
+                        {method.label}
                       </p>
-                      <span className="inline-block mt-2 bg-yellow-400 text-blue-900 text-xs font-bold px-2 py-1 rounded">
-                        NEW!
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => startEvaluation('listen')}
-                      className="bg-blue-600 text-white p-6 rounded-lg hover:bg-blue-700 transition-colors text-left"
-                    >
-                      <h3 className="text-xl font-semibold mb-2">
-                        🎯 LISTEN Ranking
-                      </h3>
-                      <p className="text-blue-100 text-sm">
-                        Rank flights by dragging and dropping them in order of preference
-                      </p>
-                    </button>
-                    <button
-                      onClick={() => startEvaluation('teamdraft')}
-                      className="bg-purple-600 text-white p-6 rounded-lg hover:bg-purple-700 transition-colors text-left"
-                    >
-                      <h3 className="text-xl font-semibold mb-2">
-                        ⚔️ Team Draft
-                      </h3>
-                      <p className="text-purple-100 text-sm">
-                        Compare two ranking algorithms through interleaved evaluation
-                      </p>
-                    </button>
-                  </div>
-                </section>
-              )}
-
-              {/* LISTEN Ranking Section */}
-              {evaluationMode === 'listen' && (
-                <section>
-                  <div className="mb-4">
-                    <button
-                      onClick={() => setEvaluationMode(null)}
-                      className="btn-secondary"
-                    >
-                      ← Back to Results
-                    </button>
-                  </div>
-                  <ListenRanking flights={selectedFlights} />
-                </section>
-              )}
-
-              {/* Team Draft Section */}
-              {evaluationMode === 'teamdraft' && (
-                <section>
-                  <div className="mb-4">
-                    <button
-                      onClick={() => setEvaluationMode(null)}
-                      className="btn-secondary"
-                    >
-                      ← Back to Results
-                    </button>
-                  </div>
-                  <TeamDraft
-                    selectedFlights={selectedFlights}
-                    onComplete={handleTeamDraftComplete}
-                  />
-                </section>
-              )}
-
-              {/* LISTEN Algorithms Section */}
-              {evaluationMode === 'listen-algorithms' && (
-                <section>
-                  <div className="mb-4">
-                    <button
-                      onClick={() => setEvaluationMode(null)}
-                      className="btn-secondary"
-                    >
-                      ← Back to Results
-                    </button>
-                  </div>
-                  <ListenAlgorithms flights={selectedFlights} />
-                </section>
-              )}
-            </>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
 
-          {/* No Results Message */}
-          {searchResults && searchResults.flights && searchResults.flights.length === 0 && (
-            <section className="card text-center py-8">
-              <p className="text-gray-600">
-                No flights found. Try adjusting your search criteria.
-              </p>
-            </section>
+          {/* Manual Method */}
+          {currentMethod === 'manual' && (
+            <ManualMethod onComplete={handleManualComplete} />
           )}
 
-          {/* Welcome Message */}
-          {!searchResults && (
-            <section className="card text-center py-12">
+          {/* LISTEN Method */}
+          {currentMethod === 'listen' && (
+            <LISTENMethod onComplete={handleLISTENComplete} />
+          )}
+
+          {/* LILO Method */}
+          {currentMethod === 'lilo' && (
+            <LILOMethod onComplete={handleLILOComplete} />
+          )}
+
+          {/* Completion Message */}
+          {currentMethod === 'complete' && (
+            <div className="card text-center py-12">
+              <div className="text-6xl mb-6">🎉</div>
               <h2 className="text-3xl font-bold text-gray-800 mb-4">
-                Welcome to Flight Metrics
+                Evaluation Complete!
               </h2>
               <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-                Search for flights using the Amadeus API and evaluate different ranking
-                algorithms using LISTEN or Team Draft evaluation methods.
+                Thank you for completing all three evaluation methods. Your responses have been recorded.
               </p>
+
+              {/* Summary */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mt-8">
-                <div className="bg-blue-50 p-6 rounded-lg">
-                  <div className="text-4xl mb-3">🔍</div>
+                <div className="bg-gray-50 p-6 rounded-lg border-2 border-green-500">
+                  <div className="text-3xl mb-3">✓</div>
                   <h3 className="font-semibold text-gray-800 mb-2">
-                    Search Flights
+                    Manual (Baseline)
                   </h3>
                   <p className="text-sm text-gray-600">
-                    Find real flight options using the Amadeus Flight API
+                    {evaluationData.manual?.rankings?.length || 0} flights ranked
                   </p>
                 </div>
-                <div className="bg-purple-50 p-6 rounded-lg">
-                  <div className="text-4xl mb-3">📊</div>
+                <div className="bg-blue-50 p-6 rounded-lg border-2 border-green-500">
+                  <div className="text-3xl mb-3">✓</div>
                   <h3 className="font-semibold text-gray-800 mb-2">
-                    Rank & Evaluate
+                    LISTEN (AI Ranking)
                   </h3>
                   <p className="text-sm text-gray-600">
-                    Use LISTEN or Team Draft to evaluate flight rankings
+                    {evaluationData.listen?.rankings?.length || 0} flights ranked
                   </p>
                 </div>
-                <div className="bg-green-50 p-6 rounded-lg">
-                  <div className="text-4xl mb-3">💾</div>
+                <div className="bg-green-50 p-6 rounded-lg border-2 border-green-500">
+                  <div className="text-3xl mb-3">✓</div>
                   <h3 className="font-semibold text-gray-800 mb-2">
-                    Store Results
+                    LILO (Interactive)
                   </h3>
                   <p className="text-sm text-gray-600">
-                    All evaluations are saved to the database for analysis
+                    {evaluationData.lilo?.rankings?.length || 0} flights ranked
                   </p>
                 </div>
               </div>
-            </section>
+
+              <button
+                onClick={handleReset}
+                className="btn-primary mt-8"
+              >
+                Start New Evaluation
+              </button>
+            </div>
           )}
         </div>
       </main>
@@ -239,7 +202,7 @@ function App() {
       <footer className="bg-white mt-16 border-t border-gray-200">
         <div className="container mx-auto px-4 py-6 text-center text-gray-600">
           <p className="text-sm">
-            Flight Metrics v1.0 - Built with FastAPI, React, and Amadeus API
+            Flight Ranking Evaluation v2.0 - Built with FastAPI, React, and Amadeus API
           </p>
         </div>
       </footer>

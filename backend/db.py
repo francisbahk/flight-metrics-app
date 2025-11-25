@@ -171,6 +171,46 @@ class InteractionEvent(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
+class SequentialEvaluation(Base):
+    """Stores sequential evaluation workflow: Manual → LISTEN → LILO."""
+    __tablename__ = 'sequential_evaluations'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(255), unique=True, nullable=False, index=True)
+    user_id = Column(String(255), nullable=True)
+
+    # Manual method (baseline)
+    manual_search_results = Column(JSON, nullable=True)  # All flights from Amadeus
+    manual_rankings = Column(JSON, nullable=True)  # Top 5 rankings
+    manual_completed_at = Column(DateTime, nullable=True)
+
+    # LISTEN method
+    listen_prompt = Column(Text, nullable=True)  # Natural language prompt
+    listen_search_results = Column(JSON, nullable=True)  # All flights from Amadeus
+    listen_ranked_flights = Column(JSON, nullable=True)  # LISTEN-U ranked flights
+    listen_rankings = Column(JSON, nullable=True)  # Top 5 rankings
+    listen_completed_at = Column(DateTime, nullable=True)
+
+    # LILO method (3 iterations)
+    lilo_prompt = Column(Text, nullable=True)  # Natural language prompt
+    lilo_search_results = Column(JSON, nullable=True)  # All flights from Amadeus
+    lilo_initial_answers = Column(JSON, nullable=True)  # Answers to Prompt 1 questions
+    lilo_iteration1_flights = Column(JSON, nullable=True)  # 15 random flights
+    lilo_iteration1_feedback = Column(Text, nullable=True)  # User feedback iteration 1
+    lilo_iteration2_flights = Column(JSON, nullable=True)  # 15 utility-ranked flights
+    lilo_iteration2_feedback = Column(Text, nullable=True)  # User feedback iteration 2
+    lilo_iteration3_flights = Column(JSON, nullable=True)  # 15 final utility-ranked flights
+    lilo_rankings = Column(JSON, nullable=True)  # Top 5 final rankings
+    lilo_completed_at = Column(DateTime, nullable=True)
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+    # Analysis/comparison results
+    comparison_metrics = Column(JSON, nullable=True)  # Overlap, NDCG, etc.
+
+
 # Database functions
 def init_db():
     """

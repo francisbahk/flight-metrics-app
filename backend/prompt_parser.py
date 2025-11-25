@@ -152,7 +152,8 @@ def parse_flight_prompt_simple(prompt: str) -> Dict:
     date_patterns = [
         r'(\d{1,2})/(\d{1,2})/(\d{4})',  # MM/DD/YYYY
         r'(\d{1,2})-(\d{1,2})-(\d{4})',  # MM-DD-YYYY
-        r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})',
+        r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s*(\d{4})',  # Month DD, YYYY
+        r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})',  # Month DD (without year)
     ]
 
     for pattern in date_patterns:
@@ -161,11 +162,18 @@ def parse_flight_prompt_simple(prompt: str) -> Dict:
             try:
                 # Parse based on pattern
                 if len(match.groups()) == 3 and match.group(1).isdigit():
-                    # Numeric date
+                    # Numeric date MM/DD/YYYY or MM-DD-YYYY
                     month, day, year = match.groups()
                     result['departure_date'] = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+                elif len(match.groups()) == 3:
+                    # Month name with year: "January 5, 2026"
+                    month_name = match.group(1)
+                    day = match.group(2)
+                    year = match.group(3)
+                    month_num = datetime.strptime(month_name, "%B").month
+                    result['departure_date'] = f"{year}-{month_num:02d}-{int(day):02d}"
                 else:
-                    # Month name
+                    # Month name without year: "January 5"
                     month_name = match.group(1)
                     day = match.group(2)
                     year = datetime.now().year

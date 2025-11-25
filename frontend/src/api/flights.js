@@ -1,12 +1,12 @@
 /**
- * API client for Flight Metrics backend
+ * API client for Flight Metrics backend (FastAPI)
  * All API calls are handled through axios
  */
 import axios from 'axios';
 
 // Base URL for API calls
-// In development, this will proxy through the React dev server to port 8000
-// In production, this should be configured to point to your backend server
+// In development, proxy is configured in package.json to port 8000
+// In production, set REACT_APP_API_URL environment variable
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 // Create axios instance with default config
@@ -15,7 +15,7 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 second timeout
+  timeout: 180000, // 3 minute timeout (LISTEN-U takes 2-3 minutes)
 });
 
 // Request interceptor for logging
@@ -41,89 +41,234 @@ apiClient.interceptors.response.use(
 );
 
 /**
- * Flight Search and Management APIs
+ * Flight Search API
  */
 
-export const searchFlights = async (params) => {
-  const response = await apiClient.get('/flights/search', { params });
-  return response.data;
-};
-
-export const getAllFlights = async (filters = {}) => {
-  const response = await apiClient.get('/flights/all', { params: filters });
-  return response.data;
-};
-
-export const getFlightMetrics = async (filters = {}) => {
-  const response = await apiClient.get('/flights/metrics', { params: filters });
-  return response.data;
-};
-
-export const getFlightById = async (flightId) => {
-  const response = await apiClient.get(`/flights/${flightId}`);
+export const searchFlights = async (query, sessionId = null) => {
+  const response = await apiClient.post('/search', {
+    query,
+    session_id: sessionId,
+  });
   return response.data;
 };
 
 /**
- * LISTEN Evaluation APIs
+ * Ranking APIs
  */
 
-export const submitListenRanking = async (data) => {
-  const response = await apiClient.post('/evaluate/listen/ranking', data);
+export const rankFlightsCheapest = async (flights, userPrompt, userPreferences = null) => {
+  const response = await apiClient.post('/rank/cheapest', {
+    flights,
+    user_prompt: userPrompt,
+    user_preferences: userPreferences,
+  });
   return response.data;
 };
 
-export const getListenRankings = async (userId = null, limit = 100) => {
-  const params = { limit };
-  if (userId) params.user_id = userId;
-  const response = await apiClient.get('/evaluate/listen/rankings', { params });
+export const rankFlightsFastest = async (flights, userPrompt, userPreferences = null) => {
+  const response = await apiClient.post('/rank/fastest', {
+    flights,
+    user_prompt: userPrompt,
+    user_preferences: userPreferences,
+  });
+  return response.data;
+};
+
+export const rankFlightsListenU = async (flights, userPrompt, userPreferences = null) => {
+  const response = await apiClient.post('/rank/listen-u', {
+    flights,
+    user_prompt: userPrompt,
+    user_preferences: userPreferences,
+  });
+  return response.data;
+};
+
+export const rankFlightsAll = async (flights, userPrompt, userPreferences = null) => {
+  const response = await apiClient.post('/rank/all', {
+    flights,
+    user_prompt: userPrompt,
+    user_preferences: userPreferences,
+  });
   return response.data;
 };
 
 /**
- * Team Draft Evaluation APIs
+ * LILO APIs (2-round interactive workflow)
  */
 
-export const startTeamDraft = async (data) => {
-  const response = await apiClient.post('/evaluate/teamdraft/start', data);
+export const initLilo = async (sessionId, flights, userPrompt, userPreferences = null) => {
+  const response = await apiClient.post('/lilo/init', {
+    session_id: sessionId,
+    flights,
+    user_prompt: userPrompt,
+    user_preferences: userPreferences,
+  });
   return response.data;
 };
 
-export const submitTeamDraftPreferences = async (data) => {
-  const response = await apiClient.post('/evaluate/teamdraft/submit', data);
+export const submitLiloRound = async (sessionId, roundNumber, userRankings, userFeedback) => {
+  const response = await apiClient.post('/lilo/round', {
+    session_id: sessionId,
+    round_number: roundNumber,
+    user_rankings: userRankings,
+    user_feedback: userFeedback,
+  });
   return response.data;
 };
 
-export const getTeamDraftResults = async (sessionId) => {
-  const response = await apiClient.get(`/evaluate/teamdraft/results/${sessionId}`);
+export const getLiloFinal = async (sessionId) => {
+  const response = await apiClient.post('/lilo/final', {
+    session_id: sessionId,
+  });
+  return response.data;
+};
+
+// New Gemini-powered LILO functions
+export const generateLiloQuestions = async (userPrompt) => {
+  const response = await apiClient.post('/lilo/generate-questions', {
+    user_prompt: userPrompt,
+  });
+  return response.data;
+};
+
+export const rankWithFeedback = async (sessionId, flights, feedback, initialAnswers = {}) => {
+  const response = await apiClient.post('/lilo/rank-with-feedback', {
+    session_id: sessionId,
+    flights,
+    feedback,
+    initial_answers: initialAnswers,
+  });
   return response.data;
 };
 
 /**
- * Rating APIs
+ * Evaluation APIs (Person A vs Person B vs Algorithms)
  */
 
-export const submitRating = async (data) => {
-  const response = await apiClient.post('/evaluate/rating', data);
+export const startEvaluationSession = async (sessionId, userId, prompt) => {
+  const response = await apiClient.post('/evaluation/start', {
+    session_id: sessionId,
+    user_id: userId,
+    prompt,
+  });
   return response.data;
 };
 
-export const getRatings = async (filters = {}) => {
-  const response = await apiClient.get('/evaluate/ratings', { params: filters });
+export const submitPersonARankings = async (sessionId, rankings) => {
+  const response = await apiClient.post('/evaluation/person-a/rankings', {
+    session_id: sessionId,
+    rankings,
+  });
+  return response.data;
+};
+
+export const submitPersonBRankings = async (evalSessionId, userId, rankings) => {
+  const response = await apiClient.post('/evaluation/person-b/rankings', {
+    eval_session_id: evalSessionId,
+    user_id: userId,
+    rankings,
+  });
+  return response.data;
+};
+
+export const submitAlgorithmRankings = async (evalSessionId, algorithm, rankings) => {
+  const response = await apiClient.post(`/evaluation/algorithm/rankings/${algorithm}`, {
+    eval_session_id: evalSessionId,
+    rankings,
+  });
+  return response.data;
+};
+
+export const getEvaluationSession = async (sessionId) => {
+  const response = await apiClient.get(`/evaluation/session/${sessionId}`);
+  return response.data;
+};
+
+export const compareRankings = async (evalSessionId) => {
+  const response = await apiClient.post('/evaluation/compare', {
+    eval_session_id: evalSessionId,
+  });
   return response.data;
 };
 
 /**
- * LISTEN Algorithm APIs
+ * Tracking APIs (interaction events)
  */
 
-export const runListenU = async (data) => {
-  const response = await apiClient.post('/evaluate/listen-u/run', data);
+export const trackEvent = async (sessionId, eventType, eventData, searchId = null) => {
+  const response = await apiClient.post('/tracking/event', {
+    session_id: sessionId,
+    search_id: searchId,
+    event_type: eventType,
+    event_data: eventData,
+  });
   return response.data;
 };
 
-export const runListenT = async (data) => {
-  const response = await apiClient.post('/evaluate/listen-t/run', data);
+export const getSessionEvents = async (sessionId) => {
+  const response = await apiClient.get(`/tracking/events/${sessionId}`);
+  return response.data;
+};
+
+export const getSearchAnalytics = async (searchId) => {
+  const response = await apiClient.get(`/tracking/analytics/${searchId}`);
+  return response.data;
+};
+
+/**
+ * Sequential Evaluation APIs (Manual → LISTEN → LILO)
+ */
+
+export const submitManualEvaluation = async (sessionId, userId, searchResults, rankings) => {
+  const response = await apiClient.post('/evaluation/sequential/manual', {
+    session_id: sessionId,
+    user_id: userId,
+    search_results: searchResults,
+    rankings,
+  });
+  return response.data;
+};
+
+export const submitLISTENEvaluation = async (sessionId, prompt, searchResults, rankedFlights, rankings) => {
+  const response = await apiClient.post('/evaluation/sequential/listen', {
+    session_id: sessionId,
+    prompt,
+    search_results: searchResults,
+    ranked_flights: rankedFlights,
+    rankings,
+  });
+  return response.data;
+};
+
+export const submitLILOEvaluation = async (
+  sessionId,
+  prompt,
+  searchResults,
+  initialAnswers,
+  iteration1Flights,
+  iteration1Feedback,
+  iteration2Flights,
+  iteration2Feedback,
+  iteration3Flights,
+  rankings
+) => {
+  const response = await apiClient.post('/evaluation/sequential/lilo', {
+    session_id: sessionId,
+    prompt,
+    search_results: searchResults,
+    initial_answers: initialAnswers,
+    iteration1_flights: iteration1Flights,
+    iteration1_feedback: iteration1Feedback,
+    iteration2_flights: iteration2Flights,
+    iteration2_feedback: iteration2Feedback,
+    iteration3_flights: iteration3Flights,
+    rankings,
+  });
+  return response.data;
+};
+
+export const getSequentialEvaluation = async (sessionId) => {
+  const response = await apiClient.get(`/evaluation/sequential/${sessionId}`);
   return response.data;
 };
 
@@ -136,28 +281,43 @@ export const healthCheck = async () => {
   return response.data;
 };
 
-export const getSystemInfo = async () => {
-  const response = await apiClient.get('/info');
-  return response.data;
-};
-
 // Export default object with all functions
 const flightsAPI = {
+  // Search
   searchFlights,
-  getAllFlights,
-  getFlightMetrics,
-  getFlightById,
-  submitListenRanking,
-  getListenRankings,
-  startTeamDraft,
-  submitTeamDraftPreferences,
-  getTeamDraftResults,
-  submitRating,
-  getRatings,
-  runListenU,
-  runListenT,
+
+  // Ranking
+  rankFlightsCheapest,
+  rankFlightsFastest,
+  rankFlightsListenU,
+  rankFlightsAll,
+
+  // LILO
+  initLilo,
+  submitLiloRound,
+  getLiloFinal,
+
+  // Evaluation
+  startEvaluationSession,
+  submitPersonARankings,
+  submitPersonBRankings,
+  submitAlgorithmRankings,
+  getEvaluationSession,
+  compareRankings,
+
+  // Sequential Evaluation
+  submitManualEvaluation,
+  submitLISTENEvaluation,
+  submitLILOEvaluation,
+  getSequentialEvaluation,
+
+  // Tracking
+  trackEvent,
+  getSessionEvents,
+  getSearchAnalytics,
+
+  // System
   healthCheck,
-  getSystemInfo,
 };
 
 export default flightsAPI;

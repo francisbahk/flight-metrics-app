@@ -285,13 +285,15 @@ STRICT OUTPUT RULES:
             'User': {
                 'prompt': user_prompt,
                 'weights': {
-                    'stops': -1.0,
-                    'price': -1.0,
-                    'dis_from_origin': -1.0,
-                    'dis_from_dest': -1.0,
+                    # Neutral weights (0.0) - let LLM learn from user prompt
+                    # LLM will assign positive/negative weights based on user preferences
+                    'stops': 0.0,
+                    'price': 0.0,
+                    'dis_from_origin': 0.0,
+                    'dis_from_dest': 0.0,
                     'departure_seconds': 0.0,
                     'arrival_seconds': 0.0,
-                    'duration_min': -1.0
+                    'duration_min': 0.0
                 }
             }
         }
