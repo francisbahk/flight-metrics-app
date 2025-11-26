@@ -373,19 +373,20 @@ if not st.session_state.input_activated:
             font-family: 'Source Code Pro', monospace;
             font-size: 14px;
             line-height: 1.5;
-            border: 1px solid rgb(49, 51, 63);
+            border: 1px solid rgb(204, 204, 204);
             border-radius: 0.5rem;
-            background: rgb(14, 17, 23);
-            color: rgb(250, 250, 250);
+            background: white;
+            color: rgb(49, 51, 63);
             resize: none;
             cursor: text;
         }
-        #fakeTextarea:focus {
-            outline: none;
+        #fakeTextarea:hover {
             border-color: rgb(255, 75, 75);
         }
     </style>
-    <textarea id="fakeTextarea" readonly></textarea>
+    <div style="cursor: pointer;" id="clickCatcher">
+        <textarea id="fakeTextarea" readonly></textarea>
+    </div>
     <script>
         const prompts = [
             'I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.',
@@ -395,24 +396,34 @@ if not st.session_state.input_activated:
         let idx = 0, charIdx = 0, typing = true;
         const speed = 42, pause = 3000, fade = 500;
         const textarea = document.getElementById('fakeTextarea');
+        const clickCatcher = document.getElementById('clickCatcher');
 
         // Initialize Streamlit
         function initStreamlit() {
             if (window.Streamlit) {
                 window.Streamlit.setComponentReady();
-                window.Streamlit.setFrameHeight(150);
+                window.Streamlit.setFrameHeight(170);
+                console.log('Streamlit initialized');
             } else {
                 setTimeout(initStreamlit, 100);
             }
         }
         initStreamlit();
 
-        // When clicked, notify Streamlit to switch to real input
-        textarea.addEventListener('click', () => {
+        // When clicked anywhere, notify Streamlit to switch to real input
+        function handleClick() {
+            console.log('Clicked! Sending value to Streamlit...');
             if (window.Streamlit) {
                 window.Streamlit.setComponentValue(true);
+                console.log('Value sent');
+            } else {
+                console.log('Streamlit not available');
             }
-        });
+        }
+
+        clickCatcher.addEventListener('click', handleClick);
+        textarea.addEventListener('click', handleClick);
+        textarea.addEventListener('focus', handleClick);
 
         function type() {
             if (typing) {
