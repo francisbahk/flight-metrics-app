@@ -323,6 +323,20 @@ st.markdown("""
 """)
 st.markdown("---")
 
+# Animated placeholder styling (BEFORE textarea)
+st.markdown("""
+<style>
+    .stTextArea {
+        position: relative !important;
+    }
+    .stTextArea textarea {
+        background-color: transparent !important;
+        position: relative !important;
+        z-index: 2 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Main prompt input
 prompt = st.text_area(
     "",
@@ -333,37 +347,33 @@ prompt = st.text_area(
     key="flight_prompt_input"
 )
 
-# Animated placeholder with CSS overlay
+# Animated placeholder overlay (AFTER textarea so we can target it)
 st.markdown("""
 <style>
-    .stTextArea {
-        position: relative;
+    [data-testid="stVerticalBlock"] > div:has(textarea) {
+        position: relative !important;
     }
-    .stTextArea textarea {
-        background-color: transparent !important;
-        position: relative;
-        z-index: 2;
+    .placeholder-overlay {
+        position: absolute !important;
+        top: 38px !important;
+        left: 0px !important;
+        padding: 12px !important;
+        color: #94a3b8 !important;
+        font-family: 'Source Code Pro', monospace !important;
+        font-size: 14px !important;
+        line-height: 1.5 !important;
+        pointer-events: none !important;
+        white-space: pre-wrap !important;
+        z-index: 999 !important;
+        width: 100% !important;
+        max-height: 126px !important;
+        overflow: hidden !important;
     }
-    #animated-placeholder-overlay {
-        position: absolute;
-        top: 12px;
-        left: 12px;
-        right: 12px;
-        bottom: 12px;
-        color: #94a3b8;
-        font-family: 'Source Code Pro', monospace;
-        font-size: 14px;
-        line-height: 1.5;
-        pointer-events: none;
-        white-space: pre-wrap;
-        overflow: hidden;
-        z-index: 1;
-        opacity: 1;
-    }
-    #animated-placeholder-overlay.hidden {
-        display: none;
+    .placeholder-overlay.hidden {
+        display: none !important;
     }
 </style>
+<div class="placeholder-overlay" id="animPlaceholder">Type your flight request here...</div>
 <script>
 (function() {
     const prompts = [
