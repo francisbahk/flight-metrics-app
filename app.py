@@ -333,83 +333,121 @@ prompt = st.text_area(
     key="flight_prompt_input"
 )
 
-# Animated placeholder JavaScript (targets existing textarea)
+# Animated placeholder with CSS overlay
 st.markdown("""
+<style>
+    .stTextArea {
+        position: relative;
+    }
+    .stTextArea textarea {
+        background-color: transparent !important;
+        position: relative;
+        z-index: 2;
+    }
+    #animated-placeholder-overlay {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        color: #94a3b8;
+        font-family: 'Source Code Pro', monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        pointer-events: none;
+        white-space: pre-wrap;
+        overflow: hidden;
+        z-index: 1;
+        opacity: 1;
+    }
+    #animated-placeholder-overlay.hidden {
+        display: none;
+    }
+</style>
 <script>
 (function() {
     const prompts = [
-        "I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there...",
-        "On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day at 9am..."
+        `I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports. I heavily prefer to fly into ORD.
+I do not feel the need to strictly minimize cost; however, I would prefer to keep the fare to under 400 dollars. Obviously, if different flights meet my requirements, I prefer the cheaper one. I prefer direct flights.`,
+        `On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day (November 4th) at 9am. I'd like to sleep well but if my travel plans are disrupted and I arrive late, it's ok. I'll either fly out of Ithaca, Syracuse, Elmira, or Binghamton.
+I'll fly to DCA or IAD. For all my flights, I don't like having to get up before 7am to be on time to my flight.`
     ];
 
     let currentIndex = 0;
     let charIndex = 0;
     let isTyping = true;
+    let overlay = null;
+    let textarea = null;
     const typingSpeed = 30;
     const pauseDuration = 3000;
-    const eraseDuration = 1000;
+    const fadeDelay = 500;
 
-    function findTextarea() {
-        // Try multiple selectors to find the textarea
-        let textarea = document.querySelector('.stTextArea textarea');
+    function init() {
+        textarea = document.querySelector('.stTextArea textarea');
         if (!textarea) {
-            textarea = document.querySelector('textarea');
-        }
-        return textarea;
-    }
-
-    function animatePlaceholder() {
-        const textarea = findTextarea();
-        if (!textarea) {
-            setTimeout(animatePlaceholder, 100);
+            setTimeout(init, 100);
             return;
         }
 
-        // Stop animation if user has typed anything
-        if (textarea.value.length > 0) {
-            return;
-        }
+        const container = textarea.closest('.stTextArea');
+        if (!container || overlay) return;
 
-        function type() {
-            const currentTextarea = findTextarea();
-            if (!currentTextarea || currentTextarea.value.length > 0) return;
+        overlay = document.createElement('div');
+        overlay.id = 'animated-placeholder-overlay';
+        container.insertBefore(overlay, textarea);
 
-            if (isTyping) {
-                if (charIndex < prompts[currentIndex].length) {
-                    currentTextarea.setAttribute('placeholder', prompts[currentIndex].substring(0, charIndex + 1));
-                    charIndex++;
-                    setTimeout(type, typingSpeed);
-                } else {
-                    isTyping = false;
-                    setTimeout(type, pauseDuration);
-                }
-            } else {
-                currentTextarea.setAttribute('placeholder', '');
-                charIndex = 0;
-                currentIndex = (currentIndex + 1) % prompts.length;
-                isTyping = true;
-                setTimeout(type, eraseDuration);
-            }
-        }
+        textarea.addEventListener('focus', () => {
+            if (overlay) overlay.classList.add('hidden');
+        });
 
-        // Start animation with a delay
-        setTimeout(type, 500);
-
-        // Restart if user clears the field
-        textarea.addEventListener('input', function() {
-            if (this.value.length === 0 && !isTyping) {
-                isTyping = true;
-                charIndex = 0;
-                setTimeout(type, 100);
+        textarea.addEventListener('blur', () => {
+            if (overlay && !textarea.value) {
+                overlay.classList.remove('hidden');
             }
         });
+
+        textarea.addEventListener('input', () => {
+            if (overlay) {
+                if (textarea.value) {
+                    overlay.classList.add('hidden');
+                } else {
+                    overlay.classList.remove('hidden');
+                }
+            }
+        });
+
+        setTimeout(typeWriter, 500);
     }
 
-    // Wait for DOM and then start
+    function typeWriter() {
+        if (!overlay || overlay.classList.contains('hidden')) return;
+
+        if (isTyping) {
+            if (charIndex < prompts[currentIndex].length) {
+                overlay.textContent = prompts[currentIndex].substring(0, charIndex + 1);
+                overlay.scrollTop = overlay.scrollHeight;
+                charIndex++;
+                setTimeout(typeWriter, typingSpeed);
+            } else {
+                isTyping = false;
+                setTimeout(() => {
+                    overlay.style.opacity = '0';
+                    setTimeout(() => {
+                        currentIndex = (currentIndex + 1) % prompts.length;
+                        charIndex = 0;
+                        isTyping = true;
+                        overlay.style.opacity = '1';
+                        typeWriter();
+                    }, fadeDelay);
+                }, pauseDuration);
+            }
+        }
+    }
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', animatePlaceholder);
+        document.addEventListener('DOMContentLoaded', init);
     } else {
-        setTimeout(animatePlaceholder, 500);
+        init();
     }
 })();
 </script>
