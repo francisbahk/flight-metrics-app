@@ -356,117 +356,94 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state for input activation
-if 'input_activated' not in st.session_state:
-    st.session_state.input_activated = False
+# Container for layered placeholder + textarea
+st.markdown('<div style="position: relative; height: 164px;">', unsafe_allow_html=True)
 
-# Show animated fake input OR real input
-if not st.session_state.input_activated:
-    # Animated fake input with typewriter effect
-    clicked = components.html("""
-    <style>
-        body { margin: 0; padding: 0; }
-        #fakeTextarea {
-            width: 100%;
-            height: 150px;
-            padding: 12px;
-            font-family: 'Source Code Pro', monospace;
-            font-size: 14px;
-            line-height: 1.5;
-            border: 1px solid rgb(204, 204, 204);
-            border-radius: 0.5rem;
-            background: white;
-            color: rgb(49, 51, 63);
-            resize: none;
-            cursor: text;
-        }
-        #fakeTextarea:hover {
-            border-color: rgb(255, 75, 75);
-        }
-    </style>
-    <div style="cursor: pointer;" id="clickCatcher">
-        <textarea id="fakeTextarea" readonly></textarea>
-    </div>
-    <script>
-        const prompts = [
-            'I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.',
-            'On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day at 9am. I will either fly out of Ithaca, Syracuse, Elmira, or Binghamton to DCA or IAD.'
-        ];
+# Animated placeholder layer
+placeholder_html = """
+<style>
+    body { margin: 0; padding: 0; background: transparent; }
+    #animPlaceholder {
+        padding: 10px 12px;
+        font-family: 'Source Code Pro', monospace;
+        font-size: 14px;
+        line-height: 1.6;
+        color: rgba(49, 51, 63, 0.4);
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+</style>
+<div id="animPlaceholder"></div>
+<script>
+    const prompts = [
+        'I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.',
+        'On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day at 9am. I will either fly out of Ithaca, Syracuse, Elmira, or Binghamton to DCA or IAD.'
+    ];
 
-        let idx = 0, charIdx = 0, typing = true;
-        const speed = 42, pause = 3000, fade = 500;
-        const textarea = document.getElementById('fakeTextarea');
-        const clickCatcher = document.getElementById('clickCatcher');
+    let idx = 0, charIdx = 0, typing = true;
+    const speed = 42, pause = 3000, fade = 500;
+    const placeholder = document.getElementById('animPlaceholder');
 
-        // Initialize Streamlit
-        function initStreamlit() {
-            if (window.Streamlit) {
-                window.Streamlit.setComponentReady();
-                window.Streamlit.setFrameHeight(170);
-                console.log('Streamlit initialized');
+    function type() {
+        if (typing) {
+            if (charIdx < prompts[idx].length) {
+                placeholder.textContent = prompts[idx].substring(0, charIdx + 1);
+                charIdx++;
+                setTimeout(type, speed);
             } else {
-                setTimeout(initStreamlit, 100);
-            }
-        }
-        initStreamlit();
-
-        // When clicked anywhere, notify Streamlit to switch to real input
-        function handleClick() {
-            console.log('Clicked! Sending value to Streamlit...');
-            if (window.Streamlit) {
-                window.Streamlit.setComponentValue(true);
-                console.log('Value sent');
-            } else {
-                console.log('Streamlit not available');
-            }
-        }
-
-        clickCatcher.addEventListener('click', handleClick);
-        textarea.addEventListener('click', handleClick);
-        textarea.addEventListener('focus', handleClick);
-
-        function type() {
-            if (typing) {
-                if (charIdx < prompts[idx].length) {
-                    textarea.value = prompts[idx].substring(0, charIdx + 1);
-                    charIdx++;
-                    setTimeout(type, speed);
-                } else {
-                    typing = false;
+                typing = false;
+                setTimeout(() => {
+                    placeholder.style.opacity = '0';
                     setTimeout(() => {
-                        textarea.style.opacity = '0';
-                        setTimeout(() => {
-                            idx = (idx + 1) % prompts.length;
-                            charIdx = 0;
-                            typing = true;
-                            textarea.style.opacity = '1';
-                            type();
-                        }, fade);
-                    }, pause);
-                }
+                        idx = (idx + 1) % prompts.length;
+                        charIdx = 0;
+                        typing = true;
+                        placeholder.style.opacity = '1';
+                        type();
+                    }, fade);
+                }, pause);
             }
         }
+    }
 
-        setTimeout(type, 500);
-    </script>
-    """, height=150)
+    setTimeout(type, 500);
+</script>
+"""
 
-    # If clicked, activate real input
-    if clicked is True:
-        st.session_state.input_activated = True
-        st.rerun()
+components.html(placeholder_html, height=164)
 
-    prompt = ""  # Empty while showing fake input
-else:
-    # Real Streamlit input
-    prompt = st.text_area(
-        "",
-        value="",
-        height=150,
-        placeholder="",
-        label_visibility="collapsed",
-        key="flight_prompt_input"
-    )
+# Style to position textarea on top
+st.markdown("""
+<style>
+    div[data-testid="stVerticalBlock"] > div:has(textarea[aria-label=""]) {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        z-index: 10 !important;
+    }
+    textarea[aria-label=""] {
+        background: transparent !important;
+    }
+    textarea[aria-label=""]:focus,
+    textarea[aria-label=""]:not(:placeholder-shown) {
+        background: white !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Real textarea that user types in (overlays the animation)
+prompt = st.text_area(
+    "",
+    value="",
+    height=150,
+    placeholder="",
+    label_visibility="collapsed",
+    key="flight_prompt_input"
+)
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
