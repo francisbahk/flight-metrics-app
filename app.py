@@ -368,6 +368,7 @@ prompt = st.text_area(
 
 # Animated placeholder - typewriter effect cycling through example prompts
 components.html("""
+<div id="iframeTest" style="position:fixed;top:10px;left:10px;background:blue;color:white;padding:10px;z-index:999999;">IFRAME JS RUNNING</div>
 <script>
 (function() {
     try {
