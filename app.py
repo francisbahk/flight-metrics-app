@@ -329,6 +329,7 @@ if 'prompt_value' not in st.session_state:
     st.session_state.prompt_value = ""
 
 prompt_html = """
+<script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@1.3.0/dist/streamlit-component-lib.js"></script>
 <div style="width: 100%; margin-bottom: 1rem;">
     <div style="position: relative; width: 100%;">
         <div id="animatedPlaceholder" style="
@@ -367,6 +368,18 @@ prompt_html = """
 </div>
 
 <script>
+    // Wait for Streamlit to be ready
+    function waitForStreamlit() {
+        if (typeof Streamlit !== 'undefined') {
+            Streamlit.setFrameHeight(200);
+            initComponent();
+        } else {
+            setTimeout(waitForStreamlit, 100);
+        }
+    }
+    waitForStreamlit();
+
+    function initComponent() {
     const prompts = [
         `I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports. I heavily prefer to fly into ORD.
 I do not feel the need to strictly minimize cost; however, I would prefer to keep the fare to under 400 dollars. Obviously, if different flights meet my requirements, I prefer the cheaper one. I prefer direct flights.
@@ -441,7 +454,7 @@ I usually don't check bags except on very long trips.`
             isAnimating = false;
             placeholderDiv.style.display = 'none';
         }
-        window.parent.postMessage({type: 'streamlit:setComponentValue', value: textarea.value}, '*');
+        Streamlit.setComponentValue(textarea.value);
     });
 
     textarea.addEventListener('blur', () => {
@@ -457,6 +470,7 @@ I usually don't check bags except on very long trips.`
 
     // Start animation
     setTimeout(typeWriter, 500);
+    }
 </script>
 """
 
