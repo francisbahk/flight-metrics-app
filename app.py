@@ -361,13 +361,15 @@ prompt = st.text_area(
     "",
     value="",
     height=150,
-    placeholder="",
+    placeholder="I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.",
     label_visibility="collapsed",
     key="flight_prompt_input"
 )
 
-# Animated placeholder - typewriter effect cycling through example prompts
-components.html("""
+# Note: Removed animated placeholder due to iframe sandboxing restrictions
+# Using static placeholder instead
+"""
+OLD_components_html = """
 <div id="iframeTest" style="position:fixed;top:10px;left:10px;background:blue;color:white;padding:10px;z-index:999999;">IFRAME JS RUNNING</div>
 <script>
 (function() {
@@ -511,7 +513,9 @@ components.html("""
     }
 })();
 </script>
-""", height=50)
+"""
+# Commented out - iframe sandboxing prevents parent document access
+# components.html(OLD_components_html, height=50)
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
