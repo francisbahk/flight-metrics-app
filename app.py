@@ -608,14 +608,25 @@ if st.session_state.all_flights:
         border-bottom: 2px solid #f0f2f6 !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
     }
-    .sticky-ranking-panel {
+    /* More aggressive sticky panel styling */
+    .sticky-ranking-panel,
+    .sticky-ranking-panel > div,
+    div[data-testid="column"] > div > .sticky-ranking-panel {
+        position: -webkit-sticky !important;
         position: sticky !important;
-        top: 100px !important;
+        top: 110px !important;
         align-self: flex-start !important;
         background-color: white !important;
         padding: 1rem !important;
         border-radius: 8px !important;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+        max-height: calc(100vh - 120px) !important;
+        overflow-y: auto !important;
+    }
+    /* Force parent column to allow sticky */
+    div[data-testid="column"]:has(.sticky-ranking-panel) {
+        position: relative !important;
+        height: fit-content !important;
     }
     /* Add padding to main content to prevent overlap with fixed header */
     .main .block-container {
@@ -627,9 +638,12 @@ if st.session_state.all_flights:
     progress_percent = int((num_completed / num_required) * 100)
     st.markdown(f"""
     <div class="sticky-progress">
-        <h3 style="margin: 0 0 0.5rem 0;">Progress: {num_completed}/{num_required} flight rankings submitted</h3>
-        <div style="width: 100%; background-color: #e0e0e0; border-radius: 10px; height: 8px;">
-            <div style="width: {progress_percent}%; background-color: #4CAF50; height: 8px; border-radius: 10px; transition: width 0.3s ease;"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <h3 style="margin: 0;">📊 Ranking Progress</h3>
+            <span style="font-weight: bold; color: #4CAF50;">{num_completed}/{num_required} submitted</span>
+        </div>
+        <div style="width: 100%; background-color: #e0e0e0; border-radius: 10px; height: 10px;">
+            <div style="width: {progress_percent}%; background-color: #4CAF50; height: 10px; border-radius: 10px; transition: width 0.3s ease;"></div>
         </div>
     </div>
     """, unsafe_allow_html=True)
