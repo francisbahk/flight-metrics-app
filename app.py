@@ -391,20 +391,33 @@ I'll fly to DCA or IAD. For all my flights, I don't like having to get up before
     const typingSpeed = 30;
     const pauseDuration = 3000;
     const fadeDelay = 500;
+    let moved = false;
 
     function init() {
         textarea = document.querySelector('.stTextArea textarea');
-        if (!textarea) {
+        overlay = document.getElementById('animPlaceholder');
+
+        if (!textarea || !overlay) {
             setTimeout(init, 100);
             return;
         }
 
-        const container = textarea.closest('.stTextArea');
-        if (!container || overlay) return;
+        // Move the overlay div inside the textarea container if not already moved
+        if (!moved) {
+            const container = textarea.closest('.stTextArea');
+            if (container && overlay.parentElement !== container) {
+                container.insertBefore(overlay, textarea);
+                moved = true;
 
-        overlay = document.createElement('div');
-        overlay.id = 'animated-placeholder-overlay';
-        container.insertBefore(overlay, textarea);
+                // Update styles after moving
+                overlay.style.position = 'absolute';
+                overlay.style.top = '12px';
+                overlay.style.left = '12px';
+                overlay.style.right = '12px';
+                overlay.style.bottom = '12px';
+                overlay.style.zIndex = '1';
+            }
+        }
 
         textarea.addEventListener('focus', () => {
             if (overlay) overlay.classList.add('hidden');
