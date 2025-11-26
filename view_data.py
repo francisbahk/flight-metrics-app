@@ -114,13 +114,14 @@ def export_csv(search_id: int, output_dir: str = "."):
     from datetime import datetime
 
     db = SessionLocal()
+    exported_files = []
 
     try:
         csvs = db.query(FlightCSV).filter(FlightCSV.search_id == search_id).all()
 
         if not csvs:
             print(f"No CSV data found for search ID {search_id}")
-            return
+            return exported_files
 
         for idx, csv in enumerate(csvs, 1):
             filename = f"search_{search_id}_csv_{idx}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
@@ -130,9 +131,38 @@ def export_csv(search_id: int, output_dir: str = "."):
                 f.write(csv.csv_data)
 
             print(f"✓ Exported CSV #{idx} to: {filepath}")
+            exported_files.append(filepath)
+
+        return exported_files
 
     finally:
         db.close()
+
+
+def open_csv(search_id: int, output_dir: str = "."):
+    """Export and automatically open CSV files for a search."""
+    import subprocess
+    import platform
+
+    # Export the CSV files
+    filepaths = export_csv(search_id, output_dir)
+
+    if not filepaths:
+        return
+
+    # Open each file with the default application
+    for filepath in filepaths:
+        try:
+            if platform.system() == 'Darwin':  # macOS
+                subprocess.run(['open', filepath])
+            elif platform.system() == 'Windows':
+                subprocess.run(['start', filepath], shell=True)
+            else:  # Linux
+                subprocess.run(['xdg-open', filepath])
+
+            print(f"✓ Opened: {filepath}")
+        except Exception as e:
+            print(f"✗ Could not open {filepath}: {e}")
 
 
 if __name__ == "__main__":
@@ -145,10 +175,15 @@ if __name__ == "__main__":
             search_id = int(sys.argv[2])
             output_dir = sys.argv[3] if len(sys.argv) > 3 else "."
             export_csv(search_id, output_dir)
+        elif sys.argv[1] == "open" and len(sys.argv) > 2:
+            search_id = int(sys.argv[2])
+            output_dir = sys.argv[3] if len(sys.argv) > 3 else "."
+            open_csv(search_id, output_dir)
         else:
             print("Usage:")
             print("  python view_data.py              # View all searches")
             print("  python view_data.py latest       # View latest search")
             print("  python view_data.py export <id>  # Export CSV for search ID")
+            print("  python view_data.py open <id>    # Export and open CSV for search ID")
     else:
         view_all_data()
