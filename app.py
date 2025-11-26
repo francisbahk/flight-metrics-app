@@ -396,9 +396,22 @@ if not st.session_state.input_activated:
         const speed = 42, pause = 3000, fade = 500;
         const textarea = document.getElementById('fakeTextarea');
 
+        // Initialize Streamlit
+        function initStreamlit() {
+            if (window.Streamlit) {
+                window.Streamlit.setComponentReady();
+                window.Streamlit.setFrameHeight(150);
+            } else {
+                setTimeout(initStreamlit, 100);
+            }
+        }
+        initStreamlit();
+
         // When clicked, notify Streamlit to switch to real input
         textarea.addEventListener('click', () => {
-            window.parent.postMessage({type: 'streamlit:setComponentValue', value: true}, '*');
+            if (window.Streamlit) {
+                window.Streamlit.setComponentValue(true);
+            }
         });
 
         function type() {
