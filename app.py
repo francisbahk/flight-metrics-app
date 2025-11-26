@@ -328,9 +328,77 @@ prompt = st.text_area(
     "",
     value="",
     height=150,
-    placeholder="Example: I need to fly from New York to Los Angeles on December 15th. I prefer direct flights and am not very price sensitive.",
-    label_visibility="collapsed"
+    placeholder="",
+    label_visibility="collapsed",
+    key="flight_prompt_input"
 )
+
+# Animated placeholder JavaScript (targets existing textarea)
+st.markdown("""
+<script>
+(function() {
+    const prompts = [
+        "I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there...",
+        "On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day at 9am..."
+    ];
+
+    let currentIndex = 0;
+    let charIndex = 0;
+    let isTyping = true;
+    const typingSpeed = 30;
+    const pauseDuration = 3000;
+    const eraseDuration = 1000;
+
+    function animatePlaceholder() {
+        const textarea = document.querySelector('textarea[aria-label=""]');
+        if (!textarea) {
+            setTimeout(animatePlaceholder, 100);
+            return;
+        }
+
+        // Stop animation if user has typed anything
+        if (textarea.value.length > 0) {
+            return;
+        }
+
+        function type() {
+            if (!textarea || textarea.value.length > 0) return;
+
+            if (isTyping) {
+                if (charIndex < prompts[currentIndex].length) {
+                    textarea.placeholder = prompts[currentIndex].substring(0, charIndex + 1);
+                    charIndex++;
+                    setTimeout(type, typingSpeed);
+                } else {
+                    isTyping = false;
+                    setTimeout(type, pauseDuration);
+                }
+            } else {
+                textarea.placeholder = '';
+                charIndex = 0;
+                currentIndex = (currentIndex + 1) % prompts.length;
+                isTyping = true;
+                setTimeout(type, eraseDuration);
+            }
+        }
+
+        // Start animation
+        type();
+
+        // Restart if user clears the field
+        textarea.addEventListener('input', function() {
+            if (this.value.length === 0 && !isTyping) {
+                isTyping = true;
+                charIndex = 0;
+                setTimeout(type, 100);
+            }
+        });
+    }
+
+    animatePlaceholder();
+})();
+</script>
+""", unsafe_allow_html=True)
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
