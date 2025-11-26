@@ -336,12 +336,14 @@ prompt_html = """
             top: 12px;
             left: 12px;
             right: 12px;
+            bottom: 12px;
             color: #94a3b8;
             font-family: 'Source Code Pro', monospace;
             font-size: 14px;
             line-height: 1.5;
             pointer-events: none;
             white-space: pre-wrap;
+            overflow: hidden;
             z-index: 1;
             opacity: 1;
             transition: opacity 0.3s ease;
