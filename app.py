@@ -315,8 +315,8 @@ st.markdown('<div class="subtitle">Describe your flight and get personalized ran
 st.markdown("---")
 st.markdown("### 📖 How to Use")
 st.markdown("""
-1. **Describe your flight** - Enter your travel details in natural language (origin, destination, dates, preferences)
-2. **Review results** - Browse all available flights sorted by your criteria
+1. **Describe your flight** - Enter your travel details in natural language (origin, destination, dates, ~~preferences~~)
+2. **Review results** - Browse all available flights ~~sorted by your criteria~~
 3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
 4. **Drag to rank** - Reorder your selections by dragging them in the right panel
 5. **Submit & download** - Click submit to save your rankings and download as CSV
