@@ -315,7 +315,7 @@ st.markdown('<div class="subtitle">Describe your flight and get personalized ran
 st.markdown("---")
 st.markdown("### 📖 How to Use")
 st.markdown("""
-1. **Describe your flight** - Enter your travel details in natural language (origin, destination, dates, ~~preferences~~)
+1. **Describe your flight** - Enter your travel details in natural language (origin, destination, dates, preferences)
 2. **Review results** - Browse all available flights ~~sorted by your criteria~~
 3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
 4. **Drag to rank** - Reorder your selections by dragging them in the right panel
@@ -323,12 +323,139 @@ st.markdown("""
 """)
 st.markdown("---")
 
+# Animated placeholder CSS and JavaScript
+st.markdown("""
+<style>
+    .animated-placeholder-container {
+        position: relative;
+        width: 100%;
+    }
+    .animated-placeholder {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        color: #94a3b8;
+        font-family: "Source Code Pro", monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        pointer-events: none;
+        white-space: pre-wrap;
+        z-index: 1;
+        opacity: 1;
+        transition: opacity 0.3s ease;
+    }
+    .animated-placeholder.hidden {
+        opacity: 0;
+        display: none;
+    }
+    .stTextArea textarea {
+        position: relative;
+        z-index: 2;
+        background-color: transparent !important;
+    }
+</style>
+<div class="animated-placeholder-container">
+    <div id="animatedPlaceholder" class="animated-placeholder"></div>
+</div>
+<script>
+    const prompts = [
+        `I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports. I heavily prefer to fly into ORD.
+I do not feel the need to strictly minimize cost; however, I would prefer to keep the fare to under 400 dollars. Obviously, if different flights meet my requirements, I prefer the cheaper one. I prefer direct flights.
+I would like to maximize my time in NYC on Sunday. It would be ideal to leave on the second-to-last flight leaving from the departure airport to Chicago, in case of delays and cancellations. Worst case, I would like there to be an early Monday morning departure to Chicago from the airport, in case of cancellations.
+I have no preference for airline. I would prefer to not leave NYC before 5 PM. I am okay with an early morning departure, as long as I arrive in Chicago by around 9 AM, as I will need to go to work. The earlier the arrival Monday morning, the better.`,
+        `On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day (November 4th) at 9am. I'd like to sleep well but if my travel plans are disrupted and I arrive late, it's ok. I'll either fly out of Ithaca, Syracuse, Elmira, or Binghamton.
+I'll fly to DCA or IAD. For all my flights, I don't like having to get up before 7am to be on time to my flight.  I'd like to avoid the amount of time I need to spend driving / taking Ubers / taking transit to airports both at home and at my destination.
+I prefer flying out of my local airport in Ithaca rather than driving or taking an Uber to a nearby airport in Syracuse, Elmira, or Binghamton.
+I want to avoid extra connections because they take more time and increase the chance of missing a connection. I can move pretty quickly
+through airports so connections longer than 45 min are fine but for connections that are tighter than that I worry about missing my flight
+if there is a delay. If the connection is earlier in the day and there are lots of other ways to get to my destination in the event of a missed
+connection, then a 30 min connection is fine.
+I prefer to avoid long layovers. Under 60 minutes is fine, under 90 minutes is not a huge deal, and over 90 minutes starts to get annoying.
+I feel that flying late in the day or connecting through airports with poor on-time performance like EWR increases my chance of a delay.
+I don't like JFK because the food choices are poor (except for Shake Shack). When I fly to Europe from the US, I don't like taking a redeye but I know I'll usually have to take one. When I do take a redeye, I don't like to have a long layover early in the morning — I prefer to just arrive at my destination.  If I do have a layover, I prefer to land later in the morning so that I can get some sleep on the plane.
+I prefer to fly United because I'm a frequent flyer with them. When I fly for work, my travel is usually reimbursed from federal grants. Because of this, I must comply with the Fly America Act. This requires me to fly on a US carrier unless there are no other options. Even if I'm allowed to reimburse a trip on a non-US carrier, I don't want to because it creates extra paperwork.
+For longer trips, I am happy to return to an airport that is different from the one I left from because I probably wouldn't drive my car in any case. When I do this, I'll take an Uber, rent a car, or get a ride. For shorter trips, however, I do prefer to return to the airport I left from so that I can drive to the airport, unless it saves me a lot of trouble.
+I am not very price sensitive. It is ok to pay 20% more than the cheapest fare if the itinerary is more convenient. But if the fare is outrageous then that's problematic.
+I usually don't check bags except on very long trips.`
+    ];
+
+    let currentPromptIndex = 0;
+    let currentCharIndex = 0;
+    let isTyping = true;
+    let isHolding = false;
+    const typingSpeed = 20; // ms per character
+    const holdDuration = 3000; // ms to hold completed text
+    const fadeOutDuration = 500; // ms to fade out
+
+    const placeholderDiv = document.getElementById('animatedPlaceholder');
+
+    function typeWriter() {
+        if (!placeholderDiv || placeholderDiv.classList.contains('hidden')) {
+            return;
+        }
+
+        if (isHolding) {
+            return;
+        }
+
+        if (currentCharIndex < prompts[currentPromptIndex].length) {
+            placeholderDiv.textContent = prompts[currentPromptIndex].substring(0, currentCharIndex + 1);
+            currentCharIndex++;
+            setTimeout(typeWriter, typingSpeed);
+        } else {
+            // Finished typing, hold for a moment
+            isHolding = true;
+            setTimeout(() => {
+                // Fade out
+                placeholderDiv.style.opacity = '0';
+                setTimeout(() => {
+                    // Move to next prompt
+                    currentPromptIndex = (currentPromptIndex + 1) % prompts.length;
+                    currentCharIndex = 0;
+                    isHolding = false;
+                    placeholderDiv.style.opacity = '1';
+                    typeWriter();
+                }, fadeOutDuration);
+            }, holdDuration);
+        }
+    }
+
+    // Start animation when page loads
+    setTimeout(() => {
+        if (placeholderDiv) {
+            typeWriter();
+        }
+    }, 500);
+
+    // Hide placeholder on focus or input
+    function setupTextAreaListener() {
+        const textArea = document.querySelector('.stTextArea textarea');
+        if (textArea) {
+            textArea.addEventListener('focus', () => {
+                if (placeholderDiv) {
+                    placeholderDiv.classList.add('hidden');
+                }
+            });
+            textArea.addEventListener('input', () => {
+                if (placeholderDiv && textArea.value.length > 0) {
+                    placeholderDiv.classList.add('hidden');
+                }
+            });
+        } else {
+            setTimeout(setupTextAreaListener, 100);
+        }
+    }
+    setupTextAreaListener();
+</script>
+""", unsafe_allow_html=True)
+
 # Main prompt input
 prompt = st.text_area(
     "",
     value="",
     height=150,
-    placeholder="Example: I need to fly from Ithaca NY to Washington DC on October 20th. I prefer direct flights and want to avoid early morning departures before 7am. I fly United and am not very price sensitive.",
+    placeholder="",
     label_visibility="collapsed"
 )
 
