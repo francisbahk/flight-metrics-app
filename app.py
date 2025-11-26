@@ -499,7 +499,7 @@ components.html("""
     }
 })();
 </script>
-""", height=0)
+""", height=50)
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
