@@ -608,29 +608,16 @@ if st.session_state.all_flights:
         border-bottom: 2px solid #f0f2f6 !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
     }
-    /* More aggressive sticky panel styling */
-    .sticky-ranking-panel,
-    .sticky-ranking-panel > div,
-    div[data-testid="column"] > div > .sticky-ranking-panel {
+    /* Target the actual Streamlit column div that contains the ranking panel */
+    [data-testid="column"]:last-child > div:first-child {
         position: -webkit-sticky !important;
         position: sticky !important;
-        top: 110px !important;
+        top: 100px !important;
         align-self: flex-start !important;
-        background-color: white !important;
-        padding: 1rem !important;
-        border-radius: 8px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
-        max-height: calc(100vh - 120px) !important;
-        overflow-y: auto !important;
-    }
-    /* Force parent column to allow sticky */
-    div[data-testid="column"]:has(.sticky-ranking-panel) {
-        position: relative !important;
-        height: fit-content !important;
     }
     /* Add padding to main content to prevent overlap with fixed header */
     .main .block-container {
-        padding-top: 120px !important;
+        padding-top: 100px !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -638,12 +625,11 @@ if st.session_state.all_flights:
     progress_percent = int((num_completed / num_required) * 100)
     st.markdown(f"""
     <div class="sticky-progress">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-            <h3 style="margin: 0;">📊 Ranking Progress</h3>
-            <span style="font-weight: bold; color: #4CAF50;">{num_completed}/{num_required} submitted</span>
-        </div>
-        <div style="width: 100%; background-color: #e0e0e0; border-radius: 10px; height: 10px;">
+        <div style="width: 100%; background-color: #e0e0e0; border-radius: 10px; height: 10px; margin-top: 0.5rem;">
             <div style="width: {progress_percent}%; background-color: #4CAF50; height: 10px; border-radius: 10px; transition: width 0.3s ease;"></div>
+        </div>
+        <div style="text-align: center; font-size: 0.9rem; margin-top: 0.3rem; color: #666;">
+            {num_completed} / {num_required} submitted
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -801,7 +787,6 @@ if st.session_state.all_flights:
                         """, unsafe_allow_html=True)
 
             with col_ranking_out:
-                st.markdown('<div class="sticky-ranking-panel">', unsafe_allow_html=True)
                 st.markdown("#### 📋 Top 5 Outbound (Drag to Rank)")
                 st.markdown(f"**{len(st.session_state.selected_flights)}/5 selected**")
 
@@ -857,8 +842,6 @@ if st.session_state.all_flights:
                         st.success("✅ Outbound rankings submitted")
                 else:
                     st.info("Select 5 outbound flights")
-
-                st.markdown('</div>', unsafe_allow_html=True)
 
             # RETURN FLIGHTS SECTION
             st.markdown("---")
@@ -943,7 +926,6 @@ if st.session_state.all_flights:
                         """, unsafe_allow_html=True)
 
             with col_ranking_ret:
-                st.markdown('<div class="sticky-ranking-panel">', unsafe_allow_html=True)
                 st.markdown("#### 📋 Top 5 Return (Drag to Rank)")
                 st.markdown(f"**{len(st.session_state.selected_return_flights)}/5 selected**")
 
@@ -999,8 +981,6 @@ if st.session_state.all_flights:
                         st.success("✅ Return rankings submitted")
                 else:
                     st.info("Select 5 return flights")
-
-                st.markdown('</div>', unsafe_allow_html=True)
 
             # Save to database when both are submitted
             if st.session_state.outbound_submitted and st.session_state.return_submitted and not st.session_state.csv_generated:
@@ -1114,7 +1094,6 @@ if st.session_state.all_flights:
                         """, unsafe_allow_html=True)
 
             with col_ranking:
-                st.markdown('<div class="sticky-ranking-panel">', unsafe_allow_html=True)
                 st.markdown("#### 📋 Your Top 5 (Drag to Rank)")
                 st.markdown(f"**{len(st.session_state.selected_flights)}/5 selected**")
 
@@ -1196,8 +1175,6 @@ if st.session_state.all_flights:
                         st.info(f"Select {5 - len(st.session_state.selected_flights)} more flights")
                 else:
                     st.info("Check boxes on the left to select flights")
-
-                st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer
 st.markdown("---")
