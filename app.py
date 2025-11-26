@@ -584,11 +584,31 @@ if st.session_state.all_flights:
     num_completed = (1 if st.session_state.outbound_submitted else 0) + (1 if st.session_state.return_submitted else 0)
     all_submitted = (num_completed == num_required)
 
-    # STICKY PROGRESS BAR
-    progress_container = st.container()
-    with progress_container:
-        st.markdown(f"### 📊 Progress: {num_completed}/{num_required} flight rankings submitted")
-        st.progress(num_completed / num_required)
+    # STICKY PROGRESS BAR with CSS
+    st.markdown("""
+    <style>
+    .sticky-progress {
+        position: sticky;
+        top: 0;
+        background-color: white;
+        z-index: 999;
+        padding: 1rem 0;
+        border-bottom: 2px solid #f0f2f6;
+    }
+    .sticky-ranking-panel {
+        position: sticky;
+        top: 120px;
+        align-self: flex-start;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div class="sticky-progress">
+        <h3>Progress: {num_completed}/{num_required} flight rankings submitted</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    st.progress(num_completed / num_required)
 
     st.markdown("---")
 
@@ -743,6 +763,7 @@ if st.session_state.all_flights:
                         """, unsafe_allow_html=True)
 
             with col_ranking_out:
+                st.markdown('<div class="sticky-ranking-panel">', unsafe_allow_html=True)
                 st.markdown("#### 📋 Top 5 Outbound (Drag to Rank)")
                 st.markdown(f"**{len(st.session_state.selected_flights)}/5 selected**")
 
@@ -798,6 +819,8 @@ if st.session_state.all_flights:
                         st.success("✅ Outbound rankings submitted")
                 else:
                     st.info("Select 5 outbound flights")
+
+                st.markdown('</div>', unsafe_allow_html=True)
 
             # RETURN FLIGHTS SECTION
             st.markdown("---")
@@ -882,6 +905,7 @@ if st.session_state.all_flights:
                         """, unsafe_allow_html=True)
 
             with col_ranking_ret:
+                st.markdown('<div class="sticky-ranking-panel">', unsafe_allow_html=True)
                 st.markdown("#### 📋 Top 5 Return (Drag to Rank)")
                 st.markdown(f"**{len(st.session_state.selected_return_flights)}/5 selected**")
 
@@ -937,6 +961,8 @@ if st.session_state.all_flights:
                         st.success("✅ Return rankings submitted")
                 else:
                     st.info("Select 5 return flights")
+
+                st.markdown('</div>', unsafe_allow_html=True)
 
             # Save to database when both are submitted
             if st.session_state.outbound_submitted and st.session_state.return_submitted and not st.session_state.csv_generated:
@@ -1050,6 +1076,7 @@ if st.session_state.all_flights:
                         """, unsafe_allow_html=True)
 
             with col_ranking:
+                st.markdown('<div class="sticky-ranking-panel">', unsafe_allow_html=True)
                 st.markdown("#### 📋 Your Top 5 (Drag to Rank)")
                 st.markdown(f"**{len(st.session_state.selected_flights)}/5 selected**")
 
@@ -1131,6 +1158,8 @@ if st.session_state.all_flights:
                         st.info(f"Select {5 - len(st.session_state.selected_flights)} more flights")
                 else:
                     st.info("Check boxes on the left to select flights")
+
+                st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer
 st.markdown("---")
