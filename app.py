@@ -438,7 +438,7 @@ if not st.session_state.input_activated:
 
         setTimeout(type, 500);
     </script>
-    """, height=150, key="fake_input")
+    """)
 
     # If clicked, activate real input
     if clicked:
