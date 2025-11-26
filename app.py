@@ -438,10 +438,10 @@ if not st.session_state.input_activated:
 
         setTimeout(type, 500);
     </script>
-    """)
+    """, height=150)
 
     # If clicked, activate real input
-    if clicked:
+    if clicked is True:
         st.session_state.input_activated = True
         st.rerun()
 
