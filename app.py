@@ -423,6 +423,8 @@ components.html("""
                             overlay.style.overflow = 'hidden';
                             overlay.style.zIndex = '1';
                             overlay.style.transition = 'opacity 0.5s';
+                            overlay.style.display = 'block';
+                            overlay.style.opacity = '1';
 
                             textarea.parentNode.insertBefore(overlay, textarea);
 
