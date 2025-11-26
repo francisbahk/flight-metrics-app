@@ -239,6 +239,15 @@ if 'sort_price_dir_single' not in st.session_state:
     st.session_state.sort_price_dir_single = 'asc'
 if 'sort_duration_dir_single' not in st.session_state:
     st.session_state.sort_duration_dir_single = 'asc'
+# Submission tracking
+if 'outbound_submitted' not in st.session_state:
+    st.session_state.outbound_submitted = False
+if 'return_submitted' not in st.session_state:
+    st.session_state.return_submitted = False
+if 'csv_data_outbound' not in st.session_state:
+    st.session_state.csv_data_outbound = None
+if 'csv_data_return' not in st.session_state:
+    st.session_state.csv_data_return = None
 
 # TEMPORARY COMMENT: Old session state for algorithm-based ranking
 # if 'interleaved_results' not in st.session_state:
@@ -569,15 +578,31 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
 
 # Display results - NEW SIMPLIFIED VERSION (no algorithm ranking)
 if st.session_state.all_flights:
+    # Calculate submission progress
+    has_return = st.session_state.has_return and st.session_state.all_return_flights
+    num_required = 2 if has_return else 1
+    num_completed = (1 if st.session_state.outbound_submitted else 0) + (1 if st.session_state.return_submitted else 0)
+    all_submitted = (num_completed == num_required)
+
+    # STICKY PROGRESS BAR
+    progress_container = st.container()
+    with progress_container:
+        st.markdown(f"### 📊 Progress: {num_completed}/{num_required} flight rankings submitted")
+        st.progress(num_completed / num_required)
+
     st.markdown("---")
 
-    # Check if submission is complete
-    if st.session_state.csv_generated:
+    # Check if all submissions are complete
+    if all_submitted:
         # COMPLETION SCREEN
-        st.success("✅ Rankings submitted successfully!")
+        st.success("✅ All rankings submitted successfully!")
         st.markdown("### What would you like to do next?")
 
-        col1, col2 = st.columns(2)
+        # Create columns based on whether we have return flights
+        if has_return:
+            col1, col2, col3 = st.columns(3)
+        else:
+            col1, col2 = st.columns(2)
 
         with col1:
             if st.button("🔍 New Search", use_container_width=True, type="primary"):
@@ -587,20 +612,36 @@ if st.session_state.all_flights:
                 st.session_state.all_return_flights = []
                 st.session_state.selected_return_flights = []
                 st.session_state.csv_generated = False
+                st.session_state.outbound_submitted = False
+                st.session_state.return_submitted = False
+                st.session_state.csv_data_outbound = None
+                st.session_state.csv_data_return = None
                 st.session_state.has_return = False
                 st.session_state.parsed_params = None
                 st.rerun()
 
         with col2:
-            if hasattr(st.session_state, 'csv_data'):
+            if st.session_state.csv_data_outbound:
                 st.download_button(
-                    label="📥 Download CSV",
-                    data=st.session_state.csv_data,
-                    file_name=f"flight_rankings_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    label="📥 Download Outbound CSV",
+                    data=st.session_state.csv_data_outbound,
+                    file_name=f"outbound_rankings_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv",
                     use_container_width=True,
                     type="secondary"
                 )
+
+        if has_return:
+            with col3:
+                if st.session_state.csv_data_return:
+                    st.download_button(
+                        label="📥 Download Return CSV",
+                        data=st.session_state.csv_data_return,
+                        file_name=f"return_rankings_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        type="secondary"
+                    )
 
         if hasattr(st.session_state, 'search_id'):
             st.info(f"Your rankings have been saved (Search ID: {st.session_state.search_id})")
@@ -738,6 +779,23 @@ if st.session_state.all_flights:
                             st.session_state.selected_flights = new_order
                             st.session_state.outbound_sort_version += 1
                             st.rerun()
+
+                    # Submit button for outbound
+                    st.markdown("---")
+                    if len(st.session_state.selected_flights) == 5 and not st.session_state.outbound_submitted:
+                        if st.button("✅ Submit Outbound Rankings", key="submit_outbound", type="primary", use_container_width=True):
+                            # Generate CSV
+                            csv_data = generate_flight_csv(
+                                st.session_state.all_flights,
+                                st.session_state.selected_flights,
+                                k=5
+                            )
+                            st.session_state.csv_data_outbound = csv_data
+                            st.session_state.outbound_submitted = True
+                            st.success("✅ Outbound rankings submitted!")
+                            st.rerun()
+                    elif st.session_state.outbound_submitted:
+                        st.success("✅ Outbound rankings submitted")
                 else:
                     st.info("Select 5 outbound flights")
 
@@ -860,83 +918,50 @@ if st.session_state.all_flights:
                             st.session_state.selected_return_flights = new_order
                             st.session_state.return_sort_version += 1
                             st.rerun()
+
+                    # Submit button for return
+                    st.markdown("---")
+                    if len(st.session_state.selected_return_flights) == 5 and not st.session_state.return_submitted:
+                        if st.button("✅ Submit Return Rankings", key="submit_return", type="primary", use_container_width=True):
+                            # Generate CSV
+                            csv_data = generate_flight_csv(
+                                st.session_state.all_return_flights,
+                                st.session_state.selected_return_flights,
+                                k=5
+                            )
+                            st.session_state.csv_data_return = csv_data
+                            st.session_state.return_submitted = True
+                            st.success("✅ Return rankings submitted!")
+                            st.rerun()
+                    elif st.session_state.return_submitted:
+                        st.success("✅ Return rankings submitted")
                 else:
                     st.info("Select 5 return flights")
 
-            # Submit button for dual panel (requires both outbound and return selections)
-            st.markdown("---")
-            if len(st.session_state.selected_flights) == 5 and len(st.session_state.selected_return_flights) == 5:
-                if st.button("✅ Submit All Rankings", type="primary", use_container_width=True):
-                    # Generate separate CSVs for outbound and return
-                    csv_data_outbound = generate_flight_csv(
-                        st.session_state.all_flights,
-                        st.session_state.selected_flights,
-                        k=5
+            # Save to database when both are submitted
+            if st.session_state.outbound_submitted and st.session_state.return_submitted and not st.session_state.csv_generated:
+                try:
+                    from backend.db import save_search_and_csv
+
+                    # Save outbound as primary
+                    search_id = save_search_and_csv(
+                        session_id=st.session_state.session_id,
+                        user_prompt=st.session_state.get('original_prompt', ''),
+                        parsed_params=st.session_state.parsed_params or {},
+                        all_flights=st.session_state.all_flights,
+                        selected_flights=st.session_state.selected_flights,
+                        csv_data=st.session_state.csv_data_outbound
                     )
-                    csv_data_return = generate_flight_csv(
-                        st.session_state.all_return_flights,
-                        st.session_state.selected_return_flights,
-                        k=5
-                    )
 
-                    # Save to database (save both CSVs)
-                    try:
-                        from backend.db import save_search_and_csv
+                    st.session_state.csv_generated = True
+                    st.session_state.search_id = search_id
+                    st.balloons()
+                    st.rerun()
 
-                        # For now, save outbound as primary, store return separately
-                        search_id = save_search_and_csv(
-                            session_id=st.session_state.session_id,
-                            user_prompt=st.session_state.get('original_prompt', ''),
-                            parsed_params=st.session_state.parsed_params or {},
-                            all_flights=st.session_state.all_flights,
-                            selected_flights=st.session_state.selected_flights,
-                            csv_data=csv_data_outbound
-                        )
-
-                        st.session_state.csv_data_outbound = csv_data_outbound
-                        st.session_state.csv_data_return = csv_data_return
-                        st.session_state.csv_generated = True
-                        st.session_state.search_id = search_id
-                        st.success(f"✅ Both outbound and return rankings saved! (Search ID: {search_id})")
-                        st.balloons()
-                        st.rerun()
-
-                    except Exception as e:
-                        st.error(f"Failed to save rankings: {str(e)}")
-                        # Still allow CSV download even if DB save fails
-                        st.session_state.csv_data_outbound = csv_data_outbound
-                        st.session_state.csv_data_return = csv_data_return
-                        st.session_state.csv_generated = True
-                        st.rerun()
-            else:
-                outbound_remaining = 5 - len(st.session_state.selected_flights)
-                return_remaining = 5 - len(st.session_state.selected_return_flights)
-                st.info(f"Select {outbound_remaining} more outbound and {return_remaining} more return flights")
-
-            # Show CSV download buttons if rankings were submitted
-            if st.session_state.csv_generated and hasattr(st.session_state, 'csv_data_outbound'):
-                st.markdown("---")
-                st.markdown("**📥 Download Results**")
-
-                col_dl1, col_dl2 = st.columns(2)
-                with col_dl1:
-                    st.download_button(
-                        label="📄 Download Outbound CSV",
-                        data=st.session_state.csv_data_outbound,
-                        file_name=f"outbound_flights_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        type="secondary"
-                    )
-                with col_dl2:
-                    st.download_button(
-                        label="📄 Download Return CSV",
-                        data=st.session_state.csv_data_return,
-                        file_name=f"return_flights_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        type="secondary"
-                    )
+                except Exception as e:
+                    st.error(f"Failed to save rankings: {str(e)}")
+                    st.session_state.csv_generated = True
+                    st.rerun()
 
         else:
             # SINGLE PANEL LAYOUT: Outbound only
@@ -1064,8 +1089,8 @@ if st.session_state.all_flights:
 
                     # Submit button
                     st.markdown("---")
-                    if len(st.session_state.selected_flights) == 5:
-                        if st.button("✅ Submit Rankings", type="primary", use_container_width=True):
+                    if len(st.session_state.selected_flights) == 5 and not st.session_state.outbound_submitted:
+                        if st.button("✅ Submit Rankings", key="submit_single", type="primary", use_container_width=True):
                             # Generate CSV
                             csv_data = generate_flight_csv(
                                 st.session_state.all_flights,
@@ -1086,19 +1111,22 @@ if st.session_state.all_flights:
                                     csv_data=csv_data
                                 )
 
-                                st.session_state.csv_data = csv_data
+                                st.session_state.csv_data_outbound = csv_data
+                                st.session_state.outbound_submitted = True
                                 st.session_state.csv_generated = True
                                 st.session_state.search_id = search_id
-                                st.success(f"✅ Rankings saved! (Search ID: {search_id})")
                                 st.balloons()
                                 st.rerun()
 
                             except Exception as e:
                                 st.error(f"Failed to save rankings: {str(e)}")
                                 # Still allow CSV download even if DB save fails
-                                st.session_state.csv_data = csv_data
+                                st.session_state.csv_data_outbound = csv_data
+                                st.session_state.outbound_submitted = True
                                 st.session_state.csv_generated = True
                                 st.rerun()
+                    elif st.session_state.outbound_submitted:
+                        st.success("✅ Rankings submitted")
                     else:
                         st.info(f"Select {5 - len(st.session_state.selected_flights)} more flights")
                 else:
