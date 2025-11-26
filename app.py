@@ -349,8 +349,17 @@ st.markdown("""
     const pauseDuration = 3000;
     const eraseDuration = 1000;
 
+    function findTextarea() {
+        // Try multiple selectors to find the textarea
+        let textarea = document.querySelector('.stTextArea textarea');
+        if (!textarea) {
+            textarea = document.querySelector('textarea');
+        }
+        return textarea;
+    }
+
     function animatePlaceholder() {
-        const textarea = document.querySelector('textarea[aria-label=""]');
+        const textarea = findTextarea();
         if (!textarea) {
             setTimeout(animatePlaceholder, 100);
             return;
@@ -362,11 +371,12 @@ st.markdown("""
         }
 
         function type() {
-            if (!textarea || textarea.value.length > 0) return;
+            const currentTextarea = findTextarea();
+            if (!currentTextarea || currentTextarea.value.length > 0) return;
 
             if (isTyping) {
                 if (charIndex < prompts[currentIndex].length) {
-                    textarea.placeholder = prompts[currentIndex].substring(0, charIndex + 1);
+                    currentTextarea.setAttribute('placeholder', prompts[currentIndex].substring(0, charIndex + 1));
                     charIndex++;
                     setTimeout(type, typingSpeed);
                 } else {
@@ -374,7 +384,7 @@ st.markdown("""
                     setTimeout(type, pauseDuration);
                 }
             } else {
-                textarea.placeholder = '';
+                currentTextarea.setAttribute('placeholder', '');
                 charIndex = 0;
                 currentIndex = (currentIndex + 1) % prompts.length;
                 isTyping = true;
@@ -382,8 +392,8 @@ st.markdown("""
             }
         }
 
-        // Start animation
-        type();
+        // Start animation with a delay
+        setTimeout(type, 500);
 
         // Restart if user clears the field
         textarea.addEventListener('input', function() {
@@ -395,7 +405,12 @@ st.markdown("""
         });
     }
 
-    animatePlaceholder();
+    // Wait for DOM and then start
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', animatePlaceholder);
+    } else {
+        setTimeout(animatePlaceholder, 500);
+    }
 })();
 </script>
 """, unsafe_allow_html=True)
