@@ -374,6 +374,18 @@ components.html("""
     try {
         const parentDoc = window.parent.document;
 
+        // TEST: Try to create a div directly in parent
+        const testDiv = parentDoc.createElement('div');
+        testDiv.textContent = 'PARENT ACCESS WORKS';
+        testDiv.style.position = 'fixed';
+        testDiv.style.top = '10px';
+        testDiv.style.right = '10px';
+        testDiv.style.background = 'red';
+        testDiv.style.color = 'white';
+        testDiv.style.padding = '10px';
+        testDiv.style.zIndex = '999999';
+        parentDoc.body.appendChild(testDiv);
+
         if (parentDoc && !parentDoc.getElementById('animPlaceholderScript')) {
             const script = parentDoc.createElement('script');
             script.id = 'animPlaceholderScript';
