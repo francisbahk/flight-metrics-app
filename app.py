@@ -366,78 +366,120 @@ prompt = st.text_area(
     key="flight_prompt_input"
 )
 
-# Animated placeholder overlay (visual only - doesn't affect prompt value)
+# Animated placeholder - typewriter effect cycling through example prompts
 components.html("""
-<div class="anim-placeholder" id="animPlaceholder"></div>
 <script>
 (function() {
-    const prompts = [
-        `I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.`,
-        `On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day at 9am. I'll either fly out of Ithaca, Syracuse, Elmira, or Binghamton to DCA or IAD.`
-    ];
+    try {
+        const parentDoc = window.parent.document;
 
-    let idx = 0, charIdx = 0, typing = true;
-    const speed = 30, pause = 3000, fade = 500;
+        if (parentDoc && !parentDoc.getElementById('animPlaceholderScript')) {
+            const script = parentDoc.createElement('script');
+            script.id = 'animPlaceholderScript';
+            script.textContent = \`
+                (function() {
+                    if (window.animPlaceholderInitialized) return;
+                    window.animPlaceholderInitialized = true;
 
-    function animate() {
-        const overlay = document.getElementById('animPlaceholder');
-        const textarea = window.parent.document.querySelector('.stTextArea textarea');
+                    const prompts = [
+                        'I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.',
+                        'On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day at 9am. I will either fly out of Ithaca, Syracuse, Elmira, or Binghamton to DCA or IAD.'
+                    ];
 
-        if (!overlay || !textarea) {
-            setTimeout(animate, 100);
-            return;
+                    let idx = 0, charIdx = 0, typing = true;
+                    const speed = 42, pause = 3000, fade = 500;
+
+                    function findAndInitialize() {
+                        const textarea = document.querySelector('.stTextArea textarea[data-testid="stTextArea"]') ||
+                                       document.querySelector('.stTextArea textarea');
+
+                        if (!textarea) {
+                            setTimeout(findAndInitialize, 200);
+                            return;
+                        }
+
+                        const container = textarea.closest('.stTextArea');
+                        if (!container) {
+                            setTimeout(findAndInitialize, 200);
+                            return;
+                        }
+
+                        let overlay = document.getElementById('animPlaceholder');
+                        if (!overlay) {
+                            overlay = document.createElement('div');
+                            overlay.id = 'animPlaceholder';
+                            overlay.className = 'anim-placeholder';
+                            overlay.style.position = 'absolute';
+                            overlay.style.top = '12px';
+                            overlay.style.left = '12px';
+                            overlay.style.right = '12px';
+                            overlay.style.bottom = '12px';
+                            overlay.style.color = '#94a3b8';
+                            overlay.style.fontFamily = "'Source Code Pro', monospace";
+                            overlay.style.fontSize = '14px';
+                            overlay.style.lineHeight = '1.5';
+                            overlay.style.pointerEvents = 'none';
+                            overlay.style.whiteSpace = 'pre-wrap';
+                            overlay.style.overflow = 'hidden';
+                            overlay.style.zIndex = '1';
+                            overlay.style.transition = 'opacity 0.5s';
+
+                            textarea.parentNode.insertBefore(overlay, textarea);
+
+                            textarea.style.backgroundColor = 'transparent';
+                            textarea.style.position = 'relative';
+                            textarea.style.zIndex = '2';
+
+                            const hideOverlay = () => {
+                                if (textarea.value) {
+                                    overlay.style.display = 'none';
+                                } else {
+                                    overlay.style.display = 'block';
+                                }
+                            };
+
+                            textarea.addEventListener('input', hideOverlay);
+                            textarea.addEventListener('focus', () => overlay.style.display = 'none');
+                            textarea.addEventListener('blur', hideOverlay);
+                        }
+
+                        function type() {
+                            if (overlay.style.display === 'none') return;
+
+                            if (typing) {
+                                if (charIdx < prompts[idx].length) {
+                                    overlay.textContent = prompts[idx].substring(0, charIdx + 1);
+                                    charIdx++;
+                                    setTimeout(type, speed);
+                                } else {
+                                    typing = false;
+                                    setTimeout(() => {
+                                        overlay.style.opacity = '0';
+                                        setTimeout(() => {
+                                            idx = (idx + 1) % prompts.length;
+                                            charIdx = 0;
+                                            typing = true;
+                                            overlay.style.opacity = '1';
+                                            type();
+                                        }, fade);
+                                    }, pause);
+                                }
+                            }
+                        }
+
+                        setTimeout(type, 500);
+                    }
+
+                    setTimeout(findAndInitialize, 100);
+                    setTimeout(findAndInitialize, 500);
+                    setTimeout(findAndInitialize, 1000);
+                    setTimeout(findAndInitialize, 2000);
+                })();
+            \`;
+            parentDoc.head.appendChild(script);
         }
-
-        // Move overlay into textarea container
-        const container = textarea.closest('.stTextArea');
-        if (container && overlay.parentElement !== container) {
-            container.insertBefore(overlay, textarea);
-        }
-
-        // Hide overlay when user types
-        textarea.addEventListener('input', () => {
-            if (textarea.value) overlay.classList.add('hide');
-            else overlay.classList.remove('hide');
-        });
-
-        textarea.addEventListener('focus', () => overlay.classList.add('hide'));
-        textarea.addEventListener('blur', () => {
-            if (!textarea.value) overlay.classList.remove('hide');
-        });
-
-        // Animate text
-        function type() {
-            if (overlay.classList.contains('hide')) return;
-
-            if (typing) {
-                if (charIdx < prompts[idx].length) {
-                    overlay.textContent = prompts[idx].substring(0, charIdx + 1);
-                    overlay.scrollTop = overlay.scrollHeight;
-                    charIdx++;
-                    setTimeout(type, speed);
-                } else {
-                    typing = false;
-                    setTimeout(() => {
-                        overlay.style.opacity = '0';
-                        setTimeout(() => {
-                            idx = (idx + 1) % prompts.length;
-                            charIdx = 0;
-                            typing = true;
-                            overlay.style.opacity = '1';
-                            type();
-                        }, fade);
-                    }, pause);
-                }
-            }
-        }
-
-        setTimeout(type, 500);
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', animate);
-    } else {
-        animate();
+    } catch (e) {
+        console.error('Animated placeholder error:', e);
     }
 })();
 </script>
