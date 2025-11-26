@@ -355,7 +355,11 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
                 st.success("✅ Understood your request!")
 
                 # Check if return flight is present
-                has_return = parsed.get('return_date') is not None
+                return_dates = parsed.get('return_dates', [])
+                # Fallback to single return_date for backward compatibility
+                if not return_dates and parsed.get('return_date'):
+                    return_dates = [parsed.get('return_date')]
+                has_return = len(return_dates) > 0
                 st.session_state.has_return = has_return
 
                 if has_return:
@@ -376,7 +380,8 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
 
                 if has_return:
                     with col4:
-                        st.info(f"**Return:** {parsed.get('return_date')}")
+                        return_dates_str = ", ".join(return_dates)
+                        st.info(f"**Return:** {return_dates_str}")
 
                 # Search flights from all origin/destination combinations
                 all_flights = []
@@ -452,56 +457,61 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
                                 }
                                 all_flights.append(flight_info)
 
-                        # If return flight requested, search return flights
+                        # If return flight requested, search return flights for ALL return dates
                         if has_return:
-                            return_date = parsed.get('return_date')
-                            st.info(f"✈️ Searching return flights: {dest} → {origin} on {return_date}")
+                            return_dates = parsed.get('return_dates', [])
+                            # Fallback to single return_date for backward compatibility
+                            if not return_dates and parsed.get('return_date'):
+                                return_dates = [parsed.get('return_date')]
 
-                            return_results = amadeus.search_flights(
-                                origin=dest,  # Swap: destination becomes origin
-                                destination=origin,  # Swap: origin becomes destination
-                                departure_date=return_date,
-                                adults=1,
-                                max_results=250
-                            )
+                            for return_date in return_dates:
+                                st.info(f"✈️ Searching return flights: {dest} → {origin} on {return_date}")
 
-                            # Debug: show return flight results
-                            with st.expander(f"🔍 Debug: Return Flight Response ({dest}→{origin} on {return_date})"):
-                                st.write(f"Type: {type(return_results)}")
-                                if isinstance(return_results, dict):
-                                    st.write(f"Keys: {return_results.keys()}")
-                                    if 'data' in return_results:
-                                        st.write(f"Number of flights: {len(return_results['data'])}")
-                                elif isinstance(return_results, list):
-                                    st.write(f"Number of flights: {len(return_results)}")
-                                st.json(return_results if isinstance(return_results, (dict, list)) else str(return_results))
+                                return_results = amadeus.search_flights(
+                                    origin=dest,  # Swap: destination becomes origin
+                                    destination=origin,  # Swap: origin becomes destination
+                                    departure_date=return_date,
+                                    adults=1,
+                                    max_results=250
+                                )
 
-                            # Parse return flight results
-                            if isinstance(return_results, list):
-                                return_flight_offers = return_results
-                            elif isinstance(return_results, dict) and 'data' in return_results:
-                                return_flight_offers = return_results['data']
-                            else:
-                                return_flight_offers = []
+                                # Debug: show return flight results
+                                with st.expander(f"🔍 Debug: Return Flight Response ({dest}→{origin} on {return_date})"):
+                                    st.write(f"Type: {type(return_results)}")
+                                    if isinstance(return_results, dict):
+                                        st.write(f"Keys: {return_results.keys()}")
+                                        if 'data' in return_results:
+                                            st.write(f"Number of flights: {len(return_results['data'])}")
+                                    elif isinstance(return_results, list):
+                                        st.write(f"Number of flights: {len(return_results)}")
+                                    st.json(return_results if isinstance(return_results, (dict, list)) else str(return_results))
 
-                            for offer in return_flight_offers:
-                                itinerary = offer['itineraries'][0]
-                                segments = itinerary['segments']
+                                # Parse return flight results
+                                if isinstance(return_results, list):
+                                    return_flight_offers = return_results
+                                elif isinstance(return_results, dict) and 'data' in return_results:
+                                    return_flight_offers = return_results['data']
+                                else:
+                                    return_flight_offers = []
 
-                                flight_info = {
-                                    'id': offer['id'],
-                                    'price': float(offer['price']['total']),
-                                    'currency': offer['price']['currency'],
-                                    'duration_min': parse_duration_to_minutes(itinerary['duration']),
-                                    'stops': len(segments) - 1,
-                                    'departure_time': segments[0]['departure']['at'],
-                                    'arrival_time': segments[-1]['arrival']['at'],
-                                    'airline': segments[0]['carrierCode'],
-                                    'flight_number': segments[0]['number'],
-                                    'origin': segments[0]['departure']['iataCode'],
-                                    'destination': segments[-1]['arrival']['iataCode']
-                                }
-                                all_return_flights.append(flight_info)
+                                for offer in return_flight_offers:
+                                    itinerary = offer['itineraries'][0]
+                                    segments = itinerary['segments']
+
+                                    flight_info = {
+                                        'id': offer['id'],
+                                        'price': float(offer['price']['total']),
+                                        'currency': offer['price']['currency'],
+                                        'duration_min': parse_duration_to_minutes(itinerary['duration']),
+                                        'stops': len(segments) - 1,
+                                        'departure_time': segments[0]['departure']['at'],
+                                        'arrival_time': segments[-1]['arrival']['at'],
+                                        'airline': segments[0]['carrierCode'],
+                                        'flight_number': segments[0]['number'],
+                                        'origin': segments[0]['departure']['iataCode'],
+                                        'destination': segments[-1]['arrival']['iataCode']
+                                    }
+                                    all_return_flights.append(flight_info)
 
                 if not all_flights:
                     st.error("No outbound flights found. Try different dates or airports.")

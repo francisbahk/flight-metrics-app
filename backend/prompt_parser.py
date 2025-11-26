@@ -39,7 +39,7 @@ Extract and return ONLY a valid JSON object with these fields:
     "origins": ["AIRPORT_CODE"],  // List of origin airport codes (IATA 3-letter)
     "destinations": ["AIRPORT_CODE"],  // List of destination airport codes
     "departure_dates": ["YYYY-MM-DD"],  // List of departure dates (e.g., ["2024-12-20", "2024-12-21"] for "Friday or Saturday")
-    "return_date": "YYYY-MM-DD or null",  // Return date ONLY if explicitly mentioned
+    "return_dates": ["YYYY-MM-DD"],  // List of return dates ONLY if explicitly mentioned (e.g., ["2024-12-27", "2024-12-28"] for "Dec 27th or 28th")
     "preferences": {{
         "prefer_direct": true/false,  // Wants nonstop flights
         "prefer_cheap": true/false,  // Price sensitive
@@ -63,7 +63,7 @@ CRITICAL INSTRUCTIONS:
 3. Infer preferences from context (e.g., "as cheap as possible" → prefer_cheap: true)
 4. Parse dates relative to today if needed (today is {datetime.now().strftime("%Y-%m-%d")})
 5. **MULTIPLE DATES**: If user mentions multiple dates (e.g., "weekend of Jan 5", "Friday or Saturday", "Jan 5 or 6"), extract ALL dates as separate items in departure_dates list
-6. **RETURN FLIGHTS**: ONLY set return_date if user explicitly mentions returning, coming back, or round-trip. If only one-way is mentioned, set return_date to null
+6. **RETURN FLIGHTS**: ONLY set return_dates if user explicitly mentions returning, coming back, or round-trip. Extract ALL mentioned return dates in return_dates list (e.g., "return Dec 27 or 28" → ["2024-12-27", "2024-12-28"]). If only one-way is mentioned, set return_dates to empty list []
 
 **MOST IMPORTANT - AIRPORT CODE EXTRACTION:**
 You MUST use your knowledge of world airports to convert city/region names into proper IATA airport codes (3-letter codes).
@@ -115,12 +115,19 @@ For small cities, include nearby major airports within 100 miles as alternatives
         if not departure_dates and parsed.get('departure_date'):
             departure_dates = [parsed.get('departure_date')]
 
+        # Handle return dates (support both old single return_date and new multiple return_dates)
+        return_dates = parsed.get('return_dates', [])
+        if not return_dates and parsed.get('return_date'):
+            # Backward compatibility: convert single return_date to list
+            return_dates = [parsed.get('return_date')]
+
         result = {
             'parsed_successfully': True,
             'origins': parsed.get('origins', []),
             'destinations': parsed.get('destinations', []),
             'departure_dates': departure_dates,  # Now a list
-            'return_date': parsed.get('return_date'),
+            'return_dates': return_dates,  # Now a list
+            'return_date': return_dates[0] if return_dates else None,  # Keep for backward compatibility
             'preferences': parsed.get('preferences', {}),
             'constraints': parsed.get('constraints', {}),
             'original_prompt': prompt
