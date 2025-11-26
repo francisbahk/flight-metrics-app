@@ -425,6 +425,7 @@ components.html("""
                             overlay.style.transition = 'opacity 0.5s';
                             overlay.style.display = 'block';
                             overlay.style.opacity = '1';
+                            overlay.textContent = 'TESTING - OVERLAY IS HERE';
 
                             textarea.parentNode.insertBefore(overlay, textarea);
 
