@@ -356,86 +356,84 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Animated placeholder layer (hidden behind textarea)
-placeholder_html = """
-<style>
-    body { margin: 0; padding: 0; background: transparent; }
-    #animPlaceholder {
-        padding: 10px 12px;
-        font-family: 'Source Code Pro', monospace;
-        font-size: 14px;
-        line-height: 1.6;
-        color: rgba(49, 51, 63, 0.4);
-        white-space: pre-wrap;
-        word-wrap: break-word;
-    }
-</style>
-<div id="animPlaceholder"></div>
-<script>
-    const prompts = [
-        'I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.',
-        'On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day at 9am. I will either fly out of Ithaca, Syracuse, Elmira, or Binghamton to DCA or IAD.'
-    ];
+# Initialize prompt interaction state
+if 'prompt_interacted' not in st.session_state:
+    st.session_state.prompt_interacted = False
 
-    let idx = 0, charIdx = 0, typing = true;
-    const speed = 42, pause = 3000, fade = 500;
-    const placeholder = document.getElementById('animPlaceholder');
+# Check if user has typed anything
+current_prompt_value = st.session_state.get('flight_prompt_input', '')
+if current_prompt_value and current_prompt_value.strip():
+    st.session_state.prompt_interacted = True
 
-    function type() {
-        if (typing) {
-            if (charIdx < prompts[idx].length) {
-                placeholder.textContent = prompts[idx].substring(0, charIdx + 1);
-                charIdx++;
-                setTimeout(type, speed);
-            } else {
-                typing = false;
-                setTimeout(() => {
-                    placeholder.style.opacity = '0';
+# Only show animated placeholder if user hasn't interacted yet
+if not st.session_state.prompt_interacted:
+    placeholder_html = """
+    <style>
+        body { margin: 0; padding: 0; background: transparent; }
+        #animPlaceholder {
+            padding: 10px 12px;
+            font-family: 'Source Code Pro', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            color: rgba(49, 51, 63, 0.4);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+    <div id="animPlaceholder"></div>
+    <script>
+        const prompts = [
+            'I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.',
+            'On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day at 9am. I will either fly out of Ithaca, Syracuse, Elmira, or Binghamton to DCA or IAD.'
+        ];
+
+        let idx = 0, charIdx = 0, typing = true;
+        const speed = 42, pause = 3000, fade = 500;
+        const placeholder = document.getElementById('animPlaceholder');
+
+        function type() {
+            if (typing) {
+                if (charIdx < prompts[idx].length) {
+                    placeholder.textContent = prompts[idx].substring(0, charIdx + 1);
+                    charIdx++;
+                    setTimeout(type, speed);
+                } else {
+                    typing = false;
                     setTimeout(() => {
-                        idx = (idx + 1) % prompts.length;
-                        charIdx = 0;
-                        typing = true;
-                        placeholder.style.opacity = '1';
-                        type();
-                    }, fade);
-                }, pause);
+                        placeholder.style.opacity = '0';
+                        setTimeout(() => {
+                            idx = (idx + 1) % prompts.length;
+                            charIdx = 0;
+                            typing = true;
+                            placeholder.style.opacity = '1';
+                            type();
+                        }, fade);
+                    }, pause);
+                }
             }
         }
-    }
 
-    setTimeout(type, 500);
-</script>
-"""
+        setTimeout(type, 500);
+    </script>
+    """
+    components.html(placeholder_html, height=164)
 
-components.html(placeholder_html, height=164)
+    # Add negative margin to pull textarea up over the animation
+    st.markdown('<div style="margin-top: -164px;">', unsafe_allow_html=True)
 
-# Style the textarea to overlay the animation
-st.markdown("""
-<style>
-    /* Target the specific textarea by key */
-    textarea[aria-label="flight prompt input"] {
-        margin-top: -164px !important;
-        background: transparent !important;
-        position: relative !important;
-        z-index: 10 !important;
-    }
-    /* When focused or has content, make background white */
-    textarea[aria-label="flight prompt input"]:focus,
-    textarea[aria-label="flight prompt input"]:not(:placeholder-shown) {
-        background: white !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# Real textarea that user types in (overlays the animation via negative margin)
+# Real textarea that user types in
 prompt = st.text_area(
     "flight prompt input",
     value="",
     height=150,
-    placeholder="",
+    placeholder="Click here to describe your flight needs...",
     label_visibility="collapsed",
     key="flight_prompt_input"
 )
+
+# Close the negative margin div if we showed the animation
+if not st.session_state.prompt_interacted:
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
