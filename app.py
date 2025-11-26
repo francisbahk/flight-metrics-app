@@ -369,9 +369,20 @@ if current_prompt_value and current_prompt_value.strip():
 if not st.session_state.prompt_interacted:
     placeholder_html = """
     <style>
-        body { margin: 0; padding: 0; background: transparent; }
+        body {
+            margin: 0;
+            padding: 0;
+            background: white;
+        }
+        #animBox {
+            border: 1px solid rgb(204, 204, 204);
+            border-radius: 0.5rem;
+            background: white;
+            height: 150px;
+            padding: 0.5rem 0.75rem;
+            pointer-events: none;
+        }
         #animPlaceholder {
-            padding: 10px 12px;
             font-family: 'Source Code Pro', monospace;
             font-size: 14px;
             line-height: 1.6;
@@ -380,7 +391,9 @@ if not st.session_state.prompt_interacted:
             word-wrap: break-word;
         }
     </style>
-    <div id="animPlaceholder"></div>
+    <div id="animBox">
+        <div id="animPlaceholder"></div>
+    </div>
     <script>
         const prompts = [
             'I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.',
@@ -416,17 +429,38 @@ if not st.session_state.prompt_interacted:
         setTimeout(type, 500);
     </script>
     """
-    components.html(placeholder_html, height=164)
+    components.html(placeholder_html, height=178)
 
-    # Add negative margin to pull textarea up over the animation
-    st.markdown('<div style="margin-top: -164px;">', unsafe_allow_html=True)
+    # Add negative margin and CSS to overlay textarea
+    st.markdown("""
+    <style>
+        /* Hide the label that says "flight prompt input" */
+        label[data-testid="stWidgetLabel"] {
+            display: none !important;
+        }
+        /* Make the textarea overlay the animation */
+        textarea[aria-label="flight prompt input"] {
+            margin-top: -178px !important;
+            background: transparent !important;
+            position: relative !important;
+            z-index: 10 !important;
+            border: 1px solid transparent !important;
+        }
+        /* Show border when focused */
+        textarea[aria-label="flight prompt input"]:focus {
+            border: 1px solid rgb(255, 75, 75) !important;
+            background: white !important;
+        }
+    </style>
+    <div style="margin-top: -178px;">
+    """, unsafe_allow_html=True)
 
 # Real textarea that user types in
 prompt = st.text_area(
     "flight prompt input",
     value="",
     height=150,
-    placeholder="Click here to describe your flight needs...",
+    placeholder="",
     label_visibility="collapsed",
     key="flight_prompt_input"
 )
