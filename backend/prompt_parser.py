@@ -45,8 +45,8 @@ Extract and return ONLY a valid JSON object with these fields:
         "prefer_cheap": true/false,  // Price sensitive
         "prefer_fast": true/false,  // Wants shortest duration
         "avoid_early_departures": true/false,  // Doesn't want flights before 7am
-        "min_connection_time": 45,  // Minimum connection time in minutes
-        "max_layover_time": 90,  // Maximum layover time in minutes
+        "min_connection_time": 0,  // Minimum connection time in minutes (0 = no minimum)
+        "max_layover_time": 10000,  // Maximum layover time in minutes (10000 = effectively no limit)
         "preferred_airlines": ["AIRLINE_CODE"],  // e.g. ["UA", "AA"]
         "avoid_airports": ["AIRPORT_CODE"],  // Airports to avoid e.g. ["JFK", "EWR"]
         "fly_america_act": true/false  // Must use US carriers

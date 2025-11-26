@@ -558,488 +558,511 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
 if st.session_state.all_flights:
     st.markdown("---")
 
-    # Check if we have return flights
-    has_return = st.session_state.has_return and st.session_state.all_return_flights
+    # Check if submission is complete
+    if st.session_state.csv_generated:
+        # COMPLETION SCREEN
+        st.success("✅ Rankings submitted successfully!")
+        st.markdown("### What would you like to do next?")
 
-    if has_return:
-        st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Outbound Flights and {len(st.session_state.all_return_flights)} Return Flights")
-        st.markdown("**Select your top 5 flights for EACH direction and drag to rank them →**")
-    else:
-        st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Flights")
-        st.markdown("**Select your top 5 flights and drag to rank them →**")
+        col1, col2 = st.columns(2)
 
-    # CONDITIONAL UI: Show single or dual panels based on has_return
-    if has_return:
-        # DUAL PANEL LAYOUT: Outbound + Return
-        st.markdown("---")
-        st.markdown("## 🛫 Outbound Flights")
+        with col1:
+            if st.button("🔍 New Search", use_container_width=True, type="primary"):
+                # Reset session state for new search
+                st.session_state.all_flights = []
+                st.session_state.selected_flights = []
+                st.session_state.all_return_flights = []
+                st.session_state.selected_return_flights = []
+                st.session_state.csv_generated = False
+                st.session_state.has_return = False
+                st.session_state.parsed_params = None
+                st.rerun()
 
-        col_flights_out, col_ranking_out = st.columns([2, 1])
-
-        with col_flights_out:
-            st.markdown("#### All Outbound Flights")
-
-            # Sort buttons
-            col_sort1, col_sort2 = st.columns(2)
-            with col_sort1:
-                if st.button("💰 Sort by Price", key="sort_price_out", use_container_width=True):
-                    st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['price'])
-                    st.rerun()
-            with col_sort2:
-                if st.button("⏱️ Sort by Duration", key="sort_duration_out", use_container_width=True):
-                    st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['duration_min'])
-                    st.rerun()
-
-            st.markdown("---")
-
-            # Display all outbound flights with checkboxes
-            for idx, flight in enumerate(st.session_state.all_flights):
-                unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
-
-                # Create unique key using ID + departure time to handle duplicate IDs across dates
-                flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
-                is_selected = any(f"{f['id']}_{f['departure_time']}" == flight_unique_key for f in st.session_state.selected_flights)
-
-                col1, col2 = st.columns([1, 5])
-
-                with col1:
-                    # Use simpler checkbox key (just index) to avoid special character issues
-                    selected = st.checkbox(
-                        "✓" if is_selected else "",
-                        value=is_selected,
-                        key=f"select_out_{idx}",
-                        label_visibility="collapsed",
-                        disabled=(not is_selected and len(st.session_state.selected_flights) >= 5)
-                    )
-
-                    if selected and not is_selected:
-                        st.session_state.selected_flights.append(flight)
-                        st.rerun()
-                    elif not selected and is_selected:
-                        st.session_state.selected_flights = [
-                            f for f in st.session_state.selected_flights
-                            if f"{f['id']}_{f['departure_time']}" != flight_unique_key
-                        ]
-                        st.rerun()
-
-                with col2:
-                    dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
-                    arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
-                    dept_time_display = dept_dt.strftime("%I:%M %p")
-                    arr_time_display = arr_dt.strftime("%I:%M %p")
-                    dept_date_display = dept_dt.strftime("%a, %b %d")  # e.g., "Fri, Jan 5"
-
-                    duration_hours = flight['duration_min'] // 60
-                    duration_mins = flight['duration_min'] % 60
-                    duration_display = f"{duration_hours} hr {duration_mins} min" if duration_hours > 0 else f"{duration_mins} min"
-
-                    airline_name = get_airline_name(flight['airline'])
-
-                    st.markdown(f"""
-                    <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
-                    <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
-                    <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
-                    <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-        with col_ranking_out:
-            st.markdown("#### 📋 Top 5 Outbound (Drag to Rank)")
-            st.markdown(f"**{len(st.session_state.selected_flights)}/5 selected**")
-
-            if st.session_state.selected_flights:
-                # Enforce limit
-                if len(st.session_state.selected_flights) > 5:
-                    st.session_state.selected_flights = st.session_state.selected_flights[:5]
-                    st.rerun()
-
-                # Create flight labels WITH RANK NUMBERS
-                flight_labels = []
-                for i, flight in enumerate(st.session_state.selected_flights):
-                    airline_name = get_airline_name(flight['airline'])
-                    label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
-                    flight_labels.append(label)
-
-                # Sortable list with version AND length in key to refresh on both drag and addition
-                sorted_labels = sort_items(
-                    flight_labels,
-                    multi_containers=False,
-                    direction='vertical',
-                    key=f'outbound_sort_v{st.session_state.outbound_sort_version}_n{len(st.session_state.selected_flights)}'
-                )
-
-                # Update order ONLY if user dragged (same length, different order)
-                if sorted_labels != flight_labels and len(sorted_labels) == len(flight_labels):
-                    new_order = []
-                    for sorted_label in sorted_labels:
-                        # Extract original rank from label
-                        rank = int(sorted_label.split(':')[0].replace('#', '')) - 1
-                        if rank < len(st.session_state.selected_flights):
-                            new_order.append(st.session_state.selected_flights[rank])
-                    if len(new_order) == len(st.session_state.selected_flights):
-                        st.session_state.selected_flights = new_order
-                        st.session_state.outbound_sort_version += 1
-                        st.rerun()
-            else:
-                st.info("Select 5 outbound flights")
-
-        # RETURN FLIGHTS SECTION
-        st.markdown("---")
-        st.markdown("## 🛬 Return Flights")
-
-        col_flights_ret, col_ranking_ret = st.columns([2, 1])
-
-        with col_flights_ret:
-            st.markdown("#### All Return Flights")
-
-            # Sort buttons
-            col_sort1, col_sort2 = st.columns(2)
-            with col_sort1:
-                if st.button("💰 Sort by Price", key="sort_price_ret", use_container_width=True):
-                    st.session_state.all_return_flights = sorted(st.session_state.all_return_flights, key=lambda x: x['price'])
-                    st.rerun()
-            with col_sort2:
-                if st.button("⏱️ Sort by Duration", key="sort_duration_ret", use_container_width=True):
-                    st.session_state.all_return_flights = sorted(st.session_state.all_return_flights, key=lambda x: x['duration_min'])
-                    st.rerun()
-
-            st.markdown("---")
-
-            # Display all return flights with checkboxes
-            for idx, flight in enumerate(st.session_state.all_return_flights):
-                unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
-
-                # Create unique key using ID + departure time to handle duplicate IDs
-                flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
-                is_selected = any(f"{f['id']}_{f['departure_time']}" == flight_unique_key for f in st.session_state.selected_return_flights)
-
-                col1, col2 = st.columns([1, 5])
-
-                with col1:
-                    # Use simpler checkbox key (just index) to avoid special character issues
-                    selected = st.checkbox(
-                        "✓" if is_selected else "",
-                        value=is_selected,
-                        key=f"select_ret_{idx}",
-                        label_visibility="collapsed",
-                        disabled=(not is_selected and len(st.session_state.selected_return_flights) >= 5)
-                    )
-
-                    if selected and not is_selected:
-                        st.session_state.selected_return_flights.append(flight)
-                        st.rerun()
-                    elif not selected and is_selected:
-                        st.session_state.selected_return_flights = [
-                            f for f in st.session_state.selected_return_flights
-                            if f"{f['id']}_{f['departure_time']}" != flight_unique_key
-                        ]
-                        st.rerun()
-
-                with col2:
-                    dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
-                    arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
-                    dept_time_display = dept_dt.strftime("%I:%M %p")
-                    arr_time_display = arr_dt.strftime("%I:%M %p")
-                    dept_date_display = dept_dt.strftime("%a, %b %d")  # e.g., "Fri, Jan 5"
-
-                    duration_hours = flight['duration_min'] // 60
-                    duration_mins = flight['duration_min'] % 60
-                    duration_display = f"{duration_hours} hr {duration_mins} min" if duration_hours > 0 else f"{duration_mins} min"
-
-                    airline_name = get_airline_name(flight['airline'])
-
-                    st.markdown(f"""
-                    <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
-                    <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
-                    <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
-                    <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-        with col_ranking_ret:
-            st.markdown("#### 📋 Top 5 Return (Drag to Rank)")
-            st.markdown(f"**{len(st.session_state.selected_return_flights)}/5 selected**")
-
-            if st.session_state.selected_return_flights:
-                # Enforce limit
-                if len(st.session_state.selected_return_flights) > 5:
-                    st.session_state.selected_return_flights = st.session_state.selected_return_flights[:5]
-                    st.rerun()
-
-                # Create flight labels WITH RANK NUMBERS
-                flight_labels = []
-                for i, flight in enumerate(st.session_state.selected_return_flights):
-                    airline_name = get_airline_name(flight['airline'])
-                    label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
-                    flight_labels.append(label)
-
-                # Sortable list with version AND length in key to refresh on both drag and addition
-                sorted_labels = sort_items(
-                    flight_labels,
-                    multi_containers=False,
-                    direction='vertical',
-                    key=f'return_sort_v{st.session_state.return_sort_version}_n{len(st.session_state.selected_return_flights)}'
-                )
-
-                # Update order ONLY if user dragged (same length, different order)
-                if sorted_labels != flight_labels and len(sorted_labels) == len(flight_labels):
-                    new_order = []
-                    for sorted_label in sorted_labels:
-                        # Extract original rank from label
-                        rank = int(sorted_label.split(':')[0].replace('#', '')) - 1
-                        if rank < len(st.session_state.selected_return_flights):
-                            new_order.append(st.session_state.selected_return_flights[rank])
-                    if len(new_order) == len(st.session_state.selected_return_flights):
-                        st.session_state.selected_return_flights = new_order
-                        st.session_state.return_sort_version += 1
-                        st.rerun()
-            else:
-                st.info("Select 5 return flights")
-
-        # Submit button for dual panel (requires both outbound and return selections)
-        st.markdown("---")
-        if len(st.session_state.selected_flights) == 5 and len(st.session_state.selected_return_flights) == 5:
-            if st.button("✅ Submit All Rankings", type="primary", use_container_width=True):
-                # Generate separate CSVs for outbound and return
-                csv_data_outbound = generate_flight_csv(
-                    st.session_state.all_flights,
-                    st.session_state.selected_flights,
-                    k=5
-                )
-                csv_data_return = generate_flight_csv(
-                    st.session_state.all_return_flights,
-                    st.session_state.selected_return_flights,
-                    k=5
-                )
-
-                # Save to database (save both CSVs)
-                try:
-                    from backend.db import save_search_and_csv
-
-                    # For now, save outbound as primary, store return separately
-                    search_id = save_search_and_csv(
-                        session_id=st.session_state.session_id,
-                        user_prompt=st.session_state.get('original_prompt', ''),
-                        parsed_params=st.session_state.parsed_params or {},
-                        all_flights=st.session_state.all_flights,
-                        selected_flights=st.session_state.selected_flights,
-                        csv_data=csv_data_outbound
-                    )
-
-                    st.session_state.csv_data_outbound = csv_data_outbound
-                    st.session_state.csv_data_return = csv_data_return
-                    st.session_state.csv_generated = True
-                    st.session_state.search_id = search_id
-                    st.success(f"✅ Both outbound and return rankings saved! (Search ID: {search_id})")
-                    st.balloons()
-                    st.rerun()
-
-                except Exception as e:
-                    st.error(f"Failed to save rankings: {str(e)}")
-                    # Still allow CSV download even if DB save fails
-                    st.session_state.csv_data_outbound = csv_data_outbound
-                    st.session_state.csv_data_return = csv_data_return
-                    st.session_state.csv_generated = True
-                    st.rerun()
-        else:
-            outbound_remaining = 5 - len(st.session_state.selected_flights)
-            return_remaining = 5 - len(st.session_state.selected_return_flights)
-            st.info(f"Select {outbound_remaining} more outbound and {return_remaining} more return flights")
-
-        # Show CSV download buttons if rankings were submitted
-        if st.session_state.csv_generated and hasattr(st.session_state, 'csv_data_outbound'):
-            st.markdown("---")
-            st.markdown("**📥 Download Results**")
-
-            col_dl1, col_dl2 = st.columns(2)
-            with col_dl1:
+        with col2:
+            if hasattr(st.session_state, 'csv_data'):
                 st.download_button(
-                    label="📄 Download Outbound CSV",
-                    data=st.session_state.csv_data_outbound,
-                    file_name=f"outbound_flights_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    type="secondary"
-                )
-            with col_dl2:
-                st.download_button(
-                    label="📄 Download Return CSV",
-                    data=st.session_state.csv_data_return,
-                    file_name=f"return_flights_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    type="secondary"
-                )
-
-    else:
-        # SINGLE PANEL LAYOUT: Outbound only
-        col_flights, col_ranking = st.columns([2, 1])
-
-        with col_flights:
-            st.markdown("#### All Available Flights")
-
-            # Sort buttons
-            col_sort1, col_sort2 = st.columns(2)
-            with col_sort1:
-                if st.button("💰 Sort by Price", key="sort_price_single", use_container_width=True):
-                    st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['price'])
-                    st.rerun()
-            with col_sort2:
-                if st.button("⏱️ Sort by Duration", key="sort_duration_single", use_container_width=True):
-                    st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['duration_min'])
-                    st.rerun()
-
-            st.markdown("---")
-
-            # Display all flights with checkboxes
-            for idx, flight in enumerate(st.session_state.all_flights):
-                # Generate unique_id for display
-                unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
-
-                # Create unique key using ID + departure time to handle duplicate IDs across dates
-                flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
-                is_selected = any(f"{f['id']}_{f['departure_time']}" == flight_unique_key for f in st.session_state.selected_flights)
-
-                col1, col2 = st.columns([1, 5])
-
-                with col1:
-                    # Use simpler checkbox key (just index) to avoid special character issues
-                    selected = st.checkbox(
-                        "✓" if is_selected else "",
-                        value=is_selected,
-                        key=f"select_{idx}",
-                        label_visibility="collapsed",
-                        disabled=(not is_selected and len(st.session_state.selected_flights) >= 5)
-                    )
-
-                    if selected and not is_selected:
-                        # Add to selected flights
-                        st.session_state.selected_flights.append(flight)
-                        st.rerun()
-                    elif not selected and is_selected:
-                        # Remove from selected flights
-                        st.session_state.selected_flights = [
-                            f for f in st.session_state.selected_flights
-                            if f"{f['id']}_{f['departure_time']}" != flight_unique_key
-                        ]
-                        st.rerun()
-
-                with col2:
-                    # Show flight metrics as requested
-                    dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
-                    arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
-                    dept_time_display = dept_dt.strftime("%I:%M %p")
-                    arr_time_display = arr_dt.strftime("%I:%M %p")
-                    dept_date_display = dept_dt.strftime("%a, %b %d")  # e.g., "Fri, Jan 5"
-
-                    # Format duration as "X hr Y min"
-                    duration_hours = flight['duration_min'] // 60
-                    duration_mins = flight['duration_min'] % 60
-                    duration_display = f"{duration_hours} hr {duration_mins} min" if duration_hours > 0 else f"{duration_mins} min"
-
-                    # Get full airline name
-                    airline_name = get_airline_name(flight['airline'])
-
-                    st.markdown(f"""
-                    <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
-                    <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
-                    <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
-                    <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-        with col_ranking:
-            st.markdown("#### 📋 Your Top 5 (Drag to Rank)")
-            st.markdown(f"**{len(st.session_state.selected_flights)}/5 selected**")
-
-            if st.session_state.selected_flights:
-                # Enforce 5-flight limit
-                if len(st.session_state.selected_flights) > 5:
-                    st.session_state.selected_flights = st.session_state.selected_flights[:5]
-                    st.rerun()
-
-                # Create flight labels WITH RANK NUMBERS
-                flight_labels = []
-                for i, flight in enumerate(st.session_state.selected_flights):
-                    airline_name = get_airline_name(flight['airline'])
-                    label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
-                    flight_labels.append(label)
-
-                # Sortable list with version AND length in key to refresh on both drag and addition
-                sorted_labels = sort_items(
-                    flight_labels,
-                    multi_containers=False,
-                    direction='vertical',
-                    key=f'single_sort_v{st.session_state.single_sort_version}_n{len(st.session_state.selected_flights)}'
-                )
-
-                # Update order ONLY if user dragged (same length, different order)
-                if sorted_labels and sorted_labels != flight_labels and len(sorted_labels) == len(flight_labels):
-                    new_order = []
-                    for sorted_label in sorted_labels:
-                        # Extract rank number from label (e.g., "#1: ..." -> 0)
-                        rank = int(sorted_label.split(':')[0].replace('#', '')) - 1
-                        if rank < len(st.session_state.selected_flights):
-                            new_order.append(st.session_state.selected_flights[rank])
-                    if len(new_order) == len(st.session_state.selected_flights):
-                        st.session_state.selected_flights = new_order
-                        st.session_state.single_sort_version += 1
-                        st.rerun()
-
-                # Submit button
-                st.markdown("---")
-                if len(st.session_state.selected_flights) == 5:
-                    if st.button("✅ Submit Rankings", type="primary", use_container_width=True):
-                        # Generate CSV
-                        csv_data = generate_flight_csv(
-                            st.session_state.all_flights,
-                            st.session_state.selected_flights,
-                            k=5
-                        )
-
-                        # Save to database
-                        try:
-                            from backend.db import save_search_and_csv
-
-                            search_id = save_search_and_csv(
-                                session_id=st.session_state.session_id,
-                                user_prompt=st.session_state.get('original_prompt', ''),
-                                parsed_params=st.session_state.parsed_params or {},
-                                all_flights=st.session_state.all_flights,
-                                selected_flights=st.session_state.selected_flights,
-                                csv_data=csv_data
-                            )
-
-                            st.session_state.csv_data = csv_data
-                            st.session_state.csv_generated = True
-                            st.session_state.search_id = search_id
-                            st.success(f"✅ Rankings saved! (Search ID: {search_id})")
-                            st.balloons()
-                            st.rerun()
-
-                        except Exception as e:
-                            st.error(f"Failed to save rankings: {str(e)}")
-                            # Still allow CSV download even if DB save fails
-                            st.session_state.csv_data = csv_data
-                            st.session_state.csv_generated = True
-                            st.rerun()
-                else:
-                    st.info(f"Select {5 - len(st.session_state.selected_flights)} more flights")
-            else:
-                st.info("Check boxes on the left to select flights")
-
-            # Show CSV download button if rankings were submitted (moved to right panel)
-            if st.session_state.csv_generated and hasattr(st.session_state, 'csv_data'):
-                st.markdown("---")
-                st.markdown("**📥 Download Results**")
-                st.download_button(
-                    label="Download CSV File",
+                    label="📥 Download CSV",
                     data=st.session_state.csv_data,
                     file_name=f"flight_rankings_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-                type="secondary"
-            )
+                    mime="text/csv",
+                    use_container_width=True,
+                    type="secondary"
+                )
+
+        if hasattr(st.session_state, 'search_id'):
+            st.info(f"Your rankings have been saved (Search ID: {st.session_state.search_id})")
+
+    else:
+        # FLIGHT SELECTION INTERFACE
+        # Check if we have return flights
+        has_return = st.session_state.has_return and st.session_state.all_return_flights
+
+        if has_return:
+            st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Outbound Flights and {len(st.session_state.all_return_flights)} Return Flights")
+            st.markdown("**Select your top 5 flights for EACH direction and drag to rank them →**")
+        else:
+            st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Flights")
+            st.markdown("**Select your top 5 flights and drag to rank them →**")
+
+        # CONDITIONAL UI: Show single or dual panels based on has_return
+        if has_return:
+            # DUAL PANEL LAYOUT: Outbound + Return
+            st.markdown("---")
+            st.markdown("## 🛫 Outbound Flights")
+
+            col_flights_out, col_ranking_out = st.columns([2, 1])
+
+            with col_flights_out:
+                st.markdown("#### All Outbound Flights")
+
+                # Sort buttons
+                col_sort1, col_sort2 = st.columns(2)
+                with col_sort1:
+                    if st.button("💰 Sort by Price", key="sort_price_out", use_container_width=True):
+                        st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['price'])
+                        st.rerun()
+                with col_sort2:
+                    if st.button("⏱️ Sort by Duration", key="sort_duration_out", use_container_width=True):
+                        st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['duration_min'])
+                        st.rerun()
+
+                st.markdown("---")
+
+                # Display all outbound flights with checkboxes
+                for idx, flight in enumerate(st.session_state.all_flights):
+                    unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
+
+                    # Create unique key using ID + departure time to handle duplicate IDs across dates
+                    flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                    is_selected = any(f"{f['id']}_{f['departure_time']}" == flight_unique_key for f in st.session_state.selected_flights)
+
+                    col1, col2 = st.columns([1, 5])
+
+                    with col1:
+                        # Use simpler checkbox key (just index) to avoid special character issues
+                        selected = st.checkbox(
+                            "✓" if is_selected else "",
+                            value=is_selected,
+                            key=f"select_out_{idx}",
+                            label_visibility="collapsed",
+                            disabled=(not is_selected and len(st.session_state.selected_flights) >= 5)
+                        )
+
+                        if selected and not is_selected:
+                            st.session_state.selected_flights.append(flight)
+                            st.rerun()
+                        elif not selected and is_selected:
+                            st.session_state.selected_flights = [
+                                f for f in st.session_state.selected_flights
+                                if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                            ]
+                            st.rerun()
+
+                    with col2:
+                        dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
+                        arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
+                        dept_time_display = dept_dt.strftime("%I:%M %p")
+                        arr_time_display = arr_dt.strftime("%I:%M %p")
+                        dept_date_display = dept_dt.strftime("%a, %b %d")  # e.g., "Fri, Jan 5"
+
+                        duration_hours = flight['duration_min'] // 60
+                        duration_mins = flight['duration_min'] % 60
+                        duration_display = f"{duration_hours} hr {duration_mins} min" if duration_hours > 0 else f"{duration_mins} min"
+
+                        airline_name = get_airline_name(flight['airline'])
+
+                        st.markdown(f"""
+                        <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
+                        <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
+                        <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
+                        <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            with col_ranking_out:
+                st.markdown("#### 📋 Top 5 Outbound (Drag to Rank)")
+                st.markdown(f"**{len(st.session_state.selected_flights)}/5 selected**")
+
+                if st.session_state.selected_flights:
+                    # Enforce limit
+                    if len(st.session_state.selected_flights) > 5:
+                        st.session_state.selected_flights = st.session_state.selected_flights[:5]
+                        st.rerun()
+
+                    # Create flight labels WITH RANK NUMBERS
+                    flight_labels = []
+                    for i, flight in enumerate(st.session_state.selected_flights):
+                        airline_name = get_airline_name(flight['airline'])
+                        label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
+                        flight_labels.append(label)
+
+                    # Sortable list with version AND length in key to refresh on both drag and addition
+                    sorted_labels = sort_items(
+                        flight_labels,
+                        multi_containers=False,
+                        direction='vertical',
+                        key=f'outbound_sort_v{st.session_state.outbound_sort_version}_n{len(st.session_state.selected_flights)}'
+                    )
+
+                    # Update order ONLY if user dragged (same length, different order)
+                    if sorted_labels != flight_labels and len(sorted_labels) == len(flight_labels):
+                        new_order = []
+                        for sorted_label in sorted_labels:
+                            # Extract original rank from label
+                            rank = int(sorted_label.split(':')[0].replace('#', '')) - 1
+                            if rank < len(st.session_state.selected_flights):
+                                new_order.append(st.session_state.selected_flights[rank])
+                        if len(new_order) == len(st.session_state.selected_flights):
+                            st.session_state.selected_flights = new_order
+                            st.session_state.outbound_sort_version += 1
+                            st.rerun()
+                else:
+                    st.info("Select 5 outbound flights")
+
+            # RETURN FLIGHTS SECTION
+            st.markdown("---")
+            st.markdown("## 🛬 Return Flights")
+
+            col_flights_ret, col_ranking_ret = st.columns([2, 1])
+
+            with col_flights_ret:
+                st.markdown("#### All Return Flights")
+
+                # Sort buttons
+                col_sort1, col_sort2 = st.columns(2)
+                with col_sort1:
+                    if st.button("💰 Sort by Price", key="sort_price_ret", use_container_width=True):
+                        st.session_state.all_return_flights = sorted(st.session_state.all_return_flights, key=lambda x: x['price'])
+                        st.rerun()
+                with col_sort2:
+                    if st.button("⏱️ Sort by Duration", key="sort_duration_ret", use_container_width=True):
+                        st.session_state.all_return_flights = sorted(st.session_state.all_return_flights, key=lambda x: x['duration_min'])
+                        st.rerun()
+
+                st.markdown("---")
+
+                # Display all return flights with checkboxes
+                for idx, flight in enumerate(st.session_state.all_return_flights):
+                    unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
+
+                    # Create unique key using ID + departure time to handle duplicate IDs
+                    flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                    is_selected = any(f"{f['id']}_{f['departure_time']}" == flight_unique_key for f in st.session_state.selected_return_flights)
+
+                    col1, col2 = st.columns([1, 5])
+
+                    with col1:
+                        # Use simpler checkbox key (just index) to avoid special character issues
+                        selected = st.checkbox(
+                            "✓" if is_selected else "",
+                            value=is_selected,
+                            key=f"select_ret_{idx}",
+                            label_visibility="collapsed",
+                            disabled=(not is_selected and len(st.session_state.selected_return_flights) >= 5)
+                        )
+
+                        if selected and not is_selected:
+                            st.session_state.selected_return_flights.append(flight)
+                            st.rerun()
+                        elif not selected and is_selected:
+                            st.session_state.selected_return_flights = [
+                                f for f in st.session_state.selected_return_flights
+                                if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                            ]
+                            st.rerun()
+
+                    with col2:
+                        dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
+                        arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
+                        dept_time_display = dept_dt.strftime("%I:%M %p")
+                        arr_time_display = arr_dt.strftime("%I:%M %p")
+                        dept_date_display = dept_dt.strftime("%a, %b %d")  # e.g., "Fri, Jan 5"
+
+                        duration_hours = flight['duration_min'] // 60
+                        duration_mins = flight['duration_min'] % 60
+                        duration_display = f"{duration_hours} hr {duration_mins} min" if duration_hours > 0 else f"{duration_mins} min"
+
+                        airline_name = get_airline_name(flight['airline'])
+
+                        st.markdown(f"""
+                        <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
+                        <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
+                        <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
+                        <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            with col_ranking_ret:
+                st.markdown("#### 📋 Top 5 Return (Drag to Rank)")
+                st.markdown(f"**{len(st.session_state.selected_return_flights)}/5 selected**")
+
+                if st.session_state.selected_return_flights:
+                    # Enforce limit
+                    if len(st.session_state.selected_return_flights) > 5:
+                        st.session_state.selected_return_flights = st.session_state.selected_return_flights[:5]
+                        st.rerun()
+
+                    # Create flight labels WITH RANK NUMBERS
+                    flight_labels = []
+                    for i, flight in enumerate(st.session_state.selected_return_flights):
+                        airline_name = get_airline_name(flight['airline'])
+                        label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
+                        flight_labels.append(label)
+
+                    # Sortable list with version AND length in key to refresh on both drag and addition
+                    sorted_labels = sort_items(
+                        flight_labels,
+                        multi_containers=False,
+                        direction='vertical',
+                        key=f'return_sort_v{st.session_state.return_sort_version}_n{len(st.session_state.selected_return_flights)}'
+                    )
+
+                    # Update order ONLY if user dragged (same length, different order)
+                    if sorted_labels != flight_labels and len(sorted_labels) == len(flight_labels):
+                        new_order = []
+                        for sorted_label in sorted_labels:
+                            # Extract original rank from label
+                            rank = int(sorted_label.split(':')[0].replace('#', '')) - 1
+                            if rank < len(st.session_state.selected_return_flights):
+                                new_order.append(st.session_state.selected_return_flights[rank])
+                        if len(new_order) == len(st.session_state.selected_return_flights):
+                            st.session_state.selected_return_flights = new_order
+                            st.session_state.return_sort_version += 1
+                            st.rerun()
+                else:
+                    st.info("Select 5 return flights")
+
+            # Submit button for dual panel (requires both outbound and return selections)
+            st.markdown("---")
+            if len(st.session_state.selected_flights) == 5 and len(st.session_state.selected_return_flights) == 5:
+                if st.button("✅ Submit All Rankings", type="primary", use_container_width=True):
+                    # Generate separate CSVs for outbound and return
+                    csv_data_outbound = generate_flight_csv(
+                        st.session_state.all_flights,
+                        st.session_state.selected_flights,
+                        k=5
+                    )
+                    csv_data_return = generate_flight_csv(
+                        st.session_state.all_return_flights,
+                        st.session_state.selected_return_flights,
+                        k=5
+                    )
+
+                    # Save to database (save both CSVs)
+                    try:
+                        from backend.db import save_search_and_csv
+
+                        # For now, save outbound as primary, store return separately
+                        search_id = save_search_and_csv(
+                            session_id=st.session_state.session_id,
+                            user_prompt=st.session_state.get('original_prompt', ''),
+                            parsed_params=st.session_state.parsed_params or {},
+                            all_flights=st.session_state.all_flights,
+                            selected_flights=st.session_state.selected_flights,
+                            csv_data=csv_data_outbound
+                        )
+
+                        st.session_state.csv_data_outbound = csv_data_outbound
+                        st.session_state.csv_data_return = csv_data_return
+                        st.session_state.csv_generated = True
+                        st.session_state.search_id = search_id
+                        st.success(f"✅ Both outbound and return rankings saved! (Search ID: {search_id})")
+                        st.balloons()
+                        st.rerun()
+
+                    except Exception as e:
+                        st.error(f"Failed to save rankings: {str(e)}")
+                        # Still allow CSV download even if DB save fails
+                        st.session_state.csv_data_outbound = csv_data_outbound
+                        st.session_state.csv_data_return = csv_data_return
+                        st.session_state.csv_generated = True
+                        st.rerun()
+            else:
+                outbound_remaining = 5 - len(st.session_state.selected_flights)
+                return_remaining = 5 - len(st.session_state.selected_return_flights)
+                st.info(f"Select {outbound_remaining} more outbound and {return_remaining} more return flights")
+
+            # Show CSV download buttons if rankings were submitted
+            if st.session_state.csv_generated and hasattr(st.session_state, 'csv_data_outbound'):
+                st.markdown("---")
+                st.markdown("**📥 Download Results**")
+
+                col_dl1, col_dl2 = st.columns(2)
+                with col_dl1:
+                    st.download_button(
+                        label="📄 Download Outbound CSV",
+                        data=st.session_state.csv_data_outbound,
+                        file_name=f"outbound_flights_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        type="secondary"
+                    )
+                with col_dl2:
+                    st.download_button(
+                        label="📄 Download Return CSV",
+                        data=st.session_state.csv_data_return,
+                        file_name=f"return_flights_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        type="secondary"
+                    )
+
+        else:
+            # SINGLE PANEL LAYOUT: Outbound only
+            col_flights, col_ranking = st.columns([2, 1])
+
+            with col_flights:
+                st.markdown("#### All Available Flights")
+
+                # Sort buttons
+                col_sort1, col_sort2 = st.columns(2)
+                with col_sort1:
+                    if st.button("💰 Sort by Price", key="sort_price_single", use_container_width=True):
+                        st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['price'])
+                        st.rerun()
+                with col_sort2:
+                    if st.button("⏱️ Sort by Duration", key="sort_duration_single", use_container_width=True):
+                        st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['duration_min'])
+                        st.rerun()
+
+                st.markdown("---")
+
+                # Display all flights with checkboxes
+                for idx, flight in enumerate(st.session_state.all_flights):
+                    # Generate unique_id for display
+                    unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
+
+                    # Create unique key using ID + departure time to handle duplicate IDs across dates
+                    flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                    is_selected = any(f"{f['id']}_{f['departure_time']}" == flight_unique_key for f in st.session_state.selected_flights)
+
+                    col1, col2 = st.columns([1, 5])
+
+                    with col1:
+                        # Use simpler checkbox key (just index) to avoid special character issues
+                        selected = st.checkbox(
+                            "✓" if is_selected else "",
+                            value=is_selected,
+                            key=f"select_{idx}",
+                            label_visibility="collapsed",
+                            disabled=(not is_selected and len(st.session_state.selected_flights) >= 5)
+                        )
+
+                        if selected and not is_selected:
+                            # Add to selected flights
+                            st.session_state.selected_flights.append(flight)
+                            st.rerun()
+                        elif not selected and is_selected:
+                            # Remove from selected flights
+                            st.session_state.selected_flights = [
+                                f for f in st.session_state.selected_flights
+                                if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                            ]
+                            st.rerun()
+
+                    with col2:
+                        # Show flight metrics as requested
+                        dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
+                        arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
+                        dept_time_display = dept_dt.strftime("%I:%M %p")
+                        arr_time_display = arr_dt.strftime("%I:%M %p")
+                        dept_date_display = dept_dt.strftime("%a, %b %d")  # e.g., "Fri, Jan 5"
+
+                        # Format duration as "X hr Y min"
+                        duration_hours = flight['duration_min'] // 60
+                        duration_mins = flight['duration_min'] % 60
+                        duration_display = f"{duration_hours} hr {duration_mins} min" if duration_hours > 0 else f"{duration_mins} min"
+
+                        # Get full airline name
+                        airline_name = get_airline_name(flight['airline'])
+
+                        st.markdown(f"""
+                        <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
+                        <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
+                        <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
+                        <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            with col_ranking:
+                st.markdown("#### 📋 Your Top 5 (Drag to Rank)")
+                st.markdown(f"**{len(st.session_state.selected_flights)}/5 selected**")
+
+                if st.session_state.selected_flights:
+                    # Enforce 5-flight limit
+                    if len(st.session_state.selected_flights) > 5:
+                        st.session_state.selected_flights = st.session_state.selected_flights[:5]
+                        st.rerun()
+
+                    # Create flight labels WITH RANK NUMBERS
+                    flight_labels = []
+                    for i, flight in enumerate(st.session_state.selected_flights):
+                        airline_name = get_airline_name(flight['airline'])
+                        label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
+                        flight_labels.append(label)
+
+                    # Sortable list with version AND length in key to refresh on both drag and addition
+                    sorted_labels = sort_items(
+                        flight_labels,
+                        multi_containers=False,
+                        direction='vertical',
+                        key=f'single_sort_v{st.session_state.single_sort_version}_n{len(st.session_state.selected_flights)}'
+                    )
+
+                    # Update order ONLY if user dragged (same length, different order)
+                    if sorted_labels and sorted_labels != flight_labels and len(sorted_labels) == len(flight_labels):
+                        new_order = []
+                        for sorted_label in sorted_labels:
+                            # Extract rank number from label (e.g., "#1: ..." -> 0)
+                            rank = int(sorted_label.split(':')[0].replace('#', '')) - 1
+                            if rank < len(st.session_state.selected_flights):
+                                new_order.append(st.session_state.selected_flights[rank])
+                        if len(new_order) == len(st.session_state.selected_flights):
+                            st.session_state.selected_flights = new_order
+                            st.session_state.single_sort_version += 1
+                            st.rerun()
+
+                    # Submit button
+                    st.markdown("---")
+                    if len(st.session_state.selected_flights) == 5:
+                        if st.button("✅ Submit Rankings", type="primary", use_container_width=True):
+                            # Generate CSV
+                            csv_data = generate_flight_csv(
+                                st.session_state.all_flights,
+                                st.session_state.selected_flights,
+                                k=5
+                            )
+
+                            # Save to database
+                            try:
+                                from backend.db import save_search_and_csv
+
+                                search_id = save_search_and_csv(
+                                    session_id=st.session_state.session_id,
+                                    user_prompt=st.session_state.get('original_prompt', ''),
+                                    parsed_params=st.session_state.parsed_params or {},
+                                    all_flights=st.session_state.all_flights,
+                                    selected_flights=st.session_state.selected_flights,
+                                    csv_data=csv_data
+                                )
+
+                                st.session_state.csv_data = csv_data
+                                st.session_state.csv_generated = True
+                                st.session_state.search_id = search_id
+                                st.success(f"✅ Rankings saved! (Search ID: {search_id})")
+                                st.balloons()
+                                st.rerun()
+
+                            except Exception as e:
+                                st.error(f"Failed to save rankings: {str(e)}")
+                                # Still allow CSV download even if DB save fails
+                                st.session_state.csv_data = csv_data
+                                st.session_state.csv_generated = True
+                                st.rerun()
+                    else:
+                        st.info(f"Select {5 - len(st.session_state.selected_flights)} more flights")
+                else:
+                    st.info("Check boxes on the left to select flights")
 
 # Footer
 st.markdown("---")
