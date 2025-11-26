@@ -391,7 +391,7 @@ I usually don't check bags except on very long trips.`
     let currentPromptIndex = 0;
     let currentCharIndex = 0;
     let isHolding = false;
-    const typingSpeed = 20;
+    const typingSpeed = 24; // 20% slower than original 20ms
     const holdDuration = 3000;
     const fadeOutDuration = 500;
 
@@ -410,6 +410,8 @@ I usually don't check bags except on very long trips.`
 
         if (currentCharIndex < prompts[currentPromptIndex].length) {
             placeholderDiv.textContent = prompts[currentPromptIndex].substring(0, currentCharIndex + 1);
+            // Auto-scroll to bottom so the latest text is always visible
+            placeholderDiv.scrollTop = placeholderDiv.scrollHeight;
             currentCharIndex++;
             setTimeout(typeWriter, typingSpeed);
         } else {
