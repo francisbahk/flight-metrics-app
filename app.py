@@ -607,7 +607,9 @@ if st.session_state.all_flights:
     all_submitted = (num_completed == num_required)
 
     # Progress bar (simple, no sticky)
-    progress_percent = (num_completed / num_required)
+    progress_percent = (num_completed / num_required) if num_required > 0 else 0.0
+    # Clamp to valid range [0.0, 1.0]
+    progress_percent = max(0.0, min(1.0, progress_percent))
     st.progress(progress_percent)
     st.caption(f"{num_completed} / {num_required} submitted")
 
