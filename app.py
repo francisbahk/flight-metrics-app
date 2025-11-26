@@ -583,10 +583,11 @@ if st.session_state.all_flights:
                 col1, col2 = st.columns([1, 5])
 
                 with col1:
+                    # Use simpler checkbox key (just index) to avoid special character issues
                     selected = st.checkbox(
                         "✓" if is_selected else "",
                         value=is_selected,
-                        key=f"select_out_{flight_unique_key}",
+                        key=f"select_out_{idx}",
                         label_visibility="collapsed",
                         disabled=(not is_selected and len(st.session_state.selected_flights) >= 5)
                     )
@@ -669,10 +670,11 @@ if st.session_state.all_flights:
                 col1, col2 = st.columns([1, 5])
 
                 with col1:
+                    # Use simpler checkbox key (just index) to avoid special character issues
                     selected = st.checkbox(
                         "✓" if is_selected else "",
                         value=is_selected,
-                        key=f"select_ret_{flight_unique_key}",
+                        key=f"select_ret_{idx}",
                         label_visibility="collapsed",
                         disabled=(not is_selected and len(st.session_state.selected_return_flights) >= 5)
                     )
@@ -829,11 +831,11 @@ if st.session_state.all_flights:
                 col1, col2 = st.columns([1, 5])
 
                 with col1:
-                    # Checkbox to select/deselect
+                    # Use simpler checkbox key (just index) to avoid special character issues
                     selected = st.checkbox(
                         "✓" if is_selected else "",
                         value=is_selected,
-                        key=f"select_{flight_unique_key}",
+                        key=f"select_{idx}",
                         label_visibility="collapsed",
                         disabled=(not is_selected and len(st.session_state.selected_flights) >= 5)
                     )
