@@ -668,8 +668,8 @@ if st.session_state.all_flights:
                     key=f'outbound_sort_v{st.session_state.outbound_sort_version}'
                 )
 
-                # Update order if dragged and increment version to refresh ranks
-                if sorted_labels != flight_labels:
+                # Update order ONLY if user dragged (same length, different order)
+                if sorted_labels != flight_labels and len(sorted_labels) == len(flight_labels):
                     new_order = []
                     for sorted_label in sorted_labels:
                         # Extract original rank from label
@@ -781,8 +781,8 @@ if st.session_state.all_flights:
                     key=f'return_sort_v{st.session_state.return_sort_version}'
                 )
 
-                # Update order if dragged and increment version to refresh ranks
-                if sorted_labels != flight_labels:
+                # Update order ONLY if user dragged (same length, different order)
+                if sorted_labels != flight_labels and len(sorted_labels) == len(flight_labels):
                     new_order = []
                     for sorted_label in sorted_labels:
                         # Extract original rank from label
@@ -973,8 +973,8 @@ if st.session_state.all_flights:
                     key=f'single_sort_v{st.session_state.single_sort_version}'
                 )
 
-                # Update order if user dragged - extract rank from label and increment version
-                if sorted_labels and sorted_labels != flight_labels:
+                # Update order ONLY if user dragged (same length, different order)
+                if sorted_labels and sorted_labels != flight_labels and len(sorted_labels) == len(flight_labels):
                     new_order = []
                     for sorted_label in sorted_labels:
                         # Extract rank number from label (e.g., "#1: ..." -> 0)
