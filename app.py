@@ -660,12 +660,12 @@ if st.session_state.all_flights:
                     label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
                     flight_labels.append(label)
 
-                # Sortable list with version-based key for dynamic rank updates
+                # Sortable list with version AND length in key to refresh on both drag and addition
                 sorted_labels = sort_items(
                     flight_labels,
                     multi_containers=False,
                     direction='vertical',
-                    key=f'outbound_sort_v{st.session_state.outbound_sort_version}'
+                    key=f'outbound_sort_v{st.session_state.outbound_sort_version}_n{len(st.session_state.selected_flights)}'
                 )
 
                 # Update order ONLY if user dragged (same length, different order)
@@ -773,12 +773,12 @@ if st.session_state.all_flights:
                     label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
                     flight_labels.append(label)
 
-                # Sortable list with version-based key for dynamic rank updates
+                # Sortable list with version AND length in key to refresh on both drag and addition
                 sorted_labels = sort_items(
                     flight_labels,
                     multi_containers=False,
                     direction='vertical',
-                    key=f'return_sort_v{st.session_state.return_sort_version}'
+                    key=f'return_sort_v{st.session_state.return_sort_version}_n{len(st.session_state.selected_return_flights)}'
                 )
 
                 # Update order ONLY if user dragged (same length, different order)
@@ -965,12 +965,12 @@ if st.session_state.all_flights:
                     label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
                     flight_labels.append(label)
 
-                # Sortable list with version-based key for dynamic rank updates
+                # Sortable list with version AND length in key to refresh on both drag and addition
                 sorted_labels = sort_items(
                     flight_labels,
                     multi_containers=False,
                     direction='vertical',
-                    key=f'single_sort_v{st.session_state.single_sort_version}'
+                    key=f'single_sort_v{st.session_state.single_sort_version}_n{len(st.session_state.selected_flights)}'
                 )
 
                 # Update order ONLY if user dragged (same length, different order)
