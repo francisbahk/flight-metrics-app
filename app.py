@@ -323,15 +323,124 @@ st.markdown("""
 """)
 st.markdown("---")
 
-# Main prompt input
+# CSS for animated placeholder overlay
+st.markdown("""
+<style>
+    .stTextArea {
+        position: relative !important;
+    }
+    .stTextArea textarea {
+        background-color: transparent !important;
+        position: relative !important;
+        z-index: 2 !important;
+    }
+    .anim-placeholder {
+        position: absolute !important;
+        top: 12px !important;
+        left: 12px !important;
+        right: 12px !important;
+        bottom: 12px !important;
+        color: #94a3b8 !important;
+        font-family: 'Source Code Pro', monospace !important;
+        font-size: 14px !important;
+        line-height: 1.5 !important;
+        pointer-events: none !important;
+        white-space: pre-wrap !important;
+        overflow: hidden !important;
+        z-index: 1 !important;
+    }
+    .anim-placeholder.hide {
+        display: none !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Main prompt input (native Streamlit - captures user input correctly)
 prompt = st.text_area(
     "",
     value="",
     height=150,
-    placeholder="Example: I want to fly from New York to Los Angeles on December 15th. I prefer direct flights and am not very price sensitive.",
+    placeholder="",
     label_visibility="collapsed",
     key="flight_prompt_input"
 )
+
+# Animated placeholder overlay (visual only - doesn't affect prompt value)
+st.markdown("""
+<div class="anim-placeholder" id="animPlaceholder"></div>
+<script>
+(function() {
+    const prompts = [
+        `I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.`,
+        `On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day at 9am. I'll either fly out of Ithaca, Syracuse, Elmira, or Binghamton to DCA or IAD.`
+    ];
+
+    let idx = 0, charIdx = 0, typing = true;
+    const speed = 30, pause = 3000, fade = 500;
+
+    function animate() {
+        const overlay = document.getElementById('animPlaceholder');
+        const textarea = document.querySelector('.stTextArea textarea');
+
+        if (!overlay || !textarea) {
+            setTimeout(animate, 100);
+            return;
+        }
+
+        // Move overlay into textarea container
+        const container = textarea.closest('.stTextArea');
+        if (container && overlay.parentElement !== container) {
+            container.insertBefore(overlay, textarea);
+        }
+
+        // Hide overlay when user types
+        textarea.addEventListener('input', () => {
+            if (textarea.value) overlay.classList.add('hide');
+            else overlay.classList.remove('hide');
+        });
+
+        textarea.addEventListener('focus', () => overlay.classList.add('hide'));
+        textarea.addEventListener('blur', () => {
+            if (!textarea.value) overlay.classList.remove('hide');
+        });
+
+        // Animate text
+        function type() {
+            if (overlay.classList.contains('hide')) return;
+
+            if (typing) {
+                if (charIdx < prompts[idx].length) {
+                    overlay.textContent = prompts[idx].substring(0, charIdx + 1);
+                    overlay.scrollTop = overlay.scrollHeight;
+                    charIdx++;
+                    setTimeout(type, speed);
+                } else {
+                    typing = false;
+                    setTimeout(() => {
+                        overlay.style.opacity = '0';
+                        setTimeout(() => {
+                            idx = (idx + 1) % prompts.length;
+                            charIdx = 0;
+                            typing = true;
+                            overlay.style.opacity = '1';
+                            type();
+                        }, fade);
+                    }, pause);
+                }
+            }
+        }
+
+        setTimeout(type, 500);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', animate);
+    } else {
+        animate();
+    }
+})();
+</script>
+""", unsafe_allow_html=True)
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
