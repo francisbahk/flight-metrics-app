@@ -352,7 +352,7 @@ prompt_html = """
             width: 100%;
             height: 150px;
             padding: 10px 12px;
-            font-family: inherit;
+            font-family: 'Source Code Pro', monospace;
             font-size: 14px;
             line-height: 1.5;
             border: 1px solid #d1d5db;
