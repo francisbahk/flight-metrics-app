@@ -356,18 +356,93 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Main prompt input (native Streamlit - captures user input correctly)
-prompt = st.text_area(
-    "",
-    value="",
-    height=150,
-    placeholder="I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.",
-    label_visibility="collapsed",
-    key="flight_prompt_input"
-)
+# Initialize session state for input activation
+if 'input_activated' not in st.session_state:
+    st.session_state.input_activated = False
 
-# Note: Removed animated placeholder due to iframe sandboxing restrictions
-# Using static placeholder instead
+# Show animated fake input OR real input
+if not st.session_state.input_activated:
+    # Animated fake input with typewriter effect
+    clicked = components.html("""
+    <style>
+        body { margin: 0; padding: 0; }
+        #fakeTextarea {
+            width: 100%;
+            height: 150px;
+            padding: 12px;
+            font-family: 'Source Code Pro', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            border: 1px solid rgb(49, 51, 63);
+            border-radius: 0.5rem;
+            background: rgb(14, 17, 23);
+            color: rgb(250, 250, 250);
+            resize: none;
+            cursor: text;
+        }
+        #fakeTextarea:focus {
+            outline: none;
+            border-color: rgb(255, 75, 75);
+        }
+    </style>
+    <textarea id="fakeTextarea" readonly></textarea>
+    <script>
+        const prompts = [
+            'I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.',
+            'On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day at 9am. I will either fly out of Ithaca, Syracuse, Elmira, or Binghamton to DCA or IAD.'
+        ];
+
+        let idx = 0, charIdx = 0, typing = true;
+        const speed = 42, pause = 3000, fade = 500;
+        const textarea = document.getElementById('fakeTextarea');
+
+        // When clicked, notify Streamlit to switch to real input
+        textarea.addEventListener('click', () => {
+            window.parent.postMessage({type: 'streamlit:setComponentValue', value: true}, '*');
+        });
+
+        function type() {
+            if (typing) {
+                if (charIdx < prompts[idx].length) {
+                    textarea.value = prompts[idx].substring(0, charIdx + 1);
+                    charIdx++;
+                    setTimeout(type, speed);
+                } else {
+                    typing = false;
+                    setTimeout(() => {
+                        textarea.style.opacity = '0';
+                        setTimeout(() => {
+                            idx = (idx + 1) % prompts.length;
+                            charIdx = 0;
+                            typing = true;
+                            textarea.style.opacity = '1';
+                            type();
+                        }, fade);
+                    }, pause);
+                }
+            }
+        }
+
+        setTimeout(type, 500);
+    </script>
+    """, height=150, key="fake_input")
+
+    # If clicked, activate real input
+    if clicked:
+        st.session_state.input_activated = True
+        st.rerun()
+
+    prompt = ""  # Empty while showing fake input
+else:
+    # Real Streamlit input
+    prompt = st.text_area(
+        "",
+        value="",
+        height=150,
+        placeholder="",
+        label_visibility="collapsed",
+        key="flight_prompt_input"
+    )
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
