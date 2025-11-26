@@ -3,6 +3,7 @@ Flight Evaluation Web App - Clean Suno-style Interface
 Collect user feedback on algorithm-ranked flights for research.
 """
 import streamlit as st
+import streamlit.components.v1 as components
 import os
 import sys
 import uuid
@@ -366,7 +367,7 @@ prompt = st.text_area(
 )
 
 # Animated placeholder overlay (visual only - doesn't affect prompt value)
-st.markdown("""
+components.html("""
 <div class="anim-placeholder" id="animPlaceholder"></div>
 <script>
 (function() {
@@ -380,7 +381,7 @@ st.markdown("""
 
     function animate() {
         const overlay = document.getElementById('animPlaceholder');
-        const textarea = document.querySelector('.stTextArea textarea');
+        const textarea = window.parent.document.querySelector('.stTextArea textarea');
 
         if (!overlay || !textarea) {
             setTimeout(animate, 100);
@@ -440,7 +441,7 @@ st.markdown("""
     }
 })();
 </script>
-""", unsafe_allow_html=True)
+""", height=0)
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
