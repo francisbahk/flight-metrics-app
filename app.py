@@ -226,6 +226,19 @@ if 'return_sort_version' not in st.session_state:
     st.session_state.return_sort_version = 0
 if 'single_sort_version' not in st.session_state:
     st.session_state.single_sort_version = 0
+# Sort direction tracking (for arrows)
+if 'sort_price_dir' not in st.session_state:
+    st.session_state.sort_price_dir = 'asc'  # 'asc' or 'desc'
+if 'sort_duration_dir' not in st.session_state:
+    st.session_state.sort_duration_dir = 'asc'
+if 'sort_price_dir_ret' not in st.session_state:
+    st.session_state.sort_price_dir_ret = 'asc'
+if 'sort_duration_dir_ret' not in st.session_state:
+    st.session_state.sort_duration_dir_ret = 'asc'
+if 'sort_price_dir_single' not in st.session_state:
+    st.session_state.sort_price_dir_single = 'asc'
+if 'sort_duration_dir_single' not in st.session_state:
+    st.session_state.sort_duration_dir_single = 'asc'
 
 # TEMPORARY COMMENT: Old session state for algorithm-based ranking
 # if 'interleaved_results' not in st.session_state:
@@ -615,15 +628,23 @@ if st.session_state.all_flights:
             with col_flights_out:
                 st.markdown("#### All Outbound Flights")
 
-                # Sort buttons
+                # Sort buttons with direction arrows
                 col_sort1, col_sort2 = st.columns(2)
                 with col_sort1:
-                    if st.button("💰 Sort by Price", key="sort_price_out", use_container_width=True):
-                        st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['price'])
+                    arrow = "↑" if st.session_state.sort_price_dir == 'asc' else "↓"
+                    if st.button(f"💰 Sort by Price {arrow}", key="sort_price_out", use_container_width=True):
+                        # Toggle direction
+                        reverse = st.session_state.sort_price_dir == 'desc'
+                        st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['price'], reverse=reverse)
+                        st.session_state.sort_price_dir = 'desc' if st.session_state.sort_price_dir == 'asc' else 'asc'
                         st.rerun()
                 with col_sort2:
-                    if st.button("⏱️ Sort by Duration", key="sort_duration_out", use_container_width=True):
-                        st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['duration_min'])
+                    arrow = "↑" if st.session_state.sort_duration_dir == 'asc' else "↓"
+                    if st.button(f"⏱️ Sort by Duration {arrow}", key="sort_duration_out", use_container_width=True):
+                        # Toggle direction
+                        reverse = st.session_state.sort_duration_dir == 'desc'
+                        st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['duration_min'], reverse=reverse)
+                        st.session_state.sort_duration_dir = 'desc' if st.session_state.sort_duration_dir == 'asc' else 'asc'
                         st.rerun()
 
                 st.markdown("---")
@@ -639,11 +660,12 @@ if st.session_state.all_flights:
                     col1, col2 = st.columns([1, 5])
 
                     with col1:
-                        # Use simpler checkbox key (just index) to avoid special character issues
+                        # Use flight unique key for checkbox (sanitized for Streamlit)
+                        checkbox_key = f"chk_out_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
                         selected = st.checkbox(
                             "✓" if is_selected else "",
                             value=is_selected,
-                            key=f"select_out_{idx}",
+                            key=checkbox_key,
                             label_visibility="collapsed",
                             disabled=(not is_selected and len(st.session_state.selected_flights) >= 5)
                         )
@@ -728,15 +750,23 @@ if st.session_state.all_flights:
             with col_flights_ret:
                 st.markdown("#### All Return Flights")
 
-                # Sort buttons
+                # Sort buttons with direction arrows
                 col_sort1, col_sort2 = st.columns(2)
                 with col_sort1:
-                    if st.button("💰 Sort by Price", key="sort_price_ret", use_container_width=True):
-                        st.session_state.all_return_flights = sorted(st.session_state.all_return_flights, key=lambda x: x['price'])
+                    arrow = "↑" if st.session_state.sort_price_dir_ret == 'asc' else "↓"
+                    if st.button(f"💰 Sort by Price {arrow}", key="sort_price_ret", use_container_width=True):
+                        # Toggle direction
+                        reverse = st.session_state.sort_price_dir_ret == 'desc'
+                        st.session_state.all_return_flights = sorted(st.session_state.all_return_flights, key=lambda x: x['price'], reverse=reverse)
+                        st.session_state.sort_price_dir_ret = 'desc' if st.session_state.sort_price_dir_ret == 'asc' else 'asc'
                         st.rerun()
                 with col_sort2:
-                    if st.button("⏱️ Sort by Duration", key="sort_duration_ret", use_container_width=True):
-                        st.session_state.all_return_flights = sorted(st.session_state.all_return_flights, key=lambda x: x['duration_min'])
+                    arrow = "↑" if st.session_state.sort_duration_dir_ret == 'asc' else "↓"
+                    if st.button(f"⏱️ Sort by Duration {arrow}", key="sort_duration_ret", use_container_width=True):
+                        # Toggle direction
+                        reverse = st.session_state.sort_duration_dir_ret == 'desc'
+                        st.session_state.all_return_flights = sorted(st.session_state.all_return_flights, key=lambda x: x['duration_min'], reverse=reverse)
+                        st.session_state.sort_duration_dir_ret = 'desc' if st.session_state.sort_duration_dir_ret == 'asc' else 'asc'
                         st.rerun()
 
                 st.markdown("---")
@@ -752,11 +782,12 @@ if st.session_state.all_flights:
                     col1, col2 = st.columns([1, 5])
 
                     with col1:
-                        # Use simpler checkbox key (just index) to avoid special character issues
+                        # Use flight unique key for checkbox (sanitized for Streamlit)
+                        checkbox_key = f"chk_ret_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
                         selected = st.checkbox(
                             "✓" if is_selected else "",
                             value=is_selected,
-                            key=f"select_ret_{idx}",
+                            key=checkbox_key,
                             label_visibility="collapsed",
                             disabled=(not is_selected and len(st.session_state.selected_return_flights) >= 5)
                         )
@@ -914,15 +945,23 @@ if st.session_state.all_flights:
             with col_flights:
                 st.markdown("#### All Available Flights")
 
-                # Sort buttons
+                # Sort buttons with direction arrows
                 col_sort1, col_sort2 = st.columns(2)
                 with col_sort1:
-                    if st.button("💰 Sort by Price", key="sort_price_single", use_container_width=True):
-                        st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['price'])
+                    arrow = "↑" if st.session_state.sort_price_dir_single == 'asc' else "↓"
+                    if st.button(f"💰 Sort by Price {arrow}", key="sort_price_single", use_container_width=True):
+                        # Toggle direction
+                        reverse = st.session_state.sort_price_dir_single == 'desc'
+                        st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['price'], reverse=reverse)
+                        st.session_state.sort_price_dir_single = 'desc' if st.session_state.sort_price_dir_single == 'asc' else 'asc'
                         st.rerun()
                 with col_sort2:
-                    if st.button("⏱️ Sort by Duration", key="sort_duration_single", use_container_width=True):
-                        st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['duration_min'])
+                    arrow = "↑" if st.session_state.sort_duration_dir_single == 'asc' else "↓"
+                    if st.button(f"⏱️ Sort by Duration {arrow}", key="sort_duration_single", use_container_width=True):
+                        # Toggle direction
+                        reverse = st.session_state.sort_duration_dir_single == 'desc'
+                        st.session_state.all_flights = sorted(st.session_state.all_flights, key=lambda x: x['duration_min'], reverse=reverse)
+                        st.session_state.sort_duration_dir_single = 'desc' if st.session_state.sort_duration_dir_single == 'asc' else 'asc'
                         st.rerun()
 
                 st.markdown("---")
@@ -939,11 +978,12 @@ if st.session_state.all_flights:
                     col1, col2 = st.columns([1, 5])
 
                     with col1:
-                        # Use simpler checkbox key (just index) to avoid special character issues
+                        # Use flight unique key for checkbox (sanitized for Streamlit)
+                        checkbox_key = f"chk_single_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
                         selected = st.checkbox(
                             "✓" if is_selected else "",
                             value=is_selected,
-                            key=f"select_{idx}",
+                            key=checkbox_key,
                             label_visibility="collapsed",
                             disabled=(not is_selected and len(st.session_state.selected_flights) >= 5)
                         )
