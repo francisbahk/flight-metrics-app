@@ -3,6 +3,7 @@ Flight Evaluation Web App - Clean Suno-style Interface
 Collect user feedback on algorithm-ranked flights for research.
 """
 import streamlit as st
+import streamlit.components.v1 as components
 import os
 import sys
 import uuid
@@ -323,54 +324,52 @@ st.markdown("""
 """)
 st.markdown("---")
 
-# Main prompt input
-prompt = st.text_area(
-    "",
-    value="",
-    height=150,
-    placeholder="",
-    label_visibility="collapsed"
-)
+# Main prompt input with animated placeholder
+if 'prompt_value' not in st.session_state:
+    st.session_state.prompt_value = ""
 
-# Animated placeholder CSS and JavaScript (must be after text_area)
-st.markdown("""
-<style>
-    .stTextArea {
-        position: relative;
-    }
-    .animated-placeholder {
-        position: absolute;
-        top: 12px;
-        left: 12px;
-        right: 12px;
-        color: #94a3b8;
-        font-family: "Source Code Pro", monospace;
-        font-size: 14px;
-        line-height: 1.5;
-        pointer-events: none;
-        white-space: pre-wrap;
-        z-index: 1;
-        opacity: 1;
-        transition: opacity 0.3s ease;
-    }
-    .animated-placeholder.hidden {
-        opacity: 0;
-        display: none;
-    }
-    .stTextArea textarea {
-        position: relative;
-        z-index: 2;
-        background-color: transparent !important;
-    }
-</style>
+prompt_html = """
+<div style="width: 100%; margin-bottom: 1rem;">
+    <div style="position: relative; width: 100%;">
+        <div id="animatedPlaceholder" style="
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            right: 12px;
+            color: #94a3b8;
+            font-family: 'Source Code Pro', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            pointer-events: none;
+            white-space: pre-wrap;
+            z-index: 1;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        "></div>
+        <textarea id="promptInput" style="
+            width: 100%;
+            height: 150px;
+            padding: 10px 12px;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.5;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: rgb(255, 255, 255);
+            resize: vertical;
+            position: relative;
+            z-index: 2;
+        "></textarea>
+    </div>
+</div>
+
 <script>
-    (function() {
-        const prompts = [
-            `I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports. I heavily prefer to fly into ORD.
+    const prompts = [
+        `I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports. I heavily prefer to fly into ORD.
 I do not feel the need to strictly minimize cost; however, I would prefer to keep the fare to under 400 dollars. Obviously, if different flights meet my requirements, I prefer the cheaper one. I prefer direct flights.
 I would like to maximize my time in NYC on Sunday. It would be ideal to leave on the second-to-last flight leaving from the departure airport to Chicago, in case of delays and cancellations. Worst case, I would like there to be an early Monday morning departure to Chicago from the airport, in case of cancellations.
 I have no preference for airline. I would prefer to not leave NYC before 5 PM. I am okay with an early morning departure, as long as I arrive in Chicago by around 9 AM, as I will need to go to work. The earlier the arrival Monday morning, the better.`,
-            `On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day (November 4th) at 9am. I'd like to sleep well but if my travel plans are disrupted and I arrive late, it's ok. I'll either fly out of Ithaca, Syracuse, Elmira, or Binghamton.
+        `On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day (November 4th) at 9am. I'd like to sleep well but if my travel plans are disrupted and I arrive late, it's ok. I'll either fly out of Ithaca, Syracuse, Elmira, or Binghamton.
 I'll fly to DCA or IAD. For all my flights, I don't like having to get up before 7am to be on time to my flight.  I'd like to avoid the amount of time I need to spend driving / taking Ubers / taking transit to airports both at home and at my destination.
 I prefer flying out of my local airport in Ithaca rather than driving or taking an Uber to a nearby airport in Syracuse, Elmira, or Binghamton.
 I want to avoid extra connections because they take more time and increase the chance of missing a connection. I can move pretty quickly
@@ -384,95 +383,82 @@ I prefer to fly United because I'm a frequent flyer with them. When I fly for wo
 For longer trips, I am happy to return to an airport that is different from the one I left from because I probably wouldn't drive my car in any case. When I do this, I'll take an Uber, rent a car, or get a ride. For shorter trips, however, I do prefer to return to the airport I left from so that I can drive to the airport, unless it saves me a lot of trouble.
 I am not very price sensitive. It is ok to pay 20% more than the cheapest fare if the itinerary is more convenient. But if the fare is outrageous then that's problematic.
 I usually don't check bags except on very long trips.`
-        ];
+    ];
 
-        let currentPromptIndex = 0;
-        let currentCharIndex = 0;
-        let isHolding = false;
-        let placeholderDiv = null;
-        const typingSpeed = 20; // ms per character
-        const holdDuration = 3000; // ms to hold completed text
-        const fadeOutDuration = 500; // ms to fade out
+    let currentPromptIndex = 0;
+    let currentCharIndex = 0;
+    let isHolding = false;
+    const typingSpeed = 20;
+    const holdDuration = 3000;
+    const fadeOutDuration = 500;
 
-        function typeWriter() {
-            if (!placeholderDiv || placeholderDiv.classList.contains('hidden')) {
-                return;
-            }
+    const placeholderDiv = document.getElementById('animatedPlaceholder');
+    const textarea = document.getElementById('promptInput');
+    let isAnimating = true;
 
-            if (isHolding) {
-                return;
-            }
-
-            if (currentCharIndex < prompts[currentPromptIndex].length) {
-                placeholderDiv.textContent = prompts[currentPromptIndex].substring(0, currentCharIndex + 1);
-                currentCharIndex++;
-                setTimeout(typeWriter, typingSpeed);
-            } else {
-                // Finished typing, hold for a moment
-                isHolding = true;
-                setTimeout(() => {
-                    // Fade out
-                    placeholderDiv.style.opacity = '0';
-                    setTimeout(() => {
-                        // Move to next prompt
-                        currentPromptIndex = (currentPromptIndex + 1) % prompts.length;
-                        currentCharIndex = 0;
-                        isHolding = false;
-                        placeholderDiv.style.opacity = '1';
-                        typeWriter();
-                    }, fadeOutDuration);
-                }, holdDuration);
-            }
+    function typeWriter() {
+        if (!isAnimating || !placeholderDiv || placeholderDiv.style.display === 'none') {
+            return;
         }
 
-        function setupAnimatedPlaceholder() {
-            const textAreaContainer = document.querySelector('.stTextArea');
-            const textArea = textAreaContainer ? textAreaContainer.querySelector('textarea') : null;
+        if (isHolding) {
+            return;
+        }
 
-            if (!textArea || textAreaContainer.querySelector('.animated-placeholder')) {
-                if (!textArea) {
-                    setTimeout(setupAnimatedPlaceholder, 100);
-                }
-                return;
-            }
-
-            // Create and inject placeholder div
-            placeholderDiv = document.createElement('div');
-            placeholderDiv.className = 'animated-placeholder';
-            textAreaContainer.insertBefore(placeholderDiv, textArea);
-
-            // Start typing animation
-            setTimeout(typeWriter, 500);
-
-            // Hide placeholder on focus or input
-            textArea.addEventListener('focus', () => {
-                if (placeholderDiv) {
-                    placeholderDiv.classList.add('hidden');
-                }
-            });
-
-            textArea.addEventListener('input', () => {
-                if (placeholderDiv && textArea.value.length > 0) {
-                    placeholderDiv.classList.add('hidden');
-                }
-            });
-
-            // Show placeholder again if textarea becomes empty and unfocused
-            textArea.addEventListener('blur', () => {
-                if (placeholderDiv && textArea.value.length === 0) {
-                    placeholderDiv.classList.remove('hidden');
+        if (currentCharIndex < prompts[currentPromptIndex].length) {
+            placeholderDiv.textContent = prompts[currentPromptIndex].substring(0, currentCharIndex + 1);
+            currentCharIndex++;
+            setTimeout(typeWriter, typingSpeed);
+        } else {
+            isHolding = true;
+            setTimeout(() => {
+                placeholderDiv.style.opacity = '0';
+                setTimeout(() => {
+                    currentPromptIndex = (currentPromptIndex + 1) % prompts.length;
                     currentCharIndex = 0;
                     isHolding = false;
-                    setTimeout(typeWriter, 100);
-                }
-            });
+                    placeholderDiv.style.opacity = '1';
+                    if (isAnimating) {
+                        typeWriter();
+                    }
+                }, fadeOutDuration);
+            }, holdDuration);
         }
+    }
 
-        // Start setup
-        setupAnimatedPlaceholder();
-    })();
+    textarea.addEventListener('focus', () => {
+        isAnimating = false;
+        placeholderDiv.style.display = 'none';
+    });
+
+    textarea.addEventListener('input', () => {
+        if (textarea.value.length > 0) {
+            isAnimating = false;
+            placeholderDiv.style.display = 'none';
+        }
+        window.parent.postMessage({type: 'streamlit:setComponentValue', value: textarea.value}, '*');
+    });
+
+    textarea.addEventListener('blur', () => {
+        if (textarea.value.length === 0) {
+            isAnimating = true;
+            placeholderDiv.style.display = 'block';
+            placeholderDiv.style.opacity = '1';
+            currentCharIndex = 0;
+            isHolding = false;
+            setTimeout(typeWriter, 100);
+        }
+    });
+
+    // Start animation
+    setTimeout(typeWriter, 500);
 </script>
-""", unsafe_allow_html=True)
+"""
+
+prompt_component = components.html(prompt_html, height=200)
+prompt = st.session_state.prompt_value if prompt_component is None else prompt_component
+if prompt:
+    st.session_state.prompt_value = prompt
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
