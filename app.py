@@ -219,6 +219,13 @@ if 'selected_return_flights' not in st.session_state:
     st.session_state.selected_return_flights = []
 if 'has_return' not in st.session_state:
     st.session_state.has_return = False
+# Version counters for dynamic rank updates
+if 'outbound_sort_version' not in st.session_state:
+    st.session_state.outbound_sort_version = 0
+if 'return_sort_version' not in st.session_state:
+    st.session_state.return_sort_version = 0
+if 'single_sort_version' not in st.session_state:
+    st.session_state.single_sort_version = 0
 
 # TEMPORARY COMMENT: Old session state for algorithm-based ranking
 # if 'interleaved_results' not in st.session_state:
@@ -653,15 +660,15 @@ if st.session_state.all_flights:
                     label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
                     flight_labels.append(label)
 
-                # Sortable list with dynamic key
+                # Sortable list with version-based key for dynamic rank updates
                 sorted_labels = sort_items(
                     flight_labels,
                     multi_containers=False,
                     direction='vertical',
-                    key=f'outbound_sort_{len(st.session_state.selected_flights)}'
+                    key=f'outbound_sort_v{st.session_state.outbound_sort_version}'
                 )
 
-                # Update order if dragged
+                # Update order if dragged and increment version to refresh ranks
                 if sorted_labels != flight_labels:
                     new_order = []
                     for sorted_label in sorted_labels:
@@ -671,6 +678,8 @@ if st.session_state.all_flights:
                             new_order.append(st.session_state.selected_flights[rank])
                     if len(new_order) == len(st.session_state.selected_flights):
                         st.session_state.selected_flights = new_order
+                        st.session_state.outbound_sort_version += 1
+                        st.rerun()
             else:
                 st.info("Select 5 outbound flights")
 
@@ -764,15 +773,15 @@ if st.session_state.all_flights:
                     label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
                     flight_labels.append(label)
 
-                # Sortable list with dynamic key
+                # Sortable list with version-based key for dynamic rank updates
                 sorted_labels = sort_items(
                     flight_labels,
                     multi_containers=False,
                     direction='vertical',
-                    key=f'return_sort_{len(st.session_state.selected_return_flights)}'
+                    key=f'return_sort_v{st.session_state.return_sort_version}'
                 )
 
-                # Update order if dragged
+                # Update order if dragged and increment version to refresh ranks
                 if sorted_labels != flight_labels:
                     new_order = []
                     for sorted_label in sorted_labels:
@@ -782,6 +791,8 @@ if st.session_state.all_flights:
                             new_order.append(st.session_state.selected_return_flights[rank])
                     if len(new_order) == len(st.session_state.selected_return_flights):
                         st.session_state.selected_return_flights = new_order
+                        st.session_state.return_sort_version += 1
+                        st.rerun()
             else:
                 st.info("Select 5 return flights")
 
@@ -954,15 +965,15 @@ if st.session_state.all_flights:
                     label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
                     flight_labels.append(label)
 
-                # Use dynamic key based on number of selected flights
+                # Sortable list with version-based key for dynamic rank updates
                 sorted_labels = sort_items(
                     flight_labels,
                     multi_containers=False,
                     direction='vertical',
-                    key=f'single_sort_{len(st.session_state.selected_flights)}'
+                    key=f'single_sort_v{st.session_state.single_sort_version}'
                 )
 
-                # Update order if user dragged - extract rank from label
+                # Update order if user dragged - extract rank from label and increment version
                 if sorted_labels and sorted_labels != flight_labels:
                     new_order = []
                     for sorted_label in sorted_labels:
@@ -972,6 +983,8 @@ if st.session_state.all_flights:
                             new_order.append(st.session_state.selected_flights[rank])
                     if len(new_order) == len(st.session_state.selected_flights):
                         st.session_state.selected_flights = new_order
+                        st.session_state.single_sort_version += 1
+                        st.rerun()
 
                 # Submit button
                 st.markdown("---")
