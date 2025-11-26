@@ -337,13 +337,17 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
     if not prompt or not prompt.strip():
         st.error("Please describe your flight needs")
     else:
-        # Clear previous selections when starting new search
+        # Clear previous selections and submissions when starting new search
         st.session_state.selected_flights = []
         st.session_state.all_flights = []
         st.session_state.selected_return_flights = []
         st.session_state.all_return_flights = []
         st.session_state.has_return = False
         st.session_state.csv_generated = False
+        st.session_state.outbound_submitted = False
+        st.session_state.return_submitted = False
+        st.session_state.csv_data_outbound = None
+        st.session_state.csv_data_return = None
 
         with st.spinner("✨ Parsing your request and searching flights..."):
             try:
@@ -606,15 +610,6 @@ if st.session_state.all_flights:
     num_completed = (1 if st.session_state.outbound_submitted else 0) + (1 if st.session_state.return_submitted else 0)
     all_submitted = (num_completed == num_required)
 
-    # Progress bar (simple, no sticky)
-    progress_percent = (num_completed / num_required) if num_required > 0 else 0.0
-    # Clamp to valid range [0.0, 1.0]
-    progress_percent = max(0.0, min(1.0, progress_percent))
-    st.progress(progress_percent)
-    st.caption(f"{num_completed} / {num_required} submitted")
-
-    st.markdown("---")
-
     # Check if all submissions are complete
     if all_submitted:
         # COMPLETION SCREEN
@@ -671,6 +666,14 @@ if st.session_state.all_flights:
 
     else:
         # FLIGHT SELECTION INTERFACE
+        # Progress bar (only show when not all submitted)
+        progress_percent = (num_completed / num_required) if num_required > 0 else 0.0
+        # Clamp to valid range [0.0, 1.0]
+        progress_percent = max(0.0, min(1.0, progress_percent))
+        st.progress(progress_percent)
+        st.caption(f"{num_completed} / {num_required} submitted")
+        st.markdown("---")
+
         # Check if we have return flights
         has_return = st.session_state.has_return and st.session_state.all_return_flights
 
