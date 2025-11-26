@@ -355,7 +355,8 @@ prompt_html = """
             line-height: 1.5;
             border: 1px solid #d1d5db;
             border-radius: 0.375rem;
-            background-color: rgb(255, 255, 255);
+            background-color: transparent;
+            color: #000000;
             resize: vertical;
             position: relative;
             z-index: 2;
