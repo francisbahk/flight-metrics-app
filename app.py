@@ -3,7 +3,6 @@ Flight Evaluation Web App - Clean Suno-style Interface
 Collect user feedback on algorithm-ranked flights for research.
 """
 import streamlit as st
-import streamlit.components.v1 as components
 import os
 import sys
 import uuid
@@ -324,161 +323,14 @@ st.markdown("""
 """)
 st.markdown("---")
 
-# Main prompt input with animated placeholder
-if 'prompt_value' not in st.session_state:
-    st.session_state.prompt_value = ""
-
-prompt_html = """
-<script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@1.3.0/dist/streamlit-component-lib.js"></script>
-<div style="width: 100%; margin-bottom: 1rem;">
-    <div style="position: relative; width: 100%;">
-        <div id="animatedPlaceholder" style="
-            position: absolute;
-            top: 12px;
-            left: 12px;
-            right: 12px;
-            bottom: 12px;
-            color: #94a3b8;
-            font-family: 'Source Code Pro', monospace;
-            font-size: 14px;
-            line-height: 1.5;
-            pointer-events: none;
-            white-space: pre-wrap;
-            overflow: hidden;
-            z-index: 1;
-            opacity: 1;
-            transition: opacity 0.3s ease;
-        "></div>
-        <textarea id="promptInput" style="
-            width: 100%;
-            height: 150px;
-            padding: 10px 12px;
-            font-family: 'Source Code Pro', monospace;
-            font-size: 14px;
-            line-height: 1.5;
-            border: 1px solid #d1d5db;
-            border-radius: 0.375rem;
-            background-color: transparent;
-            color: #000000;
-            resize: vertical;
-            position: relative;
-            z-index: 2;
-        "></textarea>
-    </div>
-</div>
-
-<script>
-    // Wait for Streamlit to be ready
-    function waitForStreamlit() {
-        if (typeof Streamlit !== 'undefined') {
-            Streamlit.setFrameHeight(200);
-            initComponent();
-        } else {
-            setTimeout(waitForStreamlit, 100);
-        }
-    }
-    waitForStreamlit();
-
-    function initComponent() {
-    const prompts = [
-        `I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports. I heavily prefer to fly into ORD.
-I do not feel the need to strictly minimize cost; however, I would prefer to keep the fare to under 400 dollars. Obviously, if different flights meet my requirements, I prefer the cheaper one. I prefer direct flights.
-I would like to maximize my time in NYC on Sunday. It would be ideal to leave on the second-to-last flight leaving from the departure airport to Chicago, in case of delays and cancellations. Worst case, I would like there to be an early Monday morning departure to Chicago from the airport, in case of cancellations.
-I have no preference for airline. I would prefer to not leave NYC before 5 PM. I am okay with an early morning departure, as long as I arrive in Chicago by around 9 AM, as I will need to go to work. The earlier the arrival Monday morning, the better.`,
-        `On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day (November 4th) at 9am. I'd like to sleep well but if my travel plans are disrupted and I arrive late, it's ok. I'll either fly out of Ithaca, Syracuse, Elmira, or Binghamton.
-I'll fly to DCA or IAD. For all my flights, I don't like having to get up before 7am to be on time to my flight.  I'd like to avoid the amount of time I need to spend driving / taking Ubers / taking transit to airports both at home and at my destination.
-I prefer flying out of my local airport in Ithaca rather than driving or taking an Uber to a nearby airport in Syracuse, Elmira, or Binghamton.
-I want to avoid extra connections because they take more time and increase the chance of missing a connection. I can move pretty quickly
-through airports so connections longer than 45 min are fine but for connections that are tighter than that I worry about missing my flight
-if there is a delay. If the connection is earlier in the day and there are lots of other ways to get to my destination in the event of a missed
-connection, then a 30 min connection is fine.
-I prefer to avoid long layovers. Under 60 minutes is fine, under 90 minutes is not a huge deal, and over 90 minutes starts to get annoying.
-I feel that flying late in the day or connecting through airports with poor on-time performance like EWR increases my chance of a delay.
-I don't like JFK because the food choices are poor (except for Shake Shack). When I fly to Europe from the US, I don't like taking a redeye but I know I'll usually have to take one. When I do take a redeye, I don't like to have a long layover early in the morning — I prefer to just arrive at my destination.  If I do have a layover, I prefer to land later in the morning so that I can get some sleep on the plane.
-I prefer to fly United because I'm a frequent flyer with them. When I fly for work, my travel is usually reimbursed from federal grants. Because of this, I must comply with the Fly America Act. This requires me to fly on a US carrier unless there are no other options. Even if I'm allowed to reimburse a trip on a non-US carrier, I don't want to because it creates extra paperwork.
-For longer trips, I am happy to return to an airport that is different from the one I left from because I probably wouldn't drive my car in any case. When I do this, I'll take an Uber, rent a car, or get a ride. For shorter trips, however, I do prefer to return to the airport I left from so that I can drive to the airport, unless it saves me a lot of trouble.
-I am not very price sensitive. It is ok to pay 20% more than the cheapest fare if the itinerary is more convenient. But if the fare is outrageous then that's problematic.
-I usually don't check bags except on very long trips.`
-    ];
-
-    let currentPromptIndex = 0;
-    let currentCharIndex = 0;
-    let isHolding = false;
-    const typingSpeed = 29; // 44% slower than original 20ms (20 -> 24 -> 29)
-    const holdDuration = 3000;
-    const fadeOutDuration = 500;
-
-    const placeholderDiv = document.getElementById('animatedPlaceholder');
-    const textarea = document.getElementById('promptInput');
-    let isAnimating = true;
-
-    function typeWriter() {
-        if (!isAnimating || !placeholderDiv || placeholderDiv.style.display === 'none') {
-            return;
-        }
-
-        if (isHolding) {
-            return;
-        }
-
-        if (currentCharIndex < prompts[currentPromptIndex].length) {
-            placeholderDiv.textContent = prompts[currentPromptIndex].substring(0, currentCharIndex + 1);
-            // Auto-scroll to bottom so the latest text is always visible
-            placeholderDiv.scrollTop = placeholderDiv.scrollHeight;
-            currentCharIndex++;
-            setTimeout(typeWriter, typingSpeed);
-        } else {
-            isHolding = true;
-            setTimeout(() => {
-                placeholderDiv.style.opacity = '0';
-                setTimeout(() => {
-                    currentPromptIndex = (currentPromptIndex + 1) % prompts.length;
-                    currentCharIndex = 0;
-                    isHolding = false;
-                    placeholderDiv.style.opacity = '1';
-                    if (isAnimating) {
-                        typeWriter();
-                    }
-                }, fadeOutDuration);
-            }, holdDuration);
-        }
-    }
-
-    textarea.addEventListener('focus', () => {
-        isAnimating = false;
-        placeholderDiv.style.display = 'none';
-    });
-
-    textarea.addEventListener('input', () => {
-        if (textarea.value.length > 0) {
-            isAnimating = false;
-            placeholderDiv.style.display = 'none';
-        }
-        Streamlit.setComponentValue(textarea.value);
-    });
-
-    textarea.addEventListener('blur', () => {
-        if (textarea.value.length === 0) {
-            isAnimating = true;
-            placeholderDiv.style.display = 'block';
-            placeholderDiv.style.opacity = '1';
-            currentCharIndex = 0;
-            isHolding = false;
-            setTimeout(typeWriter, 100);
-        }
-    });
-
-    // Start animation
-    setTimeout(typeWriter, 500);
-    }
-</script>
-"""
-
-prompt_component = components.html(prompt_html, height=200)
-# Ensure prompt is always a string
-if prompt_component is not None:
-    st.session_state.prompt_value = str(prompt_component)
-prompt = str(st.session_state.prompt_value) if st.session_state.prompt_value else ""
+# Main prompt input
+prompt = st.text_area(
+    "",
+    value="",
+    height=150,
+    placeholder="Example: I need to fly from New York to Los Angeles on December 15th. I prefer direct flights and am not very price sensitive.",
+    label_visibility="collapsed"
+)
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
