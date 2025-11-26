@@ -381,6 +381,18 @@ components.html("""
                     if (window.animPlaceholderInitialized) return;
                     window.animPlaceholderInitialized = true;
 
+                    // DEBUG: Show script is running
+                    const debugBox = document.createElement('div');
+                    debugBox.textContent = 'SCRIPT LOADED';
+                    debugBox.style.position = 'fixed';
+                    debugBox.style.top = '10px';
+                    debugBox.style.right = '10px';
+                    debugBox.style.background = 'red';
+                    debugBox.style.color = 'white';
+                    debugBox.style.padding = '10px';
+                    debugBox.style.zIndex = '999999';
+                    document.body.appendChild(debugBox);
+
                     const prompts = [
                         'I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.',
                         'On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day at 9am. I will either fly out of Ithaca, Syracuse, Elmira, or Binghamton to DCA or IAD.'
