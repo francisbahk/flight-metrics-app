@@ -61,9 +61,13 @@ CRITICAL INSTRUCTIONS:
 1. Return ONLY the JSON object, no other text or explanation
 2. Use null for missing fields
 3. Infer preferences from context (e.g., "as cheap as possible" → prefer_cheap: true)
-4. Parse dates relative to today if needed (today is {datetime.now().strftime("%Y-%m-%d")})
+4. **DATE PARSING - VERY IMPORTANT**:
+   - Today is {datetime.now().strftime("%Y-%m-%d")}
+   - If user mentions a date WITHOUT a year (e.g., "December 22nd", "Christmas"), ALWAYS assume they mean the NEXT future occurrence of that date
+   - NEVER return dates in the past - always interpret ambiguous dates as future dates
+   - Examples: If today is 2025-11-26 and user says "December 22nd", return "2025-12-22" (NOT 2024-12-22)
 5. **MULTIPLE DATES**: If user mentions multiple dates (e.g., "weekend of Jan 5", "Friday or Saturday", "Jan 5 or 6"), extract ALL dates as separate items in departure_dates list
-6. **RETURN FLIGHTS**: ONLY set return_dates if user explicitly mentions returning, coming back, or round-trip. Extract ALL mentioned return dates in return_dates list (e.g., "return Dec 27 or 28" → ["2024-12-27", "2024-12-28"]). If only one-way is mentioned, set return_dates to empty list []
+6. **RETURN FLIGHTS**: ONLY set return_dates if user explicitly mentions returning, coming back, or round-trip. Extract ALL mentioned return dates in return_dates list (e.g., "return Dec 27 or 28 or 29" → ["2025-12-27", "2025-12-28", "2025-12-29"]). If only one-way is mentioned, set return_dates to empty list []
 
 **MOST IMPORTANT - AIRPORT CODE EXTRACTION:**
 You MUST use your knowledge of world airports to convert city/region names into proper IATA airport codes (3-letter codes).
