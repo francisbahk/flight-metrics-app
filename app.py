@@ -641,14 +641,19 @@ if st.session_state.all_flights:
             st.markdown(f"**{len(st.session_state.selected_flights)}/5 selected**")
 
             if st.session_state.selected_flights:
-                # Create flight labels
+                # Enforce limit
+                if len(st.session_state.selected_flights) > 5:
+                    st.session_state.selected_flights = st.session_state.selected_flights[:5]
+                    st.rerun()
+
+                # Create flight labels WITH RANK NUMBERS
                 flight_labels = []
                 for i, flight in enumerate(st.session_state.selected_flights):
                     airline_name = get_airline_name(flight['airline'])
-                    label = f"{airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
+                    label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
                     flight_labels.append(label)
 
-                # Use dynamic key based on number of selected flights
+                # Sortable list with dynamic key
                 sorted_labels = sort_items(
                     flight_labels,
                     multi_containers=False,
@@ -656,16 +661,14 @@ if st.session_state.all_flights:
                     key=f'outbound_sort_{len(st.session_state.selected_flights)}'
                 )
 
-                # Update order if user dragged
-                if sorted_labels and sorted_labels != flight_labels:
+                # Update order if dragged
+                if sorted_labels != flight_labels:
                     new_order = []
                     for sorted_label in sorted_labels:
-                        # Find the flight that matches this label
-                        for flight in st.session_state.selected_flights:
-                            airline_name = get_airline_name(flight['airline'])
-                            if f"{airline_name} {flight['flight_number']} - ${flight['price']:.0f}" == sorted_label:
-                                new_order.append(flight)
-                                break
+                        # Extract original rank from label
+                        rank = int(sorted_label.split(':')[0].replace('#', '')) - 1
+                        if rank < len(st.session_state.selected_flights):
+                            new_order.append(st.session_state.selected_flights[rank])
                     if len(new_order) == len(st.session_state.selected_flights):
                         st.session_state.selected_flights = new_order
             else:
@@ -749,14 +752,19 @@ if st.session_state.all_flights:
             st.markdown(f"**{len(st.session_state.selected_return_flights)}/5 selected**")
 
             if st.session_state.selected_return_flights:
-                # Create flight labels
+                # Enforce limit
+                if len(st.session_state.selected_return_flights) > 5:
+                    st.session_state.selected_return_flights = st.session_state.selected_return_flights[:5]
+                    st.rerun()
+
+                # Create flight labels WITH RANK NUMBERS
                 flight_labels = []
                 for i, flight in enumerate(st.session_state.selected_return_flights):
                     airline_name = get_airline_name(flight['airline'])
-                    label = f"{airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
+                    label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
                     flight_labels.append(label)
 
-                # Use dynamic key based on number of selected flights
+                # Sortable list with dynamic key
                 sorted_labels = sort_items(
                     flight_labels,
                     multi_containers=False,
@@ -764,16 +772,14 @@ if st.session_state.all_flights:
                     key=f'return_sort_{len(st.session_state.selected_return_flights)}'
                 )
 
-                # Update order if user dragged
-                if sorted_labels and sorted_labels != flight_labels:
+                # Update order if dragged
+                if sorted_labels != flight_labels:
                     new_order = []
                     for sorted_label in sorted_labels:
-                        # Find the flight that matches this label
-                        for flight in st.session_state.selected_return_flights:
-                            airline_name = get_airline_name(flight['airline'])
-                            if f"{airline_name} {flight['flight_number']} - ${flight['price']:.0f}" == sorted_label:
-                                new_order.append(flight)
-                                break
+                        # Extract original rank from label
+                        rank = int(sorted_label.split(':')[0].replace('#', '')) - 1
+                        if rank < len(st.session_state.selected_return_flights):
+                            new_order.append(st.session_state.selected_return_flights[rank])
                     if len(new_order) == len(st.session_state.selected_return_flights):
                         st.session_state.selected_return_flights = new_order
             else:
@@ -936,11 +942,16 @@ if st.session_state.all_flights:
             st.markdown(f"**{len(st.session_state.selected_flights)}/5 selected**")
 
             if st.session_state.selected_flights:
-                # Create flight labels
+                # Enforce 5-flight limit
+                if len(st.session_state.selected_flights) > 5:
+                    st.session_state.selected_flights = st.session_state.selected_flights[:5]
+                    st.rerun()
+
+                # Create flight labels WITH RANK NUMBERS
                 flight_labels = []
                 for i, flight in enumerate(st.session_state.selected_flights):
                     airline_name = get_airline_name(flight['airline'])
-                    label = f"{airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
+                    label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
                     flight_labels.append(label)
 
                 # Use dynamic key based on number of selected flights
@@ -951,16 +962,14 @@ if st.session_state.all_flights:
                     key=f'single_sort_{len(st.session_state.selected_flights)}'
                 )
 
-                # Update order if user dragged
+                # Update order if user dragged - extract rank from label
                 if sorted_labels and sorted_labels != flight_labels:
                     new_order = []
                     for sorted_label in sorted_labels:
-                        # Find the flight that matches this label
-                        for flight in st.session_state.selected_flights:
-                            airline_name = get_airline_name(flight['airline'])
-                            if f"{airline_name} {flight['flight_number']} - ${flight['price']:.0f}" == sorted_label:
-                                new_order.append(flight)
-                                break
+                        # Extract rank number from label (e.g., "#1: ..." -> 0)
+                        rank = int(sorted_label.split(':')[0].replace('#', '')) - 1
+                        if rank < len(st.session_state.selected_flights):
+                            new_order.append(st.session_state.selected_flights[rank])
                     if len(new_order) == len(st.session_state.selected_flights):
                         st.session_state.selected_flights = new_order
 
