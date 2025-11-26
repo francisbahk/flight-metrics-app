@@ -598,27 +598,41 @@ if st.session_state.all_flights:
     st.markdown("""
     <style>
     .sticky-progress {
-        position: sticky;
-        top: 0;
-        background-color: white;
-        z-index: 999;
-        padding: 1rem 0;
-        border-bottom: 2px solid #f0f2f6;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        background-color: white !important;
+        z-index: 9999 !important;
+        padding: 1rem 2rem !important;
+        border-bottom: 2px solid #f0f2f6 !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
     }
     .sticky-ranking-panel {
-        position: sticky;
-        top: 120px;
-        align-self: flex-start;
+        position: sticky !important;
+        top: 100px !important;
+        align-self: flex-start !important;
+        background-color: white !important;
+        padding: 1rem !important;
+        border-radius: 8px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+    }
+    /* Add padding to main content to prevent overlap with fixed header */
+    .main .block-container {
+        padding-top: 120px !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
+    progress_percent = int((num_completed / num_required) * 100)
     st.markdown(f"""
     <div class="sticky-progress">
-        <h3>Progress: {num_completed}/{num_required} flight rankings submitted</h3>
+        <h3 style="margin: 0 0 0.5rem 0;">Progress: {num_completed}/{num_required} flight rankings submitted</h3>
+        <div style="width: 100%; background-color: #e0e0e0; border-radius: 10px; height: 8px;">
+            <div style="width: {progress_percent}%; background-color: #4CAF50; height: 8px; border-radius: 10px; transition: width 0.3s ease;"></div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
-    st.progress(num_completed / num_required)
 
     st.markdown("---")
 
