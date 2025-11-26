@@ -356,10 +356,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Container for layered placeholder + textarea
-st.markdown('<div style="position: relative; height: 164px;">', unsafe_allow_html=True)
-
-# Animated placeholder layer
+# Animated placeholder layer (hidden behind textarea)
 placeholder_html = """
 <style>
     body { margin: 0; padding: 0; background: transparent; }
@@ -412,38 +409,33 @@ placeholder_html = """
 
 components.html(placeholder_html, height=164)
 
-# Style to position textarea on top
+# Style the textarea to overlay the animation
 st.markdown("""
 <style>
-    div[data-testid="stVerticalBlock"] > div:has(textarea[aria-label=""]) {
-        position: absolute !important;
-        top: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        width: 100% !important;
+    /* Target the specific textarea by key */
+    textarea[aria-label="flight prompt input"] {
+        margin-top: -164px !important;
+        background: transparent !important;
+        position: relative !important;
         z-index: 10 !important;
     }
-    textarea[aria-label=""] {
-        background: transparent !important;
-    }
-    textarea[aria-label=""]:focus,
-    textarea[aria-label=""]:not(:placeholder-shown) {
+    /* When focused or has content, make background white */
+    textarea[aria-label="flight prompt input"]:focus,
+    textarea[aria-label="flight prompt input"]:not(:placeholder-shown) {
         background: white !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Real textarea that user types in (overlays the animation)
+# Real textarea that user types in (overlays the animation via negative margin)
 prompt = st.text_area(
-    "",
+    "flight prompt input",
     value="",
     height=150,
     placeholder="",
     label_visibility="collapsed",
     key="flight_prompt_input"
 )
-
-st.markdown('</div>', unsafe_allow_html=True)
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
