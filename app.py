@@ -594,45 +594,10 @@ if st.session_state.all_flights:
     num_completed = (1 if st.session_state.outbound_submitted else 0) + (1 if st.session_state.return_submitted else 0)
     all_submitted = (num_completed == num_required)
 
-    # STICKY PROGRESS BAR with CSS
-    st.markdown("""
-    <style>
-    .sticky-progress {
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        background-color: white !important;
-        z-index: 9999 !important;
-        padding: 1rem 2rem !important;
-        border-bottom: 2px solid #f0f2f6 !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-    }
-    /* Target the actual Streamlit column div that contains the ranking panel */
-    [data-testid="column"]:last-child > div:first-child {
-        position: -webkit-sticky !important;
-        position: sticky !important;
-        top: 100px !important;
-        align-self: flex-start !important;
-    }
-    /* Add padding to main content to prevent overlap with fixed header */
-    .main .block-container {
-        padding-top: 100px !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    progress_percent = int((num_completed / num_required) * 100)
-    st.markdown(f"""
-    <div class="sticky-progress">
-        <div style="width: 100%; background-color: #e0e0e0; border-radius: 10px; height: 10px; margin-top: 0.5rem;">
-            <div style="width: {progress_percent}%; background-color: #4CAF50; height: 10px; border-radius: 10px; transition: width 0.3s ease;"></div>
-        </div>
-        <div style="text-align: center; font-size: 0.9rem; margin-top: 0.3rem; color: #666;">
-            {num_completed} / {num_required} submitted
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Progress bar (simple, no sticky)
+    progress_percent = (num_completed / num_required)
+    st.progress(progress_percent)
+    st.caption(f"{num_completed} / {num_required} submitted")
 
     st.markdown("---")
 
