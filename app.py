@@ -461,9 +461,10 @@ I usually don't check bags except on very long trips.`
 """
 
 prompt_component = components.html(prompt_html, height=200)
-prompt = st.session_state.prompt_value if prompt_component is None else prompt_component
-if prompt:
-    st.session_state.prompt_value = prompt
+# Ensure prompt is always a string
+if prompt_component is not None:
+    st.session_state.prompt_value = prompt_component
+prompt = st.session_state.prompt_value if st.session_state.prompt_value else ""
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
