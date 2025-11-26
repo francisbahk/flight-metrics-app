@@ -323,158 +323,15 @@ st.markdown("""
 """)
 st.markdown("---")
 
-# Animated placeholder styling (BEFORE textarea)
-st.markdown("""
-<style>
-    .stTextArea {
-        position: relative !important;
-    }
-    .stTextArea textarea {
-        background-color: transparent !important;
-        position: relative !important;
-        z-index: 2 !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # Main prompt input
 prompt = st.text_area(
     "",
     value="",
     height=150,
-    placeholder="",
+    placeholder="Example: I want to fly from New York to Los Angeles on December 15th. I prefer direct flights and am not very price sensitive.",
     label_visibility="collapsed",
     key="flight_prompt_input"
 )
-
-# Animated placeholder overlay (AFTER textarea so we can target it)
-st.markdown("""
-<style>
-    [data-testid="stVerticalBlock"] > div:has(textarea) {
-        position: relative !important;
-    }
-    .placeholder-overlay {
-        position: absolute !important;
-        top: 38px !important;
-        left: 0px !important;
-        padding: 12px !important;
-        color: #94a3b8 !important;
-        font-family: 'Source Code Pro', monospace !important;
-        font-size: 14px !important;
-        line-height: 1.5 !important;
-        pointer-events: none !important;
-        white-space: pre-wrap !important;
-        z-index: 999 !important;
-        width: 100% !important;
-        max-height: 126px !important;
-        overflow: hidden !important;
-    }
-    .placeholder-overlay.hidden {
-        display: none !important;
-    }
-</style>
-<div class="placeholder-overlay" id="animPlaceholder">Type your flight request here...</div>
-<script>
-(function() {
-    const prompts = [
-        `I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports. I heavily prefer to fly into ORD.
-I do not feel the need to strictly minimize cost; however, I would prefer to keep the fare to under 400 dollars. Obviously, if different flights meet my requirements, I prefer the cheaper one. I prefer direct flights.`,
-        `On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day (November 4th) at 9am. I'd like to sleep well but if my travel plans are disrupted and I arrive late, it's ok. I'll either fly out of Ithaca, Syracuse, Elmira, or Binghamton.
-I'll fly to DCA or IAD. For all my flights, I don't like having to get up before 7am to be on time to my flight.`
-    ];
-
-    let currentIndex = 0;
-    let charIndex = 0;
-    let isTyping = true;
-    let overlay = null;
-    let textarea = null;
-    const typingSpeed = 30;
-    const pauseDuration = 3000;
-    const fadeDelay = 500;
-    let moved = false;
-
-    function init() {
-        textarea = document.querySelector('.stTextArea textarea');
-        overlay = document.getElementById('animPlaceholder');
-
-        if (!textarea || !overlay) {
-            setTimeout(init, 100);
-            return;
-        }
-
-        // Move the overlay div inside the textarea container if not already moved
-        if (!moved) {
-            const container = textarea.closest('.stTextArea');
-            if (container && overlay.parentElement !== container) {
-                container.insertBefore(overlay, textarea);
-                moved = true;
-
-                // Update styles after moving
-                overlay.style.position = 'absolute';
-                overlay.style.top = '12px';
-                overlay.style.left = '12px';
-                overlay.style.right = '12px';
-                overlay.style.bottom = '12px';
-                overlay.style.zIndex = '1';
-            }
-        }
-
-        textarea.addEventListener('focus', () => {
-            if (overlay) overlay.classList.add('hidden');
-        });
-
-        textarea.addEventListener('blur', () => {
-            if (overlay && !textarea.value) {
-                overlay.classList.remove('hidden');
-            }
-        });
-
-        textarea.addEventListener('input', () => {
-            if (overlay) {
-                if (textarea.value) {
-                    overlay.classList.add('hidden');
-                } else {
-                    overlay.classList.remove('hidden');
-                }
-            }
-        });
-
-        setTimeout(typeWriter, 500);
-    }
-
-    function typeWriter() {
-        if (!overlay || overlay.classList.contains('hidden')) return;
-
-        if (isTyping) {
-            if (charIndex < prompts[currentIndex].length) {
-                overlay.textContent = prompts[currentIndex].substring(0, charIndex + 1);
-                overlay.scrollTop = overlay.scrollHeight;
-                charIndex++;
-                setTimeout(typeWriter, typingSpeed);
-            } else {
-                isTyping = false;
-                setTimeout(() => {
-                    overlay.style.opacity = '0';
-                    setTimeout(() => {
-                        currentIndex = (currentIndex + 1) % prompts.length;
-                        charIndex = 0;
-                        isTyping = true;
-                        overlay.style.opacity = '1';
-                        typeWriter();
-                    }, fadeDelay);
-                }, pauseDuration);
-            }
-        }
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-})();
-</script>
-""", unsafe_allow_html=True)
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
