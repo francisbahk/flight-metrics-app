@@ -803,13 +803,31 @@ if st.session_state.all_flights:
 
         # FAILSAFE: If csv_generated but no search_id and no error, try saving now
         if st.session_state.get('csv_generated') and not st.session_state.get('search_id') and not st.session_state.get('db_save_error'):
+            st.info("⚙️ Attempting to save to database...")
             print(f"[DEBUG] FAILSAFE: Attempting database save in completion screen")
             try:
                 from backend.db import save_search_and_csv
                 import traceback
 
                 csv_data = st.session_state.get('csv_data_outbound')
-                if csv_data and st.session_state.all_flights and st.session_state.selected_flights:
+
+                # Show what we have
+                debug_info = f"""
+                csv_data exists: {bool(csv_data)}
+                all_flights: {len(st.session_state.all_flights) if st.session_state.all_flights else 0}
+                selected_flights: {len(st.session_state.selected_flights) if st.session_state.selected_flights else 0}
+                original_prompt: {bool(st.session_state.get('original_prompt'))}
+                parsed_params: {bool(st.session_state.parsed_params)}
+                """
+                print(debug_info)
+
+                if not csv_data:
+                    st.session_state.db_save_error = "No CSV data available"
+                elif not st.session_state.all_flights:
+                    st.session_state.db_save_error = "No flight data available"
+                elif not st.session_state.selected_flights:
+                    st.session_state.db_save_error = "No selected flights available"
+                else:
                     search_id = save_search_and_csv(
                         session_id=st.session_state.session_id,
                         user_prompt=st.session_state.get('original_prompt', ''),
@@ -820,8 +838,11 @@ if st.session_state.all_flights:
                     )
                     st.session_state.search_id = search_id
                     print(f"[DEBUG] FAILSAFE: Successfully saved! Search ID: {search_id}")
+                    st.rerun()  # Rerun to show the search ID
             except Exception as e:
                 print(f"[DEBUG] FAILSAFE: Save failed - {str(e)}")
+                import traceback
+                print(traceback.format_exc())
                 st.session_state.db_save_error = str(e)
 
         if st.session_state.get('search_id'):
