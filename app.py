@@ -356,6 +356,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Add CSS to reduce spacing between headers and inputs
+st.markdown("""
+<style>
+    /* Reduce spacing for prompt section headers */
+    div[data-testid="stMarkdownContainer"] p {
+        margin-bottom: 0.25rem !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Always show example prompts header
 st.markdown("**Example prompts:**")
 
