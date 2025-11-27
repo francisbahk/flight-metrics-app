@@ -431,29 +431,19 @@ if not st.session_state.prompt_interacted:
     """
     components.html(placeholder_html, height=178)
 
-    # Add negative margin and CSS to overlay textarea
-    st.markdown("""
-    <style>
-        /* Hide the label that says "flight prompt input" */
-        label[data-testid="stWidgetLabel"] {
-            display: none !important;
-        }
-        /* Make the textarea overlay the animation */
-        textarea[aria-label="flight prompt input"] {
-            margin-top: -178px !important;
-            background: transparent !important;
-            position: relative !important;
-            z-index: 10 !important;
-            border: 1px solid transparent !important;
-        }
-        /* Show border when focused */
-        textarea[aria-label="flight prompt input"]:focus {
-            border: 1px solid rgb(255, 75, 75) !important;
-            background: white !important;
-        }
-    </style>
-    <div style="margin-top: -178px;">
-    """, unsafe_allow_html=True)
+# Add CSS to overlay textarea on animation
+st.markdown("""
+<style>
+    /* Hide the label that says "flight prompt input" */
+    label[data-testid="stWidgetLabel"] {
+        display: none !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Add wrapper div with negative margin only when animation is showing
+if not st.session_state.prompt_interacted:
+    st.markdown('<div style="margin-top: -178px;">', unsafe_allow_html=True)
 
 # Real textarea that user types in
 prompt = st.text_area(
