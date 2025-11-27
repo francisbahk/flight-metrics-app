@@ -1140,6 +1140,7 @@ if st.session_state.all_flights:
             if st.session_state.outbound_submitted and st.session_state.return_submitted and not st.session_state.csv_generated:
                 try:
                     from backend.db import save_search_and_csv
+                    import traceback
 
                     # Save outbound as primary
                     search_id = save_search_and_csv(
@@ -1153,11 +1154,13 @@ if st.session_state.all_flights:
 
                     st.session_state.csv_generated = True
                     st.session_state.search_id = search_id
+                    st.success(f"✅ Rankings saved to database! Search ID: {search_id}")
                     st.balloons()
                     st.rerun()
 
                 except Exception as e:
-                    st.error(f"Failed to save rankings: {str(e)}")
+                    st.error(f"⚠️ Failed to save rankings to database: {str(e)}")
+                    st.code(traceback.format_exc())
                     st.session_state.csv_generated = True
                     st.rerun()
 
@@ -1297,6 +1300,7 @@ if st.session_state.all_flights:
                             # Save to database
                             try:
                                 from backend.db import save_search_and_csv
+                                import traceback
 
                                 search_id = save_search_and_csv(
                                     session_id=st.session_state.session_id,
@@ -1311,11 +1315,13 @@ if st.session_state.all_flights:
                                 st.session_state.outbound_submitted = True
                                 st.session_state.csv_generated = True
                                 st.session_state.search_id = search_id
+                                st.success(f"✅ Rankings saved to database! Search ID: {search_id}")
                                 st.balloons()
                                 st.rerun()
 
                             except Exception as e:
-                                st.error(f"Failed to save rankings: {str(e)}")
+                                st.error(f"⚠️ Failed to save rankings to database: {str(e)}")
+                                st.code(traceback.format_exc())
                                 # Still allow CSV download even if DB save fails
                                 st.session_state.csv_data_outbound = csv_data
                                 st.session_state.outbound_submitted = True
