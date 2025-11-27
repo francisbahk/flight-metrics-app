@@ -797,7 +797,10 @@ if st.session_state.all_flights:
     # Check if all submissions are complete
     if all_submitted:
         # COMPLETION SCREEN
-        st.success("✅ All rankings submitted successfully!")
+        if st.session_state.get('search_id'):
+            st.success(f"✅ All rankings submitted successfully! (Search ID: {st.session_state.search_id})")
+        else:
+            st.success("✅ All rankings submitted successfully!")
         st.markdown("### What would you like to do next?")
 
         # Create columns based on whether we have return flights
