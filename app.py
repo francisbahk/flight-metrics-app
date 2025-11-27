@@ -106,6 +106,39 @@ def get_airline_name(code):
     # Fallback to hardcoded mapping
     return AIRLINE_NAMES.get(code, code)  # Return code if not found
 
+
+def detect_codeshares(flights):
+    """
+    Detect which flights are codeshares based on identical:
+    - departure_time
+    - arrival_time
+    - origin
+    - destination
+
+    Returns dict mapping flight index -> is_codeshare boolean
+    """
+    codeshare_map = {}
+
+    for i, flight in enumerate(flights):
+        is_codeshare = False
+
+        # Check if any OTHER flight has same times + route
+        for j, other_flight in enumerate(flights):
+            if i == j:  # Skip self-comparison
+                continue
+
+            if (flight['departure_time'] == other_flight['departure_time'] and
+                flight['arrival_time'] == other_flight['arrival_time'] and
+                flight['origin'] == other_flight['origin'] and
+                flight['destination'] == other_flight['destination']):
+                is_codeshare = True
+                break
+
+        codeshare_map[i] = is_codeshare
+
+    return codeshare_map
+
+
 # CSV Generation Function
 def generate_flight_csv(all_flights, selected_flights, k=5):
     """
@@ -964,6 +997,38 @@ if st.session_state.all_flights:
             st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Flights")
             st.markdown("**Select your top 5 flights and drag to rank them →**")
 
+        # Info banner about codeshares (appears once, above all results)
+        with st.container():
+            st.info(
+                "ℹ️ **About Your Results:** Codeshares can show the same flight under different "
+                "airlines at the same or different prices—we label these so you know it's one aircraft."
+            )
+
+            with st.expander("📖 Learn More: Why Do I See Multiple Entries for the Same Flight?"):
+                st.markdown("""
+                ### FAQ: Codeshare Flights Explained
+
+                **Q: Why do some flights appear multiple times in search results?**
+
+                Many airlines operate "codeshare" flights. This means one airline operates the plane,
+                but multiple partner airlines sell seats on that same physical flight under different
+                flight numbers.
+
+                **Example:**
+                - United flight UA123
+                - Lufthansa flight LH9001
+
+                Both may refer to the same aircraft, same departure and arrival times, same route,
+                and often the same price.
+
+                ---
+
+                **Q: Are these duplicate flights?**
+
+                Not technically. Each codeshare entry is a different booking option, even though
+                they correspond to the same aircraft.
+                """)
+
         # CONDITIONAL UI: Show single or dual panels based on has_return
         if has_return:
             # DUAL PANEL LAYOUT: Outbound + Return
@@ -993,6 +1058,8 @@ if st.session_state.all_flights:
                         st.session_state.sort_duration_dir = 'desc' if st.session_state.sort_duration_dir == 'asc' else 'asc'
                         st.rerun()
 
+                # Detect codeshares in outbound flights
+                outbound_codeshare_map = detect_codeshares(st.session_state.all_flights)
 
                 # Display all outbound flights with checkboxes
                 for idx, flight in enumerate(st.session_state.all_flights):
@@ -1038,9 +1105,14 @@ if st.session_state.all_flights:
 
                         airline_name = get_airline_name(flight['airline'])
 
+                        # Check if this flight is a codeshare
+                        codeshare_label = ""
+                        if outbound_codeshare_map.get(idx, False):
+                            codeshare_label = '<span style="font-size: 0.85em; color: #666; font-style: italic;"> (Codeshare)</span>'
+
                         st.markdown(f"""
                         <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
-                        <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
+                        <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}{codeshare_label}<br>
                         <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
                         <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
                         </div>
@@ -1129,6 +1201,8 @@ if st.session_state.all_flights:
                         st.session_state.sort_duration_dir_ret = 'desc' if st.session_state.sort_duration_dir_ret == 'asc' else 'asc'
                         st.rerun()
 
+                # Detect codeshares in return flights
+                return_codeshare_map = detect_codeshares(st.session_state.all_return_flights)
 
                 # Display all return flights with checkboxes
                 for idx, flight in enumerate(st.session_state.all_return_flights):
@@ -1174,9 +1248,14 @@ if st.session_state.all_flights:
 
                         airline_name = get_airline_name(flight['airline'])
 
+                        # Check if this flight is a codeshare
+                        codeshare_label = ""
+                        if return_codeshare_map.get(idx, False):
+                            codeshare_label = '<span style="font-size: 0.85em; color: #666; font-style: italic;"> (Codeshare)</span>'
+
                         st.markdown(f"""
                         <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
-                        <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
+                        <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}{codeshare_label}<br>
                         <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
                         <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
                         </div>
@@ -1310,6 +1389,8 @@ if st.session_state.all_flights:
                         st.session_state.sort_duration_dir_single = 'desc' if st.session_state.sort_duration_dir_single == 'asc' else 'asc'
                         st.rerun()
 
+                # Detect codeshares in outbound flights
+                outbound_codeshare_map = detect_codeshares(st.session_state.all_flights)
 
                 # Display all flights with checkboxes
                 for idx, flight in enumerate(st.session_state.all_flights):
@@ -1361,9 +1442,14 @@ if st.session_state.all_flights:
                         # Get full airline name
                         airline_name = get_airline_name(flight['airline'])
 
+                        # Check if this flight is a codeshare
+                        codeshare_label = ""
+                        if outbound_codeshare_map.get(idx, False):
+                            codeshare_label = '<span style="font-size: 0.85em; color: #666; font-style: italic;"> (Codeshare)</span>'
+
                         st.markdown(f"""
                         <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
-                        <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}<br>
+                        <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}{codeshare_label}<br>
                         <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
                         <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
                         </div>
