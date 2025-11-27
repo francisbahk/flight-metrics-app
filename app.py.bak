@@ -305,11 +305,6 @@ st.markdown("""
         margin-bottom: 0.2rem !important;
         line-height: 1.3 !important;
     }
-    /* Make checkboxes 15% larger */
-    input[type="checkbox"] {
-        transform: scale(1.15);
-        cursor: pointer;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -324,9 +319,7 @@ st.markdown("""
 2. **Review results** - Browse all available flights
 3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
 4. **Drag to rank** - Reorder your selections by dragging them in the right panel
-5. **Submit** - Click submit to save your rankings (download as CSV optional)
-
-**Note:** If your search includes a return flight, scroll down after the outbound flights to see the return flights section and submit those rankings separately.
+5. **Submit & download** - Click submit to save your rankings and download as CSV
 """)
 
 # CSS for animated placeholder overlay
@@ -361,145 +354,102 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Add CSS to reduce spacing between headers and inputs
-st.markdown("""
-<style>
-    /* Reduce spacing for prompt section headers */
-    div[data-testid="stMarkdownContainer"] p {
-        margin-bottom: 0.25rem !important;
-    }
-</style>
-""", unsafe_allow_html=True)
+# Initialize prompt interaction state
+if 'prompt_interacted' not in st.session_state:
+    st.session_state.prompt_interacted = False
 
-# Always show example prompts header
-st.markdown("**Example prompts:**")
+# Check if user has typed anything
+current_prompt_value = st.session_state.get('flight_prompt_input', '')
+if current_prompt_value and current_prompt_value.strip():
+    st.session_state.prompt_interacted = True
 
-# Always show animated placeholder
-placeholder_html = """
-<style>
-    body {
-        margin: 0;
-        padding: 0;
-        background: white;
-    }
-    #animBox {
-        border: 1px solid rgb(204, 204, 204);
-        border-radius: 0.5rem;
-        background: white;
-        height: 150px;
-        padding: 0.5rem 0.75rem;
-        pointer-events: none;
-        overflow: hidden;
-    }
-    #animPlaceholder {
-        font-family: 'Source Code Pro', monospace;
-        font-size: 14px;
-        line-height: 1.6;
-        color: rgba(49, 51, 63, 0.4);
-        white-space: pre-wrap;
-        word-wrap: break-word;
-        transition: opacity 3s ease-out;
-    }
-</style>
-<div id="animBox">
+# Container for both animation and textarea
+st.markdown('<div id="promptWrapper" style="position: relative; width: 100%;">', unsafe_allow_html=True)
+
+# Only show animated placeholder if user hasn't interacted yet
+if not st.session_state.prompt_interacted:
+    placeholder_html = """
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+        }
+        #animPlaceholder {
+            padding: 0.5rem 0.75rem;
+            font-family: 'Source Code Pro', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            color: rgba(49, 51, 63, 0.4);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            pointer-events: none;
+        }
+    </style>
     <div id="animPlaceholder"></div>
-</div>
-<script>
-    const prompts = [
-        `I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports. I heavily prefer to fly into ORD.
-I do not feel the need to strictly minimize cost; however, I would prefer to keep the fare to under 400 dollars. Obviously, if different flights meet my requirements, I prefer the cheaper one. I prefer direct flights.
-I would like to maximize my time in NYC on Sunday. It would be ideal to leave on the second-to-last flight leaving from the departure airport to Chicago, in case of delays and cancellations. Worst case, I would like there to be an early Monday morning departure to Chicago from the airport, in case of cancellations.
-I have no preference for airline. I would prefer to not leave NYC before 5 PM. I am okay with an early morning departure, as long as I arrive in Chicago by around 9 AM, as I will need to go to work. The earlier the arrival Monday morning, the better.`,
-        `On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day (November 4th) at 9am. I'd like to sleep well but if my travel plans are disrupted and I arrive late, it's ok. I'll either fly out of Ithaca, Syracuse, Elmira, or Binghamton.
-I'll fly to DCA or IAD. For all my flights, I don't like having to get up before 7am to be on time to my flight. I'd like to avoid the amount of time I need to spend driving / taking Ubers / taking transit to airports both at home and at my destination.
-I prefer flying out of my local airport in Ithaca rather rather than driving or taking an Uber to a nearby airport in Syracuse, Elmira, or Binghamton.
-I want to avoid extra connections because they take more time and increase the chance of missing a connection. I can move pretty quickly through airports so connections longer than 45 min are fine but for connections that are tighter than that I worry about missing my flight if there is a delay. If the connection is earlier in the day and there are lots of other ways to get to my destination in the event of a missed connection, then a 30 min connection is fine.
-I prefer to avoid long layovers. Under 60 minutes is fine, under 90 minutes is not a huge deal, and over 90 minutes starts to get annoying.
-I feel that flying late in the day or connecting through airports with poor on-time performance like EWR increases my chance of a delay.
-I don't like JFK because the food choices are poor (except for Shake Shack). When I fly to Europe from the US, I don't like taking a redeye but I know I'll usually have to take one. When I do take a redeye, I don't like to have a long layover early in the morning — I prefer to just arrive at my destination. If I do have a layover, I prefer to land later in the morning so that I can get some sleep on the plane.
-I prefer to fly United because I'm a frequent flyer with them. When I fly for work, my travel is usually reimbursed from federal grants. Because of this, I must comply with the Fly America Act. This requires me to fly on a US carrier unless there are no other options. Even if I'm allowed to reimburse a trip on a non-US carrier, I don't want to because it creates extra paperwork.
-For longer trips, I am happy to return to an airport that is different from the one I left from because I probably wouldn't drive my car in any case. When I do this, I'll take an Uber, rent a car, or get a ride. For shorter trips, however, I do prefer to return to the airport I left from so that I can drive to the airport, unless it saves me a lot of trouble.
-I am not very price sensitive. It is ok to pay 20% more than the cheapest fare if the itinerary is more convenient. But if the fare is outrageous then that's problematic.
-I usually don't check bags except on very long trips.`
-    ];
+    <script>
+        const prompts = [
+            'I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.',
+            'On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day at 9am. I will either fly out of Ithaca, Syracuse, Elmira, or Binghamton to DCA or IAD.'
+        ];
 
-    let idx = 0, charIdx = 0, typing = true, displayText = '';
-    const speed = 42, pause = 5000, fadeTime = 3000;
-    const placeholder = document.getElementById('animPlaceholder');
-    const animBox = document.getElementById('animBox');
+        let idx = 0, charIdx = 0, typing = true;
+        const speed = 42, pause = 3000, fade = 500;
+        const placeholder = document.getElementById('animPlaceholder');
 
-    function trimToFit(text) {
-        placeholder.textContent = text;
-
-        // If content doesn't overflow, return as-is
-        if (placeholder.scrollHeight <= animBox.clientHeight) {
-            return text;
-        }
-
-        // Find sentence boundaries (period followed by space or newline)
-        let trimmed = text;
-        const sentencePattern = /\.\s+/g;
-        let match;
-        let lastSentenceEnd = 0;
-
-        // Keep removing from the start until it fits
-        while (placeholder.scrollHeight > animBox.clientHeight && (match = sentencePattern.exec(text))) {
-            lastSentenceEnd = match.index + match[0].length;
-            trimmed = text.substring(lastSentenceEnd);
-            placeholder.textContent = trimmed;
-
-            // Reset regex for next iteration
-            if (placeholder.scrollHeight <= animBox.clientHeight) break;
-        }
-
-        return trimmed;
-    }
-
-    function type() {
-        if (typing) {
-            if (charIdx < prompts[idx].length) {
-                displayText = prompts[idx].substring(0, charIdx + 1);
-                displayText = trimToFit(displayText);
-                charIdx++;
-                setTimeout(type, speed);
-            } else {
-                typing = false;
-                setTimeout(() => {
-                    placeholder.style.opacity = '0';
+        function type() {
+            if (typing) {
+                if (charIdx < prompts[idx].length) {
+                    placeholder.textContent = prompts[idx].substring(0, charIdx + 1);
+                    charIdx++;
+                    setTimeout(type, speed);
+                } else {
+                    typing = false;
                     setTimeout(() => {
-                        idx = (idx + 1) % prompts.length;
-                        charIdx = 0;
-                        displayText = '';
-                        typing = true;
-                        placeholder.style.opacity = '1';
-                        type();
-                    }, fadeTime);
-                }, pause);
+                        placeholder.style.opacity = '0';
+                        setTimeout(() => {
+                            idx = (idx + 1) % prompts.length;
+                            charIdx = 0;
+                            typing = true;
+                            placeholder.style.opacity = '1';
+                            type();
+                        }, fade);
+                    }, pause);
+                }
             }
         }
-    }
 
-    setTimeout(type, 500);
-</script>
-"""
-components.html(placeholder_html, height=178)
+        setTimeout(type, 500);
+    </script>
+    """
+    components.html(placeholder_html, height=0)
 
-# Add negative margin to pull textarea up over the animation
-st.markdown('<div style="margin-top: -178px;">', unsafe_allow_html=True)
+    # Position the animation absolutely inside the textarea
+    st.markdown("""
+    <style>
+        #promptWrapper iframe {
+            position: absolute !important;
+            top: 11px !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 150px !important;
+            z-index: 1 !important;
+            pointer-events: none !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Add header for real prompt input
-st.markdown("**Your flight prompt:**")
-
-# Add CSS to hide label and make textarea transparent
+# Add CSS for textarea
 st.markdown("""
 <style>
     /* Hide the label */
     label[data-testid="stWidgetLabel"] {
         display: none !important;
     }
-    /* Make textarea background transparent */
-    textarea[aria-label="flight prompt input"] {
-        background: transparent !important;
+    /* Make textarea background transparent when empty */
+    #promptWrapper textarea {
+        position: relative !important;
+        z-index: 2 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -507,13 +457,13 @@ st.markdown("""
 # Real textarea that user types in
 prompt = st.text_area(
     "flight prompt input",
+    value="",
     height=150,
     placeholder="",
     label_visibility="collapsed",
     key="flight_prompt_input"
 )
 
-# Close the negative margin div
 st.markdown('</div>', unsafe_allow_html=True)
 
 # Search button
@@ -797,17 +747,7 @@ if st.session_state.all_flights:
     # Check if all submissions are complete
     if all_submitted:
         # COMPLETION SCREEN
-        print(f"[DEBUG] Completion screen - search_id: {st.session_state.get('search_id')}")
-        print(f"[DEBUG] Completion screen - db_save_error: {st.session_state.get('db_save_error')}")
-        print(f"[DEBUG] Completion screen - csv_generated: {st.session_state.get('csv_generated')}")
-
-        if st.session_state.get('search_id'):
-            st.success(f"✅ All rankings submitted successfully! (Search ID: {st.session_state.search_id})")
-        elif st.session_state.get('db_save_error'):
-            st.warning("⚠️ Rankings submitted but database save failed")
-            st.error(f"Database error: {st.session_state.db_save_error}")
-        else:
-            st.success("✅ All rankings submitted successfully!")
+        st.success("✅ All rankings submitted successfully!")
         st.markdown("### What would you like to do next?")
 
         # Create columns based on whether we have return flights
@@ -830,9 +770,6 @@ if st.session_state.all_flights:
                 st.session_state.csv_data_return = None
                 st.session_state.has_return = False
                 st.session_state.parsed_params = None
-                st.session_state.search_id = None
-                st.session_state.db_save_error = None
-                st.session_state.flight_prompt_input = ""  # Clear the prompt text
                 st.rerun()
 
         with col2:
@@ -869,6 +806,7 @@ if st.session_state.all_flights:
         progress_percent = max(0.0, min(1.0, progress_percent))
         st.progress(progress_percent)
         st.caption(f"{num_completed} / {num_required} submitted")
+        st.markdown("---")
 
         # Check if we have return flights
         has_return = st.session_state.has_return and st.session_state.all_return_flights
@@ -883,6 +821,7 @@ if st.session_state.all_flights:
         # CONDITIONAL UI: Show single or dual panels based on has_return
         if has_return:
             # DUAL PANEL LAYOUT: Outbound + Return
+            st.markdown("---")
             st.markdown("## 🛫 Outbound Flights")
 
             col_flights_out, col_ranking_out = st.columns([2, 1])
@@ -909,6 +848,7 @@ if st.session_state.all_flights:
                         st.session_state.sort_duration_dir = 'desc' if st.session_state.sort_duration_dir == 'asc' else 'asc'
                         st.rerun()
 
+                st.markdown("---")
 
                 # Display all outbound flights with checkboxes
                 for idx, flight in enumerate(st.session_state.all_flights):
@@ -1001,6 +941,7 @@ if st.session_state.all_flights:
                             st.rerun()
 
                     # Submit button for outbound
+                    st.markdown("---")
                     if len(st.session_state.selected_flights) == 5 and not st.session_state.outbound_submitted:
                         if st.button("✅ Submit Outbound Rankings", key="submit_outbound", type="primary", use_container_width=True):
                             # Generate CSV
@@ -1019,6 +960,7 @@ if st.session_state.all_flights:
                     st.info("Select 5 outbound flights")
 
             # RETURN FLIGHTS SECTION
+            st.markdown("---")
             st.markdown("## 🛬 Return Flights")
 
             col_flights_ret, col_ranking_ret = st.columns([2, 1])
@@ -1045,6 +987,7 @@ if st.session_state.all_flights:
                         st.session_state.sort_duration_dir_ret = 'desc' if st.session_state.sort_duration_dir_ret == 'asc' else 'asc'
                         st.rerun()
 
+                st.markdown("---")
 
                 # Display all return flights with checkboxes
                 for idx, flight in enumerate(st.session_state.all_return_flights):
@@ -1137,6 +1080,7 @@ if st.session_state.all_flights:
                             st.rerun()
 
                     # Submit button for return
+                    st.markdown("---")
                     if len(st.session_state.selected_return_flights) == 5 and not st.session_state.return_submitted:
                         if st.button("✅ Submit Return Rankings", key="submit_return", type="primary", use_container_width=True):
                             # Generate CSV
@@ -1158,7 +1102,6 @@ if st.session_state.all_flights:
             if st.session_state.outbound_submitted and st.session_state.return_submitted and not st.session_state.csv_generated:
                 try:
                     from backend.db import save_search_and_csv
-                    import traceback
 
                     # Save outbound as primary
                     search_id = save_search_and_csv(
@@ -1172,15 +1115,12 @@ if st.session_state.all_flights:
 
                     st.session_state.csv_generated = True
                     st.session_state.search_id = search_id
-                    st.success(f"✅ Rankings saved to database! Search ID: {search_id}")
                     st.balloons()
                     st.rerun()
 
                 except Exception as e:
-                    st.error(f"⚠️ Failed to save rankings to database: {str(e)}")
-                    st.code(traceback.format_exc())
+                    st.error(f"Failed to save rankings: {str(e)}")
                     st.session_state.csv_generated = True
-                    st.session_state.db_save_error = str(e)
                     st.rerun()
 
         else:
@@ -1209,6 +1149,7 @@ if st.session_state.all_flights:
                         st.session_state.sort_duration_dir_single = 'desc' if st.session_state.sort_duration_dir_single == 'asc' else 'asc'
                         st.rerun()
 
+                st.markdown("---")
 
                 # Display all flights with checkboxes
                 for idx, flight in enumerate(st.session_state.all_flights):
@@ -1307,26 +1248,20 @@ if st.session_state.all_flights:
                             st.rerun()
 
                     # Submit button
+                    st.markdown("---")
                     if len(st.session_state.selected_flights) == 5 and not st.session_state.outbound_submitted:
                         if st.button("✅ Submit Rankings", key="submit_single", type="primary", use_container_width=True):
-                            print(f"[DEBUG] Submit button clicked - Starting save process")
-                            print(f"[DEBUG] Session ID: {st.session_state.session_id}")
-                            print(f"[DEBUG] Selected flights: {len(st.session_state.selected_flights)}")
-
                             # Generate CSV
                             csv_data = generate_flight_csv(
                                 st.session_state.all_flights,
                                 st.session_state.selected_flights,
                                 k=5
                             )
-                            print(f"[DEBUG] CSV generated: {len(csv_data)} bytes")
 
                             # Save to database
                             try:
                                 from backend.db import save_search_and_csv
-                                import traceback
 
-                                print(f"[DEBUG] Calling save_search_and_csv...")
                                 search_id = save_search_and_csv(
                                     session_id=st.session_state.session_id,
                                     user_prompt=st.session_state.get('original_prompt', ''),
@@ -1336,29 +1271,19 @@ if st.session_state.all_flights:
                                     csv_data=csv_data
                                 )
 
-                                print(f"[DEBUG] Save successful! Search ID: {search_id}")
                                 st.session_state.csv_data_outbound = csv_data
                                 st.session_state.outbound_submitted = True
                                 st.session_state.csv_generated = True
                                 st.session_state.search_id = search_id
-                                print(f"[DEBUG] Session state updated with search_id: {st.session_state.search_id}")
-                                st.success(f"✅ Rankings saved to database! Search ID: {search_id}")
                                 st.balloons()
-                                print(f"[DEBUG] About to rerun...")
                                 st.rerun()
 
                             except Exception as e:
-                                print(f"[DEBUG] Save FAILED: {str(e)}")
-                                print(f"[DEBUG] Full traceback:")
-                                import traceback as tb
-                                print(tb.format_exc())
-                                st.error(f"⚠️ Failed to save rankings to database: {str(e)}")
-                                st.code(traceback.format_exc())
+                                st.error(f"Failed to save rankings: {str(e)}")
                                 # Still allow CSV download even if DB save fails
                                 st.session_state.csv_data_outbound = csv_data
                                 st.session_state.outbound_submitted = True
                                 st.session_state.csv_generated = True
-                                st.session_state.db_save_error = str(e)
                                 st.rerun()
                     elif st.session_state.outbound_submitted:
                         st.success("✅ Rankings submitted")
@@ -1369,4 +1294,8 @@ if st.session_state.all_flights:
 
 # Footer
 st.markdown("---")
-st.caption("Built for flight ranking research • Data collected for algorithm evaluation • Contact: listen.cornell@gmail.com")
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.caption("Built for flight ranking research • Data collected for algorithm evaluation")
+with col2:
+    st.markdown('<a href="mailto:feb47@cornell.edu" style="text-decoration: none;"><button style="background-color: #ff4b4b; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-weight: 500;">📧 Contact</button></a>', unsafe_allow_html=True)
