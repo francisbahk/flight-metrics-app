@@ -801,8 +801,12 @@ if st.session_state.all_flights:
         print(f"[DEBUG] Completion screen - db_save_error: {st.session_state.get('db_save_error')}")
         print(f"[DEBUG] Completion screen - csv_generated: {st.session_state.get('csv_generated')}")
 
-        # FAILSAFE: If csv_generated but no search_id and no error, try saving now
-        if st.session_state.get('csv_generated') and not st.session_state.get('search_id') and not st.session_state.get('db_save_error'):
+        # FAILSAFE: If submitted but no search_id and no error, try saving now
+        # Check for either csv_generated (single panel) OR outbound_submitted+return_submitted (dual panel)
+        ready_to_save = (st.session_state.get('csv_generated') or
+                        (st.session_state.get('outbound_submitted') and st.session_state.get('return_submitted')))
+
+        if ready_to_save and not st.session_state.get('search_id') and not st.session_state.get('db_save_error'):
             st.info("⚙️ Attempting to save to database...")
             print(f"[DEBUG] FAILSAFE: Attempting database save in completion screen")
             try:
