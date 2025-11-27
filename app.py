@@ -375,7 +375,7 @@ st.markdown("""
 st.markdown("**Example prompts:**")
 
 # Always show animated placeholder
-placeholder_html = """
+placeholder_html = r"""
 <style>
     body {
         margin: 0;
