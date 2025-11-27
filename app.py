@@ -1137,6 +1137,9 @@ if st.session_state.all_flights:
                     st.info("Select 5 return flights")
 
             # Save to database when both are submitted
+            # Debug info
+            st.write(f"DEBUG: outbound={st.session_state.outbound_submitted}, return={st.session_state.return_submitted}, csv_gen={st.session_state.csv_generated}")
+
             if st.session_state.outbound_submitted and st.session_state.return_submitted and not st.session_state.csv_generated:
                 try:
                     from backend.db import save_search_and_csv
