@@ -14,15 +14,24 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Helper function to get config from Streamlit secrets or environment
+def get_config(key, default=''):
+    """Get config from Streamlit secrets first, then environment variables."""
+    try:
+        import streamlit as st
+        return st.secrets.get(key, os.getenv(key, default))
+    except (ImportError, FileNotFoundError, AttributeError):
+        return os.getenv(key, default)
+
 # Database connection
-DB_TYPE = os.getenv('DB_TYPE', 'sqlite')  # 'sqlite' or 'mysql'
+DB_TYPE = get_config('DB_TYPE', 'sqlite')  # 'sqlite' or 'mysql'
 
 if DB_TYPE == 'mysql':
-    MYSQL_HOST = os.getenv('MYSQL_HOST', 'localhost')
-    MYSQL_PORT = os.getenv('MYSQL_PORT', '3306')
-    MYSQL_DATABASE = os.getenv('MYSQL_DATABASE', 'flight_rankings')
-    MYSQL_USER = os.getenv('MYSQL_USER', 'root')
-    MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '')
+    MYSQL_HOST = get_config('MYSQL_HOST', 'localhost')
+    MYSQL_PORT = get_config('MYSQL_PORT', '3306')
+    MYSQL_DATABASE = get_config('MYSQL_DATABASE', 'flight_rankings')
+    MYSQL_USER = get_config('MYSQL_USER', 'root')
+    MYSQL_PASSWORD = get_config('MYSQL_PASSWORD', '')
     DATABASE_URL = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
 else:
     # Use SQLite (file-based, no installation required)

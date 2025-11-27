@@ -23,12 +23,18 @@ class AmadeusClient:
     """
 
     def __init__(self):
-        """Initialize Amadeus client with credentials from environment."""
-        self.api_key = os.getenv("AMADEUS_API_KEY")
-        self.api_secret = os.getenv("AMADEUS_API_SECRET")
-
-        # Get base URL from environment, default to test environment
-        base_url = os.getenv("AMADEUS_BASE_URL", "https://test.api.amadeus.com")
+        """Initialize Amadeus client with credentials from environment or Streamlit secrets."""
+        # Try Streamlit secrets first (for Streamlit Cloud), then fall back to .env
+        try:
+            import streamlit as st
+            self.api_key = st.secrets.get("AMADEUS_API_KEY", os.getenv("AMADEUS_API_KEY"))
+            self.api_secret = st.secrets.get("AMADEUS_API_SECRET", os.getenv("AMADEUS_API_SECRET"))
+            base_url = st.secrets.get("AMADEUS_BASE_URL", os.getenv("AMADEUS_BASE_URL", "https://test.api.amadeus.com"))
+        except (ImportError, FileNotFoundError, AttributeError):
+            # Not running in Streamlit or secrets not configured, use environment variables
+            self.api_key = os.getenv("AMADEUS_API_KEY")
+            self.api_secret = os.getenv("AMADEUS_API_SECRET")
+            base_url = os.getenv("AMADEUS_BASE_URL", "https://test.api.amadeus.com")
 
         # Remove trailing slash if present
         base_url = base_url.rstrip('/')
