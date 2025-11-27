@@ -799,6 +799,9 @@ if st.session_state.all_flights:
         # COMPLETION SCREEN
         if st.session_state.get('search_id'):
             st.success(f"✅ All rankings submitted successfully! (Search ID: {st.session_state.search_id})")
+        elif st.session_state.get('db_save_error'):
+            st.warning("⚠️ Rankings submitted but database save failed")
+            st.error(f"Database error: {st.session_state.db_save_error}")
         else:
             st.success("✅ All rankings submitted successfully!")
         st.markdown("### What would you like to do next?")
@@ -823,6 +826,8 @@ if st.session_state.all_flights:
                 st.session_state.csv_data_return = None
                 st.session_state.has_return = False
                 st.session_state.parsed_params = None
+                st.session_state.search_id = None
+                st.session_state.db_save_error = None
                 st.rerun()
 
         with col2:
@@ -1170,6 +1175,7 @@ if st.session_state.all_flights:
                     st.error(f"⚠️ Failed to save rankings to database: {str(e)}")
                     st.code(traceback.format_exc())
                     st.session_state.csv_generated = True
+                    st.session_state.db_save_error = str(e)
                     st.rerun()
 
         else:
@@ -1334,6 +1340,7 @@ if st.session_state.all_flights:
                                 st.session_state.csv_data_outbound = csv_data
                                 st.session_state.outbound_submitted = True
                                 st.session_state.csv_generated = True
+                                st.session_state.db_save_error = str(e)
                                 st.rerun()
                     elif st.session_state.outbound_submitted:
                         st.success("✅ Rankings submitted")
