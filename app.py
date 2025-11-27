@@ -305,6 +305,11 @@ st.markdown("""
         margin-bottom: 0.2rem !important;
         line-height: 1.3 !important;
     }
+    /* Make checkboxes 15% larger */
+    input[type="checkbox"] {
+        transform: scale(1.15);
+        cursor: pointer;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -319,7 +324,7 @@ st.markdown("""
 2. **Review results** - Browse all available flights
 3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
 4. **Drag to rank** - Reorder your selections by dragging them in the right panel
-5. **Submit & download** - Click submit to save your rankings and download as CSV
+5. **Submit** - Click submit to save your rankings (download as CSV optional)
 
 **Note:** If your search includes a return flight, scroll down after the outbound flights to see the return flights section and submit those rankings separately.
 """)
