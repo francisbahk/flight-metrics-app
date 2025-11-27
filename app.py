@@ -832,7 +832,9 @@ if st.session_state.all_flights:
                 st.session_state.parsed_params = None
                 st.session_state.search_id = None
                 st.session_state.db_save_error = None
-                st.session_state.flight_prompt_input = ""  # Clear the prompt text
+                # Delete the prompt key to reset it (can't set widget values directly)
+                if 'flight_prompt_input' in st.session_state:
+                    del st.session_state.flight_prompt_input
                 st.rerun()
 
         with col2:
