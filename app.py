@@ -801,6 +801,29 @@ if st.session_state.all_flights:
         print(f"[DEBUG] Completion screen - db_save_error: {st.session_state.get('db_save_error')}")
         print(f"[DEBUG] Completion screen - csv_generated: {st.session_state.get('csv_generated')}")
 
+        # FAILSAFE: If csv_generated but no search_id and no error, try saving now
+        if st.session_state.get('csv_generated') and not st.session_state.get('search_id') and not st.session_state.get('db_save_error'):
+            print(f"[DEBUG] FAILSAFE: Attempting database save in completion screen")
+            try:
+                from backend.db import save_search_and_csv
+                import traceback
+
+                csv_data = st.session_state.get('csv_data_outbound')
+                if csv_data and st.session_state.all_flights and st.session_state.selected_flights:
+                    search_id = save_search_and_csv(
+                        session_id=st.session_state.session_id,
+                        user_prompt=st.session_state.get('original_prompt', ''),
+                        parsed_params=st.session_state.parsed_params or {},
+                        all_flights=st.session_state.all_flights,
+                        selected_flights=st.session_state.selected_flights,
+                        csv_data=csv_data
+                    )
+                    st.session_state.search_id = search_id
+                    print(f"[DEBUG] FAILSAFE: Successfully saved! Search ID: {search_id}")
+            except Exception as e:
+                print(f"[DEBUG] FAILSAFE: Save failed - {str(e)}")
+                st.session_state.db_save_error = str(e)
+
         if st.session_state.get('search_id'):
             st.success(f"✅ All rankings submitted successfully! (Search ID: {st.session_state.search_id})")
         elif st.session_state.get('db_save_error'):
