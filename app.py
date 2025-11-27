@@ -356,52 +356,46 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Check if textarea currently has content
-current_prompt_value = st.session_state.get('flight_prompt_input', '')
-show_examples = not (current_prompt_value and current_prompt_value.strip())
+# Always show example prompts header
+st.markdown("**Example prompts:**")
 
-# Show example prompts header only when textarea is empty
-if show_examples:
-    st.markdown("**Example prompts:**")
-
-# Only show animated placeholder when textarea is empty
-if show_examples:
-    placeholder_html = """
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: white;
-        }
-        #animBox {
-            border: 1px solid rgb(204, 204, 204);
-            border-radius: 0.5rem;
-            background: white;
-            height: 150px;
-            padding: 0.5rem 0.75rem;
-            pointer-events: none;
-            overflow: hidden;
-        }
-        #animPlaceholder {
-            font-family: 'Source Code Pro', monospace;
-            font-size: 14px;
-            line-height: 1.6;
-            color: rgba(49, 51, 63, 0.4);
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            transition: opacity 3s ease-out;
-        }
-    </style>
-    <div id="animBox">
-        <div id="animPlaceholder"></div>
-    </div>
-    <script>
-        const prompts = [
-            `I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports. I heavily prefer to fly into ORD.
+# Always show animated placeholder
+placeholder_html = """
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        background: white;
+    }
+    #animBox {
+        border: 1px solid rgb(204, 204, 204);
+        border-radius: 0.5rem;
+        background: white;
+        height: 150px;
+        padding: 0.5rem 0.75rem;
+        pointer-events: none;
+        overflow: hidden;
+    }
+    #animPlaceholder {
+        font-family: 'Source Code Pro', monospace;
+        font-size: 14px;
+        line-height: 1.6;
+        color: rgba(49, 51, 63, 0.4);
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        transition: opacity 3s ease-out;
+    }
+</style>
+<div id="animBox">
+    <div id="animPlaceholder"></div>
+</div>
+<script>
+    const prompts = [
+        `I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports. I heavily prefer to fly into ORD.
 I do not feel the need to strictly minimize cost; however, I would prefer to keep the fare to under 400 dollars. Obviously, if different flights meet my requirements, I prefer the cheaper one. I prefer direct flights.
 I would like to maximize my time in NYC on Sunday. It would be ideal to leave on the second-to-last flight leaving from the departure airport to Chicago, in case of delays and cancellations. Worst case, I would like there to be an early Monday morning departure to Chicago from the airport, in case of cancellations.
 I have no preference for airline. I would prefer to not leave NYC before 5 PM. I am okay with an early morning departure, as long as I arrive in Chicago by around 9 AM, as I will need to go to work. The earlier the arrival Monday morning, the better.`,
-            `On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day (November 4th) at 9am. I'd like to sleep well but if my travel plans are disrupted and I arrive late, it's ok. I'll either fly out of Ithaca, Syracuse, Elmira, or Binghamton.
+        `On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day (November 4th) at 9am. I'd like to sleep well but if my travel plans are disrupted and I arrive late, it's ok. I'll either fly out of Ithaca, Syracuse, Elmira, or Binghamton.
 I'll fly to DCA or IAD. For all my flights, I don't like having to get up before 7am to be on time to my flight. I'd like to avoid the amount of time I need to spend driving / taking Ubers / taking transit to airports both at home and at my destination.
 I prefer flying out of my local airport in Ithaca rather rather than driving or taking an Uber to a nearby airport in Syracuse, Elmira, or Binghamton.
 I want to avoid extra connections because they take more time and increase the chance of missing a connection. I can move pretty quickly through airports so connections longer than 45 min are fine but for connections that are tighter than that I worry about missing my flight if there is a delay. If the connection is earlier in the day and there are lots of other ways to get to my destination in the event of a missed connection, then a 30 min connection is fine.
@@ -412,71 +406,71 @@ I prefer to fly United because I'm a frequent flyer with them. When I fly for wo
 For longer trips, I am happy to return to an airport that is different from the one I left from because I probably wouldn't drive my car in any case. When I do this, I'll take an Uber, rent a car, or get a ride. For shorter trips, however, I do prefer to return to the airport I left from so that I can drive to the airport, unless it saves me a lot of trouble.
 I am not very price sensitive. It is ok to pay 20% more than the cheapest fare if the itinerary is more convenient. But if the fare is outrageous then that's problematic.
 I usually don't check bags except on very long trips.`
-        ];
+    ];
 
-        let idx = 0, charIdx = 0, typing = true, displayText = '';
-        const speed = 42, pause = 5000, fadeTime = 3000;
-        const placeholder = document.getElementById('animPlaceholder');
-        const animBox = document.getElementById('animBox');
+    let idx = 0, charIdx = 0, typing = true, displayText = '';
+    const speed = 42, pause = 5000, fadeTime = 3000;
+    const placeholder = document.getElementById('animPlaceholder');
+    const animBox = document.getElementById('animBox');
 
-        function trimToFit(text) {
-            placeholder.textContent = text;
+    function trimToFit(text) {
+        placeholder.textContent = text;
 
-            // If content doesn't overflow, return as-is
-            if (placeholder.scrollHeight <= animBox.clientHeight) {
-                return text;
-            }
-
-            // Find sentence boundaries (period followed by space or newline)
-            let trimmed = text;
-            const sentencePattern = /\.\s+/g;
-            let match;
-            let lastSentenceEnd = 0;
-
-            // Keep removing from the start until it fits
-            while (placeholder.scrollHeight > animBox.clientHeight && (match = sentencePattern.exec(text))) {
-                lastSentenceEnd = match.index + match[0].length;
-                trimmed = text.substring(lastSentenceEnd);
-                placeholder.textContent = trimmed;
-
-                // Reset regex for next iteration
-                if (placeholder.scrollHeight <= animBox.clientHeight) break;
-            }
-
-            return trimmed;
+        // If content doesn't overflow, return as-is
+        if (placeholder.scrollHeight <= animBox.clientHeight) {
+            return text;
         }
 
-        function type() {
-            if (typing) {
-                if (charIdx < prompts[idx].length) {
-                    displayText = prompts[idx].substring(0, charIdx + 1);
-                    displayText = trimToFit(displayText);
-                    charIdx++;
-                    setTimeout(type, speed);
-                } else {
-                    typing = false;
+        // Find sentence boundaries (period followed by space or newline)
+        let trimmed = text;
+        const sentencePattern = /\.\s+/g;
+        let match;
+        let lastSentenceEnd = 0;
+
+        // Keep removing from the start until it fits
+        while (placeholder.scrollHeight > animBox.clientHeight && (match = sentencePattern.exec(text))) {
+            lastSentenceEnd = match.index + match[0].length;
+            trimmed = text.substring(lastSentenceEnd);
+            placeholder.textContent = trimmed;
+
+            // Reset regex for next iteration
+            if (placeholder.scrollHeight <= animBox.clientHeight) break;
+        }
+
+        return trimmed;
+    }
+
+    function type() {
+        if (typing) {
+            if (charIdx < prompts[idx].length) {
+                displayText = prompts[idx].substring(0, charIdx + 1);
+                displayText = trimToFit(displayText);
+                charIdx++;
+                setTimeout(type, speed);
+            } else {
+                typing = false;
+                setTimeout(() => {
+                    placeholder.style.opacity = '0';
                     setTimeout(() => {
-                        placeholder.style.opacity = '0';
-                        setTimeout(() => {
-                            idx = (idx + 1) % prompts.length;
-                            charIdx = 0;
-                            displayText = '';
-                            typing = true;
-                            placeholder.style.opacity = '1';
-                            type();
-                        }, fadeTime);
-                    }, pause);
-                }
+                        idx = (idx + 1) % prompts.length;
+                        charIdx = 0;
+                        displayText = '';
+                        typing = true;
+                        placeholder.style.opacity = '1';
+                        type();
+                    }, fadeTime);
+                }, pause);
             }
         }
+    }
 
-        setTimeout(type, 500);
-    </script>
-    """
-    components.html(placeholder_html, height=178)
+    setTimeout(type, 500);
+</script>
+"""
+components.html(placeholder_html, height=178)
 
-    # Add negative margin to pull textarea up over the animation
-    st.markdown('<div style="margin-top: -178px;">', unsafe_allow_html=True)
+# Add negative margin to pull textarea up over the animation
+st.markdown('<div style="margin-top: -178px;">', unsafe_allow_html=True)
 
 # Add header for real prompt input
 st.markdown("**Your flight prompt:**")
@@ -498,16 +492,14 @@ st.markdown("""
 # Real textarea that user types in
 prompt = st.text_area(
     "flight prompt input",
-    value="",
     height=150,
     placeholder="",
     label_visibility="collapsed",
     key="flight_prompt_input"
 )
 
-# Close the negative margin div if we showed the animation
-if show_examples:
-    st.markdown('</div>', unsafe_allow_html=True)
+# Close the negative margin div
+st.markdown('</div>', unsafe_allow_html=True)
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
