@@ -851,7 +851,20 @@ if st.session_state.all_flights:
             st.warning("⚠️ Rankings submitted but database save failed")
             st.error(f"Database error: {st.session_state.db_save_error}")
         else:
-            st.success("✅ All rankings submitted successfully!")
+            # Debug: Show what we have in session state
+            st.error(f"""
+            ⚠️ Rankings submitted but no search ID!
+
+            Debug info:
+            - csv_generated: {st.session_state.get('csv_generated')}
+            - search_id: {st.session_state.get('search_id')}
+            - db_save_error: {st.session_state.get('db_save_error')}
+            - csv_data_outbound exists: {bool(st.session_state.get('csv_data_outbound'))}
+            - all_flights count: {len(st.session_state.all_flights) if st.session_state.all_flights else 0}
+            - selected_flights count: {len(st.session_state.selected_flights) if st.session_state.selected_flights else 0}
+
+            Failsafe should have triggered! Please screenshot this and report the bug.
+            """)
         st.markdown("### What would you like to do next?")
 
         # Create columns based on whether we have return flights
