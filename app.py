@@ -363,9 +363,6 @@ current_prompt_value = st.session_state.get('flight_prompt_input', '')
 if current_prompt_value and current_prompt_value.strip():
     st.session_state.prompt_interacted = True
 
-# Container for both animation and textarea
-st.markdown('<div id="promptWrapper" style="position: relative; width: 100%;">', unsafe_allow_html=True)
-
 # Only show animated placeholder if user hasn't interacted yet
 if not st.session_state.prompt_interacted:
     placeholder_html = """
@@ -373,20 +370,28 @@ if not st.session_state.prompt_interacted:
         body {
             margin: 0;
             padding: 0;
-            background: transparent;
+            background: white;
+        }
+        #animBox {
+            border: 1px solid rgb(204, 204, 204);
+            border-radius: 0.5rem;
+            background: white;
+            height: 150px;
+            padding: 0.5rem 0.75rem;
+            pointer-events: none;
         }
         #animPlaceholder {
-            padding: 0.5rem 0.75rem;
             font-family: 'Source Code Pro', monospace;
             font-size: 14px;
             line-height: 1.6;
             color: rgba(49, 51, 63, 0.4);
             white-space: pre-wrap;
             word-wrap: break-word;
-            pointer-events: none;
         }
     </style>
-    <div id="animPlaceholder"></div>
+    <div id="animBox">
+        <div id="animPlaceholder"></div>
+    </div>
     <script>
         const prompts = [
             'I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports.',
@@ -422,34 +427,21 @@ if not st.session_state.prompt_interacted:
         setTimeout(type, 500);
     </script>
     """
-    components.html(placeholder_html, height=0)
+    components.html(placeholder_html, height=178)
 
-    # Position the animation absolutely inside the textarea
-    st.markdown("""
-    <style>
-        #promptWrapper iframe {
-            position: absolute !important;
-            top: 11px !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 150px !important;
-            z-index: 1 !important;
-            pointer-events: none !important;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    # Add negative margin to pull textarea up over the animation
+    st.markdown('<div style="margin-top: -178px;">', unsafe_allow_html=True)
 
-# Add CSS for textarea
+# Add CSS to hide label and make textarea transparent
 st.markdown("""
 <style>
     /* Hide the label */
     label[data-testid="stWidgetLabel"] {
         display: none !important;
     }
-    /* Make textarea background transparent when empty */
-    #promptWrapper textarea {
-        position: relative !important;
-        z-index: 2 !important;
+    /* Make textarea background transparent */
+    textarea[aria-label="flight prompt input"] {
+        background: transparent !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -464,7 +456,9 @@ prompt = st.text_area(
     key="flight_prompt_input"
 )
 
-st.markdown('</div>', unsafe_allow_html=True)
+# Close the negative margin div if we showed the animation
+if not st.session_state.prompt_interacted:
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
@@ -1285,8 +1279,4 @@ if st.session_state.all_flights:
 
 # Footer
 st.markdown("---")
-col1, col2 = st.columns([3, 1])
-with col1:
-    st.caption("Built for flight ranking research • Data collected for algorithm evaluation")
-with col2:
-    st.markdown('<a href="mailto:feb47@cornell.edu" style="text-decoration: none;"><button style="background-color: #ff4b4b; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-weight: 500;">📧 Contact</button></a>', unsafe_allow_html=True)
+st.caption("Built for flight ranking research • Data collected for algorithm evaluation • Contact: feb47@cornell.edu")
