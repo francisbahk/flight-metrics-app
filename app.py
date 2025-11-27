@@ -320,6 +320,8 @@ st.markdown("""
 3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
 4. **Drag to rank** - Reorder your selections by dragging them in the right panel
 5. **Submit & download** - Click submit to save your rankings and download as CSV
+
+**Note:** If your search includes a return flight, scroll down after the outbound flights to see the return flights section and submit those rankings separately.
 """)
 
 # CSS for animated placeholder overlay
@@ -354,21 +356,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize prompt interaction state
-if 'prompt_interacted' not in st.session_state:
-    st.session_state.prompt_interacted = False
-
-# Check if user has typed anything
+# Check if textarea currently has content
 current_prompt_value = st.session_state.get('flight_prompt_input', '')
-if current_prompt_value and current_prompt_value.strip():
-    st.session_state.prompt_interacted = True
+show_examples = not (current_prompt_value and current_prompt_value.strip())
 
-# Show example prompts header
-if not st.session_state.prompt_interacted:
+# Show example prompts header only when textarea is empty
+if show_examples:
     st.markdown("**Example prompts:**")
 
-# Only show animated placeholder if user hasn't interacted yet
-if not st.session_state.prompt_interacted:
+# Only show animated placeholder when textarea is empty
+if show_examples:
     placeholder_html = """
     <style>
         body {
@@ -509,7 +506,7 @@ prompt = st.text_area(
 )
 
 # Close the negative margin div if we showed the animation
-if not st.session_state.prompt_interacted:
+if show_examples:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Search button

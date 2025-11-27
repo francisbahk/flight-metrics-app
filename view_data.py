@@ -14,8 +14,8 @@ def view_all_data():
         print("FLIGHT RANKING DATA (CSV Export Version)")
         print("=" * 80)
 
-        # Get all searches
-        searches = db.query(Search).order_by(Search.created_at.desc()).all()
+        # Get all searches (oldest first, so newest appears at bottom)
+        searches = db.query(Search).order_by(Search.created_at.asc()).all()
 
         if not searches:
             print("\nNo data saved yet. Run the app and submit some rankings first!")
