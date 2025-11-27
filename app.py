@@ -383,6 +383,7 @@ if not st.session_state.prompt_interacted:
             height: 150px;
             padding: 0.5rem 0.75rem;
             pointer-events: none;
+            overflow: hidden;
         }
         #animPlaceholder {
             font-family: 'Source Code Pro', monospace;
@@ -391,7 +392,7 @@ if not st.session_state.prompt_interacted:
             color: rgba(49, 51, 63, 0.4);
             white-space: pre-wrap;
             word-wrap: break-word;
-            transition: opacity 5s ease-out;
+            transition: opacity 3s ease-out;
         }
     </style>
     <div id="animBox">
@@ -419,14 +420,35 @@ if not st.session_state.prompt_interacted:
       I usually don't check bags except on very long trips.`
         ];
 
-        let idx = 0, charIdx = 0, typing = true;
-        const speed = 42, pause = 5000, fadeTime = 5000;
+        let idx = 0, charIdx = 0, typing = true, displayText = '';
+        const speed = 42, pause = 5000, fadeTime = 3000;
         const placeholder = document.getElementById('animPlaceholder');
+        const animBox = document.getElementById('animBox');
+
+        function trimToFit(text) {
+            // Split by sentence-like breaks (period + space/newline)
+            const sentences = text.split(/\.(?:\s+)/);
+            let trimmed = text;
+
+            // Set text and check if overflow
+            placeholder.textContent = trimmed;
+
+            // If content overflows, remove sentences from the start
+            while (placeholder.scrollHeight > animBox.clientHeight && sentences.length > 1) {
+                sentences.shift();
+                trimmed = sentences.join('. ');
+                if (!trimmed.endsWith('.')) trimmed += '.';
+                placeholder.textContent = trimmed;
+            }
+
+            return trimmed;
+        }
 
         function type() {
             if (typing) {
                 if (charIdx < prompts[idx].length) {
-                    placeholder.textContent = prompts[idx].substring(0, charIdx + 1);
+                    displayText = prompts[idx].substring(0, charIdx + 1);
+                    displayText = trimToFit(displayText);
                     charIdx++;
                     setTimeout(type, speed);
                 } else {
@@ -436,6 +458,7 @@ if not st.session_state.prompt_interacted:
                         setTimeout(() => {
                             idx = (idx + 1) % prompts.length;
                             charIdx = 0;
+                            displayText = '';
                             typing = true;
                             placeholder.style.opacity = '1';
                             type();
