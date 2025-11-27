@@ -832,6 +832,7 @@ if st.session_state.all_flights:
                 elif not st.session_state.selected_flights:
                     st.session_state.db_save_error = "No selected flights available"
                 else:
+                    # Save outbound data
                     search_id = save_search_and_csv(
                         session_id=st.session_state.session_id,
                         user_prompt=st.session_state.get('original_prompt', ''),
@@ -840,7 +841,27 @@ if st.session_state.all_flights:
                         selected_flights=st.session_state.selected_flights,
                         csv_data=csv_data
                     )
+
+                    # Also save return flight CSV if it exists
+                    if st.session_state.get('csv_data_return'):
+                        from backend.db import SessionLocal, FlightCSV
+                        db = SessionLocal()
+                        try:
+                            csv_record = FlightCSV(
+                                session_id=st.session_state.session_id,
+                                search_id=search_id,
+                                csv_data=st.session_state.csv_data_return,
+                                num_flights=len(st.session_state.all_return_flights) if st.session_state.all_return_flights else 0,
+                                num_selected=len(st.session_state.selected_return_flights) if st.session_state.selected_return_flights else 0
+                            )
+                            db.add(csv_record)
+                            db.commit()
+                            print(f"[DEBUG] FAILSAFE: Also saved return flight CSV to search {search_id}")
+                        finally:
+                            db.close()
+
                     st.session_state.search_id = search_id
+                    st.session_state.csv_generated = True
                     print(f"[DEBUG] FAILSAFE: Successfully saved! Search ID: {search_id}")
                     st.rerun()  # Rerun to show the search ID
             except Exception as e:
@@ -1220,7 +1241,7 @@ if st.session_state.all_flights:
             # Save to database when both are submitted
             if st.session_state.outbound_submitted and st.session_state.return_submitted and not st.session_state.csv_generated:
                 try:
-                    from backend.db import save_search_and_csv
+                    from backend.db import save_search_and_csv, SessionLocal, FlightCSV
                     import traceback
 
                     # Save outbound as primary
@@ -1232,6 +1253,23 @@ if st.session_state.all_flights:
                         selected_flights=st.session_state.selected_flights,
                         csv_data=st.session_state.csv_data_outbound
                     )
+
+                    # Also save return flight CSV to the same search
+                    if st.session_state.csv_data_return:
+                        db = SessionLocal()
+                        try:
+                            csv_record = FlightCSV(
+                                session_id=st.session_state.session_id,
+                                search_id=search_id,
+                                csv_data=st.session_state.csv_data_return,
+                                num_flights=len(st.session_state.all_return_flights),
+                                num_selected=len(st.session_state.selected_return_flights)
+                            )
+                            db.add(csv_record)
+                            db.commit()
+                            print(f"✓ Saved return flight CSV to search {search_id}")
+                        finally:
+                            db.close()
 
                     st.session_state.csv_generated = True
                     st.session_state.search_id = search_id
