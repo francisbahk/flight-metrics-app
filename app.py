@@ -363,6 +363,10 @@ current_prompt_value = st.session_state.get('flight_prompt_input', '')
 if current_prompt_value and current_prompt_value.strip():
     st.session_state.prompt_interacted = True
 
+# Show helper text above animation
+if not st.session_state.prompt_interacted:
+    st.markdown("*Example prompts (type your prompt in the box below):*")
+
 # Only show animated placeholder if user hasn't interacted yet
 if not st.session_state.prompt_interacted:
     placeholder_html = """
@@ -1279,4 +1283,4 @@ if st.session_state.all_flights:
 
 # Footer
 st.markdown("---")
-st.caption("Built for flight ranking research • Data collected for algorithm evaluation • Contact: feb47@cornell.edu")
+st.caption("Built for flight ranking research • Data collected for algorithm evaluation • Contact: listen.cornell@gmail.com")
