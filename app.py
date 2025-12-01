@@ -139,6 +139,70 @@ def detect_codeshares(flights):
     return codeshare_map
 
 
+def apply_filters(flights, airlines=None, connections=None, price_range=None, duration_range=None,
+                  departure_range=None, arrival_range=None):
+    """
+    Filter flights based on user-selected criteria.
+
+    Args:
+        flights: List of flight dicts
+        airlines: List of airline codes to include (None = all)
+        connections: List of connection counts to include (None = all)
+        price_range: Tuple of (min_price, max_price) (None = all)
+        duration_range: Tuple of (min_duration_min, max_duration_min) (None = all)
+        departure_range: Tuple of (min_hour, max_hour) in 24h format (None = all)
+        arrival_range: Tuple of (min_hour, max_hour) in 24h format (None = all)
+
+    Returns:
+        Filtered list of flights
+    """
+    filtered = flights
+
+    # Filter by airline
+    if airlines and len(airlines) > 0:
+        filtered = [f for f in filtered if f['airline'] in airlines]
+
+    # Filter by connections
+    if connections is not None and len(connections) > 0:
+        filtered = [f for f in filtered if f['stops'] in connections]
+
+    # Filter by price
+    if price_range:
+        min_price, max_price = price_range
+        filtered = [f for f in filtered if min_price <= f['price'] <= max_price]
+
+    # Filter by duration
+    if duration_range:
+        min_dur, max_dur = duration_range
+        filtered = [f for f in filtered if min_dur <= f['duration_min'] <= max_dur]
+
+    # Filter by departure time
+    if departure_range:
+        from datetime import datetime
+        min_hour, max_hour = departure_range
+        filtered_by_dept = []
+        for f in filtered:
+            dept_dt = datetime.fromisoformat(f['departure_time'].replace('Z', '+00:00'))
+            hour = dept_dt.hour + dept_dt.minute / 60.0  # Convert to decimal hours
+            if min_hour <= hour <= max_hour:
+                filtered_by_dept.append(f)
+        filtered = filtered_by_dept
+
+    # Filter by arrival time
+    if arrival_range:
+        from datetime import datetime
+        min_hour, max_hour = arrival_range
+        filtered_by_arr = []
+        for f in filtered:
+            arr_dt = datetime.fromisoformat(f['arrival_time'].replace('Z', '+00:00'))
+            hour = arr_dt.hour + arr_dt.minute / 60.0  # Convert to decimal hours
+            if min_hour <= hour <= max_hour:
+                filtered_by_arr.append(f)
+        filtered = filtered_by_arr
+
+    return filtered
+
+
 # CSV Generation Function
 def generate_flight_csv(all_flights, selected_flights, k=5):
     """
@@ -286,6 +350,19 @@ if 'csv_data_outbound' not in st.session_state:
     st.session_state.csv_data_outbound = None
 if 'csv_data_return' not in st.session_state:
     st.session_state.csv_data_return = None
+# Filter state
+if 'filter_airlines' not in st.session_state:
+    st.session_state.filter_airlines = []
+if 'filter_connections' not in st.session_state:
+    st.session_state.filter_connections = []
+if 'filter_price_range' not in st.session_state:
+    st.session_state.filter_price_range = None
+if 'filter_duration_range' not in st.session_state:
+    st.session_state.filter_duration_range = None
+if 'filter_departure_time_range' not in st.session_state:
+    st.session_state.filter_departure_time_range = None
+if 'filter_arrival_time_range' not in st.session_state:
+    st.session_state.filter_arrival_time_range = None
 
 # TEMPORARY COMMENT: Old session state for algorithm-based ranking
 # if 'interleaved_results' not in st.session_state:
@@ -351,23 +428,22 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Header
-st.markdown('<div class="main-title">✈️ Flight Ranker - Data Collection Pilot</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Help us understand your flight preferences to build better personalized ranking systems</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">✈️ Flight Ranker</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Share your flight preferences to help build better personalized ranking systems</div>', unsafe_allow_html=True)
 
-st.info("🔬 **Research Study:** This is a pilot study to test the functionality and feasibility of personalized flight ranking. "
-        "We are collecting data to help design better flight search tools. IRB application in process.")
+st.info("**Note:** This is a pilot study to test functionality and feasibility for data collection that will improve flight search tools.")
 
 # How to Use section
 st.markdown("### 📖 How to Use")
 st.markdown("""
-1. **Enter your information** - Provide your name and email address (required for contact and data association)
-2. **Describe your flight preferences** - Enter your travel details and preferences in natural language
-3. **Review results** - Browse all available flights and use filters to narrow down options
+1. **Enter your information** - (required for contact)
+2. **Describe your flight** - Enter your travel details in natural language (origin, destination, dates, preferences)
+3. **Review results** - Browse all available flights
 4. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
 5. **Drag to rank** - Reorder your selections by dragging them in the right panel
-6. **Submit** - Click submit to save your rankings
+6. **Submit** - Click submit to save your rankings (download as CSV optional)
 
-**Note:** If your search includes a return flight, you'll need to rank flights for both directions separately.
+**Note:** If your search includes a return flight, scroll down after the outbound flights to see the return flights section and submit those rankings separately.
 """)
 
 # User Information Section
