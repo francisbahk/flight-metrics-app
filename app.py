@@ -1146,6 +1146,164 @@ if st.session_state.all_flights:
             st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Flights")
             st.markdown("**Select your top 5 flights and drag to rank them →**")
 
+        # SIDEBAR FILTERS
+        with st.sidebar:
+            st.markdown("## 🔍 Filters")
+
+            # Get all flights for filter options (combine outbound and return if applicable)
+            all_combined_flights = st.session_state.all_flights[:]
+            if has_return:
+                all_combined_flights.extend(st.session_state.all_return_flights)
+
+            # Get unique airlines
+            unique_airlines = sorted(set([f['airline'] for f in all_combined_flights]))
+            airline_names_map = {code: get_airline_name(code) for code in unique_airlines}
+
+            # Get unique connection counts
+            unique_connections = sorted(set([f['stops'] for f in all_combined_flights]))
+
+            # Get price range
+            prices = [f['price'] for f in all_combined_flights]
+            min_price, max_price = (min(prices), max(prices)) if prices else (0, 1000)
+
+            # Get duration range
+            durations = [f['duration_min'] for f in all_combined_flights]
+            min_duration, max_duration = (min(durations), max(durations)) if durations else (0, 1440)
+
+            # Airline filter (expandable)
+            with st.expander("✈️ Airlines", expanded=False):
+                selected_airlines = []
+                for airline_code in unique_airlines:
+                    if st.checkbox(airline_names_map[airline_code], key=f"airline_{airline_code}"):
+                        selected_airlines.append(airline_code)
+                st.session_state.filter_airlines = selected_airlines if selected_airlines else None
+
+            # Connections filter (expandable)
+            with st.expander("🔄 Connections", expanded=False):
+                selected_connections = []
+                for conn_count in unique_connections:
+                    conn_label = "Direct" if conn_count == 0 else f"{conn_count} stop{'s' if conn_count > 1 else ''}"
+                    if st.checkbox(conn_label, key=f"conn_{conn_count}"):
+                        selected_connections.append(conn_count)
+                st.session_state.filter_connections = selected_connections if selected_connections else None
+
+            # Price filter (slider)
+            with st.expander("💰 Price Range", expanded=False):
+                price_range = st.slider(
+                    "Select price range",
+                    min_value=float(min_price),
+                    max_value=float(max_price),
+                    value=(float(min_price), float(max_price)),
+                    step=10.0,
+                    format="$%.0f"
+                )
+                # Only set if user changed from default
+                if price_range != (float(min_price), float(max_price)):
+                    st.session_state.filter_price_range = price_range
+                else:
+                    st.session_state.filter_price_range = None
+
+            # Duration filter (slider)
+            with st.expander("⏱️ Flight Duration", expanded=False):
+                duration_range = st.slider(
+                    "Select duration range",
+                    min_value=int(min_duration),
+                    max_value=int(max_duration),
+                    value=(int(min_duration), int(max_duration)),
+                    step=30,
+                    format="%d min"
+                )
+                # Convert to hours and minutes for display
+                min_h, min_m = divmod(duration_range[0], 60)
+                max_h, max_m = divmod(duration_range[1], 60)
+                st.caption(f"{min_h}h {min_m}m - {max_h}h {max_m}m")
+
+                # Only set if user changed from default
+                if duration_range != (int(min_duration), int(max_duration)):
+                    st.session_state.filter_duration_range = duration_range
+                else:
+                    st.session_state.filter_duration_range = None
+
+            # Departure time filter (slider)
+            with st.expander("🛫 Departure Time", expanded=False):
+                dept_range = st.slider(
+                    "Select departure time range",
+                    min_value=0.0,
+                    max_value=24.0,
+                    value=(0.0, 24.0),
+                    step=0.5,
+                    format="%.1f"
+                )
+                # Convert to readable time
+                def hours_to_time(h):
+                    hours = int(h)
+                    mins = int((h - hours) * 60)
+                    return f"{hours:02d}:{mins:02d}"
+
+                st.caption(f"{hours_to_time(dept_range[0])} - {hours_to_time(dept_range[1])}")
+
+                # Only set if user changed from default
+                if dept_range != (0.0, 24.0):
+                    st.session_state.filter_departure_time_range = dept_range
+                else:
+                    st.session_state.filter_departure_time_range = None
+
+            # Arrival time filter (slider)
+            with st.expander("🛬 Arrival Time", expanded=False):
+                arr_range = st.slider(
+                    "Select arrival time range",
+                    min_value=0.0,
+                    max_value=24.0,
+                    value=(0.0, 24.0),
+                    step=0.5,
+                    format="%.1f"
+                )
+                st.caption(f"{hours_to_time(arr_range[0])} - {hours_to_time(arr_range[1])}")
+
+                # Only set if user changed from default
+                if arr_range != (0.0, 24.0):
+                    st.session_state.filter_arrival_time_range = arr_range
+                else:
+                    st.session_state.filter_arrival_time_range = None
+
+            # Clear all filters button
+            if st.button("Clear All Filters", use_container_width=True):
+                st.session_state.filter_airlines = None
+                st.session_state.filter_connections = None
+                st.session_state.filter_price_range = None
+                st.session_state.filter_duration_range = None
+                st.session_state.filter_departure_time_range = None
+                st.session_state.filter_arrival_time_range = None
+                st.rerun()
+
+        # Apply filters to flight lists
+        filtered_outbound = apply_filters(
+            st.session_state.all_flights,
+            airlines=st.session_state.filter_airlines,
+            connections=st.session_state.filter_connections,
+            price_range=st.session_state.filter_price_range,
+            duration_range=st.session_state.filter_duration_range,
+            departure_range=st.session_state.filter_departure_time_range,
+            arrival_range=st.session_state.filter_arrival_time_range
+        )
+
+        filtered_return = []
+        if has_return:
+            filtered_return = apply_filters(
+                st.session_state.all_return_flights,
+                airlines=st.session_state.filter_airlines,
+                connections=st.session_state.filter_connections,
+                price_range=st.session_state.filter_price_range,
+                duration_range=st.session_state.filter_duration_range,
+                departure_range=st.session_state.filter_departure_time_range,
+                arrival_range=st.session_state.filter_arrival_time_range
+            )
+
+        # Show filter results
+        if len(filtered_outbound) < len(st.session_state.all_flights):
+            st.info(f"🔍 Filters applied: Showing {len(filtered_outbound)} of {len(st.session_state.all_flights)} outbound flights" +
+                   (f" and {len(filtered_return)} of {len(st.session_state.all_return_flights)} return flights" if has_return else ""))
+
         # Check if there are any codeshares to determine if we should show the info banner
         outbound_codeshares = detect_codeshares(st.session_state.all_flights)
         return_codeshares = detect_codeshares(st.session_state.all_return_flights) if has_return else {}
@@ -1213,11 +1371,11 @@ if st.session_state.all_flights:
                         st.session_state.sort_duration_dir = 'desc' if st.session_state.sort_duration_dir == 'asc' else 'asc'
                         st.rerun()
 
-                # Detect codeshares in outbound flights
-                outbound_codeshare_map = detect_codeshares(st.session_state.all_flights)
+                # Detect codeshares in outbound flights (on filtered list)
+                outbound_codeshare_map = detect_codeshares(filtered_outbound)
 
                 # Display all outbound flights with checkboxes
-                for idx, flight in enumerate(st.session_state.all_flights):
+                for idx, flight in enumerate(filtered_outbound):
                     unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
 
                     # Create unique key using ID + departure time to handle duplicate IDs across dates
@@ -1365,11 +1523,11 @@ if st.session_state.all_flights:
                         st.session_state.sort_duration_dir_ret = 'desc' if st.session_state.sort_duration_dir_ret == 'asc' else 'asc'
                         st.rerun()
 
-                # Detect codeshares in return flights
-                return_codeshare_map = detect_codeshares(st.session_state.all_return_flights)
+                # Detect codeshares in return flights (on filtered list)
+                return_codeshare_map = detect_codeshares(filtered_return)
 
                 # Display all return flights with checkboxes
-                for idx, flight in enumerate(st.session_state.all_return_flights):
+                for idx, flight in enumerate(filtered_return):
                     unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
 
                     # Create unique key using ID + departure time to handle duplicate IDs
@@ -1562,11 +1720,11 @@ if st.session_state.all_flights:
                         st.session_state.sort_duration_dir_single = 'desc' if st.session_state.sort_duration_dir_single == 'asc' else 'asc'
                         st.rerun()
 
-                # Detect codeshares in outbound flights
-                outbound_codeshare_map = detect_codeshares(st.session_state.all_flights)
+                # Detect codeshares in outbound flights (on filtered list)
+                outbound_codeshare_map = detect_codeshares(filtered_outbound)
 
                 # Display all flights with checkboxes
-                for idx, flight in enumerate(st.session_state.all_flights):
+                for idx, flight in enumerate(filtered_outbound):
                     # Generate unique_id for display
                     unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
 
