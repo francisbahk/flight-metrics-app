@@ -302,10 +302,32 @@ st.set_page_config(
 # Initialize session state
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
-if 'user_name' not in st.session_state:
-    st.session_state.user_name = ''
-if 'user_email' not in st.session_state:
-    st.session_state.user_email = ''
+
+# TOKEN-BASED AUTH: Read and validate token from URL
+if 'token' not in st.session_state:
+    st.session_state.token = None
+if 'token_valid' not in st.session_state:
+    st.session_state.token_valid = False
+if 'token_message' not in st.session_state:
+    st.session_state.token_message = ''
+
+# Get token from URL parameter (?id=TOKEN)
+query_params = st.query_params
+if 'id' in query_params and not st.session_state.token:
+    token = query_params['id']
+    # Validate token
+    from backend.db import validate_token
+    token_status = validate_token(token)
+
+    st.session_state.token = token
+    st.session_state.token_valid = token_status['valid']
+    st.session_state.token_message = token_status['message']
+
+# COMMENTED OUT - No longer collecting name/email
+# if 'user_name' not in st.session_state:
+#     st.session_state.user_name = ''
+# if 'user_email' not in st.session_state:
+#     st.session_state.user_email = ''
 if 'all_flights' not in st.session_state:  # Changed from 'flights' to 'all_flights'
     st.session_state.all_flights = []
 if 'selected_flights' not in st.session_state:  # Changed from 'shortlist'
@@ -431,45 +453,68 @@ st.markdown("""
 st.markdown('<div class="main-title">✈️ Flight Ranker</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Share your flight preferences to help build better personalized ranking systems</div>', unsafe_allow_html=True)
 
-st.info("**Note:** This is a pilot study to test functionality and feasibility for data collection that will improve flight search tools.")
+st.info("**Note:** This website is part of a pilot data-collection study. The information collected will be used to improve flight search tools.")
+
+# TOKEN VALIDATION CHECK
+if not st.session_state.token:
+    st.error("❌ **Access Denied: No Token Provided**")
+    st.warning("This study requires a unique access token. Please use the link provided to you by the researchers.")
+    st.markdown("""
+    **For researchers:** To generate participant tokens, run:
+    ```
+    python3 backend/generate_tokens.py <number_of_tokens>
+    ```
+    """)
+    st.stop()
+
+if not st.session_state.token_valid:
+    st.error(f"❌ **Access Denied: {st.session_state.token_message}**")
+    if 'already used' in st.session_state.token_message.lower():
+        st.warning("This token has already been used. Each participant can only complete the study once.")
+    else:
+        st.warning("Please check your access link and try again, or contact the researchers if you believe this is an error.")
+    st.stop()
+
+# Show success message for valid token
+st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
 # How to Use section
 st.markdown("### 📖 How to Use")
 st.markdown("""
-1. **Enter your information** - (required for contact)
-2. **Describe your flight** - Enter your travel details in natural language (origin, destination, dates, preferences)
-3. **Review results** - Browse all available flights
-4. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
-5. **Drag to rank** - Reorder your selections by dragging them in the right panel
-6. **Submit** - Click submit to save your rankings (download as CSV optional)
+1. **Describe your flight** - Enter your travel details in natural language (origin, destination, dates, preferences)
+2. **Review results** - Browse all available flights
+3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
+4. **Drag to rank** - Reorder your selections by dragging them in the right panel
+5. **Submit** - Click submit to save your rankings (download as CSV optional)
 
 **Note:** If your search includes a return flight, scroll down after the outbound flights to see the return flights section and submit those rankings separately.
 """)
 
-# User Information Section
-st.markdown("### 👤 Your Information")
-col_name, col_email = st.columns(2)
-
-with col_name:
-    user_name = st.text_input(
-        "Full Name (First and Last)",
-        value=st.session_state.user_name,
-        placeholder="e.g., John Smith",
-        key="user_name_input"
-    )
-    if user_name:
-        st.session_state.user_name = user_name
-
-with col_email:
-    user_email = st.text_input(
-        "Email Address",
-        value=st.session_state.user_email,
-        placeholder="e.g., john.smith@email.com",
-        key="user_email_input",
-        help="We'll use this as your primary point of contact"
-    )
-    if user_email:
-        st.session_state.user_email = user_email
+# # User Information Section (COMMENTED OUT - Now using token-based auth)
+# st.markdown("### 👤 Your Information")
+# st.caption("Required for contact")
+#
+# with st.form(key="user_info_form", clear_on_submit=False):
+#     col_name, col_email = st.columns(2)
+#
+#     with col_name:
+#         user_name = st.text_input(
+#             "Full Name (First and Last)",
+#             value=st.session_state.user_name
+#         )
+#
+#     with col_email:
+#         user_email = st.text_input(
+#             "Email Address",
+#             value=st.session_state.user_email
+#         )
+#
+#     submit_info = st.form_submit_button("Save Information", use_container_width=True)
+#
+#     if submit_info:
+#         st.session_state.user_name = user_name
+#         st.session_state.user_email = user_email
+#         st.success("✓ Information saved!")
 
 # CSS for animated placeholder overlay
 st.markdown("""
@@ -664,7 +709,7 @@ with st.expander("💡 Tips for Writing a Good Prompt"):
     **Think of this as describing your preferences to a personal flight itinerary manager who is choosing flights for you.**
 
     At minimum, clearly describe your preferences with respect to key metrics:
-    - **Price** - Are you budget-conscious or willing to pay more for comfort?
+    - **Price** - Are you budget-conscious or willing to pay more for reduced travel time?
     - **Duration** - Do you prefer the fastest route or are you flexible?
     - **Connections** - Direct flights only, or are layovers acceptable?
     - **Departure/Arrival Times** - Morning person or night owl? Business hours or flexible?
@@ -684,15 +729,16 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
     # Validation
     validation_errors = []
 
-    if not st.session_state.user_name or not st.session_state.user_name.strip():
-        validation_errors.append("Please enter your full name")
-    elif len(st.session_state.user_name.split()) < 2:
-        validation_errors.append("Please enter both first and last name")
-
-    if not st.session_state.user_email or not st.session_state.user_email.strip():
-        validation_errors.append("Please enter your email address")
-    elif '@' not in st.session_state.user_email or '.' not in st.session_state.user_email:
-        validation_errors.append("Please enter a valid email address")
+    # COMMENTED OUT - No longer collecting name/email
+    # if not st.session_state.user_name or not st.session_state.user_name.strip():
+    #     validation_errors.append("Please enter your full name")
+    # elif len(st.session_state.user_name.split()) < 2:
+    #     validation_errors.append("Please enter both first and last name")
+    #
+    # if not st.session_state.user_email or not st.session_state.user_email.strip():
+    #     validation_errors.append("Please enter your email address")
+    # elif '@' not in st.session_state.user_email or '.' not in st.session_state.user_email:
+    #     validation_errors.append("Please enter a valid email address")
 
     if not prompt or not prompt.strip():
         validation_errors.append("Please describe your flight needs")
@@ -1021,8 +1067,13 @@ if st.session_state.all_flights:
                         parsed_params=st.session_state.parsed_params or {},
                         all_flights=st.session_state.all_flights,
                         selected_flights=st.session_state.selected_flights,
-                        csv_data=csv_data
+                        csv_data=csv_data,
+                        token=st.session_state.token
                     )
+
+                    # Mark token as used
+                    from backend.db import mark_token_used
+                    mark_token_used(st.session_state.token)
 
                     # Also save return flight CSV if it exists
                     if st.session_state.get('csv_data_return'):
@@ -1195,7 +1246,8 @@ if st.session_state.all_flights:
                     max_value=float(max_price),
                     value=(float(min_price), float(max_price)),
                     step=10.0,
-                    format="$%.0f"
+                    format="$%.0f",
+                    key="filter_price_slider"
                 )
                 # Only set if user changed from default
                 if price_range != (float(min_price), float(max_price)):
@@ -1211,7 +1263,8 @@ if st.session_state.all_flights:
                     max_value=int(max_duration),
                     value=(int(min_duration), int(max_duration)),
                     step=30,
-                    format="%d min"
+                    format="%d min",
+                    key="filter_duration_slider"
                 )
                 # Convert to hours and minutes for display
                 min_h, min_m = divmod(duration_range[0], 60)
@@ -1232,7 +1285,8 @@ if st.session_state.all_flights:
                     max_value=24.0,
                     value=(0.0, 24.0),
                     step=0.5,
-                    format="%.1f"
+                    format="%.1f",
+                    key="filter_departure_slider"
                 )
                 # Convert to readable time
                 def hours_to_time(h):
@@ -1256,7 +1310,8 @@ if st.session_state.all_flights:
                     max_value=24.0,
                     value=(0.0, 24.0),
                     step=0.5,
-                    format="%.1f"
+                    format="%.1f",
+                    key="filter_arrival_slider"
                 )
                 st.caption(f"{hours_to_time(arr_range[0])} - {hours_to_time(arr_range[1])}")
 
@@ -1268,12 +1323,27 @@ if st.session_state.all_flights:
 
             # Clear all filters button
             if st.button("Clear All Filters", use_container_width=True):
+                # Clear filter session state variables
                 st.session_state.filter_airlines = None
                 st.session_state.filter_connections = None
                 st.session_state.filter_price_range = None
                 st.session_state.filter_duration_range = None
                 st.session_state.filter_departure_time_range = None
                 st.session_state.filter_arrival_time_range = None
+
+                # Clear all checkbox widget states (airline and connection checkboxes)
+                keys_to_delete = [key for key in st.session_state.keys()
+                                 if key.startswith('airline_') or key.startswith('conn_')]
+                for key in keys_to_delete:
+                    del st.session_state[key]
+
+                # Clear all slider widget states
+                slider_keys = ['filter_price_slider', 'filter_duration_slider',
+                              'filter_departure_slider', 'filter_arrival_slider']
+                for key in slider_keys:
+                    if key in st.session_state:
+                        del st.session_state[key]
+
                 st.rerun()
 
         # Apply filters to flight lists
@@ -1298,11 +1368,6 @@ if st.session_state.all_flights:
                 departure_range=st.session_state.filter_departure_time_range,
                 arrival_range=st.session_state.filter_arrival_time_range
             )
-
-        # Show filter results
-        if len(filtered_outbound) < len(st.session_state.all_flights):
-            st.info(f"🔍 Filters applied: Showing {len(filtered_outbound)} of {len(st.session_state.all_flights)} outbound flights" +
-                   (f" and {len(filtered_return)} of {len(st.session_state.all_return_flights)} return flights" if has_return else ""))
 
         # Check if there are any codeshares to determine if we should show the info banner
         outbound_codeshares = detect_codeshares(st.session_state.all_flights)
@@ -1351,6 +1416,10 @@ if st.session_state.all_flights:
 
             with col_flights_out:
                 st.markdown("#### All Outbound Flights")
+
+                # Show filter status if filters are active
+                if len(filtered_outbound) < len(st.session_state.all_flights):
+                    st.info(f"🔍 Filters applied: Showing {len(filtered_outbound)} of {len(st.session_state.all_flights)} outbound flights")
 
                 # Sort buttons with direction arrows
                 col_sort1, col_sort2 = st.columns(2)
@@ -1428,11 +1497,11 @@ if st.session_state.all_flights:
 
                         st.markdown(f"""
                         <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
-                        <div style="font-size: 1.1em; font-weight: 600; margin-bottom: 0.2rem;">
-                            <span style="color: #2563eb;">${flight['price']:.0f}</span> •
-                            <span style="color: #059669;">{duration_display}</span> •
-                            <span style="color: #7c3aed;">{stops_text}</span> •
-                            <span style="color: #dc2626;">{dept_time_display}</span>
+                        <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
+                            <span style="font-weight: 700;">${flight['price']:.0f}</span> •
+                            <span style="font-weight: 600;">{duration_display}</span> •
+                            <span style="font-weight: 500;">{stops_text}</span> •
+                            <span style="font-weight: 500;">{dept_time_display}</span>
                         </div>
                         <div style="font-size: 0.9em; color: #666;">
                             {airline_name} {flight['flight_number']}{codeshare_label} | {flight['origin']} → {flight['destination']} | {dept_date_display}
@@ -1503,6 +1572,10 @@ if st.session_state.all_flights:
 
             with col_flights_ret:
                 st.markdown("#### All Return Flights")
+
+                # Show filter status if filters are active
+                if len(filtered_return) < len(st.session_state.all_return_flights):
+                    st.info(f"🔍 Filters applied: Showing {len(filtered_return)} of {len(st.session_state.all_return_flights)} return flights")
 
                 # Sort buttons with direction arrows
                 col_sort1, col_sort2 = st.columns(2)
@@ -1580,11 +1653,11 @@ if st.session_state.all_flights:
 
                         st.markdown(f"""
                         <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
-                        <div style="font-size: 1.1em; font-weight: 600; margin-bottom: 0.2rem;">
-                            <span style="color: #2563eb;">${flight['price']:.0f}</span> •
-                            <span style="color: #059669;">{duration_display}</span> •
-                            <span style="color: #7c3aed;">{stops_text}</span> •
-                            <span style="color: #dc2626;">{dept_time_display}</span>
+                        <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
+                            <span style="font-weight: 700;">${flight['price']:.0f}</span> •
+                            <span style="font-weight: 600;">{duration_display}</span> •
+                            <span style="font-weight: 500;">{stops_text}</span> •
+                            <span style="font-weight: 500;">{dept_time_display}</span>
                         </div>
                         <div style="font-size: 0.9em; color: #666;">
                             {airline_name} {flight['flight_number']}{codeshare_label} | {flight['origin']} → {flight['destination']} | {dept_date_display}
@@ -1661,8 +1734,13 @@ if st.session_state.all_flights:
                         parsed_params=st.session_state.parsed_params or {},
                         all_flights=st.session_state.all_flights,
                         selected_flights=st.session_state.selected_flights,
-                        csv_data=st.session_state.csv_data_outbound
+                        csv_data=st.session_state.csv_data_outbound,
+                        token=st.session_state.token
                     )
+
+                    # Mark token as used
+                    from backend.db import mark_token_used
+                    mark_token_used(st.session_state.token)
 
                     # Also save return flight CSV to the same search
                     if st.session_state.csv_data_return:
@@ -1700,6 +1778,10 @@ if st.session_state.all_flights:
 
             with col_flights:
                 st.markdown("#### All Available Flights")
+
+                # Show filter status if filters are active
+                if len(filtered_outbound) < len(st.session_state.all_flights):
+                    st.info(f"🔍 Filters applied: Showing {len(filtered_outbound)} of {len(st.session_state.all_flights)} flights")
 
                 # Sort buttons with direction arrows
                 col_sort1, col_sort2 = st.columns(2)
@@ -1783,11 +1865,11 @@ if st.session_state.all_flights:
 
                         st.markdown(f"""
                         <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
-                        <div style="font-size: 1.1em; font-weight: 600; margin-bottom: 0.2rem;">
-                            <span style="color: #2563eb;">${flight['price']:.0f}</span> •
-                            <span style="color: #059669;">{duration_display}</span> •
-                            <span style="color: #7c3aed;">{stops_text}</span> •
-                            <span style="color: #dc2626;">{dept_time_display}</span>
+                        <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
+                            <span style="font-weight: 700;">${flight['price']:.0f}</span> •
+                            <span style="font-weight: 600;">{duration_display}</span> •
+                            <span style="font-weight: 500;">{stops_text}</span> •
+                            <span style="font-weight: 500;">{dept_time_display}</span>
                         </div>
                         <div style="font-size: 0.9em; color: #666;">
                             {airline_name} {flight['flight_number']}{codeshare_label} | {flight['origin']} → {flight['destination']} | {dept_date_display}
@@ -1860,8 +1942,13 @@ if st.session_state.all_flights:
                                     parsed_params=st.session_state.parsed_params or {},
                                     all_flights=st.session_state.all_flights,
                                     selected_flights=st.session_state.selected_flights,
-                                    csv_data=csv_data
+                                    csv_data=csv_data,
+                                    token=st.session_state.token
                                 )
+
+                                # Mark token as used
+                                from backend.db import mark_token_used
+                                mark_token_used(st.session_state.token)
 
                                 print(f"[DEBUG] Save successful! Search ID: {search_id}")
                                 st.session_state.csv_data_outbound = csv_data

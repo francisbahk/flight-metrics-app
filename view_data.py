@@ -28,6 +28,7 @@ def view_all_data():
             print(f"Search ID: {search.search_id}")
             print(f"Session ID: {search.session_id}")
             print(f"Date: {search.created_at}")
+            print(f"Token: {search.token or '(not provided)'}")
             print(f"\nUser Prompt:")
             print(f"  {search.user_prompt}")
             print(f"\nParsed Parameters:")
@@ -83,6 +84,7 @@ def view_latest():
         print("LATEST SEARCH")
         print("=" * 80)
         print(f"\nSearch ID: {search.search_id}")
+        print(f"Token: {search.token or '(not provided)'}")
         print(f"Prompt: {search.user_prompt}")
 
         csvs = db.query(FlightCSV).filter(FlightCSV.search_id == search.search_id).all()

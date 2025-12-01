@@ -17,11 +17,22 @@ load_dotenv()
 # Helper function to get config from Streamlit secrets or environment
 def get_config(key, default=''):
     """Get config from Streamlit secrets first, then environment variables."""
+    # First check environment variables (always available)
+    env_value = os.getenv(key, default)
+
+    # Try to get from Streamlit secrets if running in Streamlit
     try:
         import streamlit as st
-        return st.secrets.get(key, os.getenv(key, default))
-    except (ImportError, FileNotFoundError, AttributeError):
-        return os.getenv(key, default)
+        # Only use secrets if we're actually in a Streamlit runtime
+        if hasattr(st, 'secrets') and st.secrets:
+            secret_value = st.secrets.get(key)
+            if secret_value is not None:
+                return secret_value
+    except (ImportError, FileNotFoundError, AttributeError, RuntimeError):
+        pass
+
+    # Fall back to environment variable
+    return env_value
 
 # Database connection
 DB_TYPE = get_config('DB_TYPE', 'sqlite')  # 'sqlite' or 'mysql'
@@ -53,12 +64,25 @@ Base = declarative_base()
 
 
 # Models
+class Token(Base):
+    """Stores participant tokens for anonymous study access."""
+    __tablename__ = 'tokens'
+
+    token = Column(String(255), primary_key=True)  # Unique token (e.g., 6-10 char hex)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    used_at = Column(DateTime, nullable=True)  # When the token was used (null = unused)
+    is_used = Column(Integer, default=0)  # 0 = unused, 1 = used
+
+
 class Search(Base):
     """Stores each search query."""
     __tablename__ = 'searches'
 
     search_id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(String(255), nullable=False, index=True)
+    token = Column(String(255), nullable=True, index=True)  # Participant token
+    # user_name = Column(String(255), nullable=True)  # COMMENTED OUT - No longer collecting
+    # user_email = Column(String(255), nullable=True)  # COMMENTED OUT - No longer collecting
     user_prompt = Column(Text, nullable=False)
     parsed_origins = Column(JSON)
     parsed_destinations = Column(JSON)
@@ -370,10 +394,11 @@ def save_search_and_csv(
     parsed_params: Dict,
     all_flights: List[Dict],
     selected_flights: List[Dict],
-    csv_data: str
+    csv_data: str,
+    token: Optional[str] = None
 ) -> int:
     """
-    Save a search session with CSV export (new simplified version).
+    Save a search session with CSV export (token-based version).
 
     Args:
         session_id: Unique session identifier
@@ -382,6 +407,7 @@ def save_search_and_csv(
         all_flights: All flights returned by Amadeus
         selected_flights: User's top 5 selected flights (in ranked order)
         csv_data: Generated CSV content
+        token: Participant token (optional)
 
     Returns:
         search_id of the created search record
@@ -392,6 +418,7 @@ def save_search_and_csv(
         # Create search record
         search = Search(
             session_id=session_id,
+            token=token,
             user_prompt=user_prompt,
             parsed_origins=parsed_params.get('origins'),
             parsed_destinations=parsed_params.get('destinations'),
@@ -421,6 +448,79 @@ def save_search_and_csv(
         db.rollback()
         print(f"✗ Error saving to database: {str(e)}")
         raise
+
+    finally:
+        db.close()
+
+
+def validate_token(token: str) -> Dict:
+    """
+    Validate a token and return its status.
+
+    Args:
+        token: The token to validate
+
+    Returns:
+        Dict with 'valid' (bool), 'is_used' (bool), 'message' (str)
+    """
+    db = SessionLocal()
+
+    try:
+        token_record = db.query(Token).filter(Token.token == token).first()
+
+        if not token_record:
+            return {
+                'valid': False,
+                'is_used': False,
+                'message': 'Invalid token: Token not found'
+            }
+
+        if token_record.is_used:
+            return {
+                'valid': False,
+                'is_used': True,
+                'message': f'Token already used on {token_record.used_at}'
+            }
+
+        return {
+            'valid': True,
+            'is_used': False,
+            'message': 'Token is valid and unused'
+        }
+
+    finally:
+        db.close()
+
+
+def mark_token_used(token: str) -> bool:
+    """
+    Mark a token as used.
+
+    Args:
+        token: The token to mark as used
+
+    Returns:
+        True if successful, False otherwise
+    """
+    db = SessionLocal()
+
+    try:
+        token_record = db.query(Token).filter(Token.token == token).first()
+
+        if not token_record:
+            print(f"✗ Token not found: {token}")
+            return False
+
+        token_record.is_used = 1
+        token_record.used_at = datetime.utcnow()
+        db.commit()
+        print(f"✓ Token marked as used: {token}")
+        return True
+
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Error marking token as used: {str(e)}")
+        return False
 
     finally:
         db.close()
