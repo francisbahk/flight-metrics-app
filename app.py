@@ -238,6 +238,10 @@ st.set_page_config(
 # Initialize session state
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
+if 'user_name' not in st.session_state:
+    st.session_state.user_name = ''
+if 'user_email' not in st.session_state:
+    st.session_state.user_email = ''
 if 'all_flights' not in st.session_state:  # Changed from 'flights' to 'all_flights'
     st.session_state.all_flights = []
 if 'selected_flights' not in st.session_state:  # Changed from 'shortlist'
@@ -347,20 +351,49 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Header
-st.markdown('<div class="main-title">✈️ Flight Ranker</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Describe your flight and get personalized rankings</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">✈️ Flight Ranker - Data Collection Pilot</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Help us understand your flight preferences to build better personalized ranking systems</div>', unsafe_allow_html=True)
+
+st.info("🔬 **Research Study:** This is a pilot study to test the functionality and feasibility of personalized flight ranking. "
+        "We are collecting data to help design better flight search tools. IRB application in process.")
 
 # How to Use section
 st.markdown("### 📖 How to Use")
 st.markdown("""
-1. **Describe your flight** - Enter your travel details in natural language (origin, destination, dates, preferences)
-2. **Review results** - Browse all available flights
-3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
-4. **Drag to rank** - Reorder your selections by dragging them in the right panel
-5. **Submit** - Click submit to save your rankings (download as CSV optional)
+1. **Enter your information** - Provide your name and email address (required for contact and data association)
+2. **Describe your flight preferences** - Enter your travel details and preferences in natural language
+3. **Review results** - Browse all available flights and use filters to narrow down options
+4. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
+5. **Drag to rank** - Reorder your selections by dragging them in the right panel
+6. **Submit** - Click submit to save your rankings
 
-**Note:** If your search includes a return flight, scroll down after the outbound flights to see the return flights section and submit those rankings separately.
+**Note:** If your search includes a return flight, you'll need to rank flights for both directions separately.
 """)
+
+# User Information Section
+st.markdown("### 👤 Your Information")
+col_name, col_email = st.columns(2)
+
+with col_name:
+    user_name = st.text_input(
+        "Full Name (First and Last)",
+        value=st.session_state.user_name,
+        placeholder="e.g., John Smith",
+        key="user_name_input"
+    )
+    if user_name:
+        st.session_state.user_name = user_name
+
+with col_email:
+    user_email = st.text_input(
+        "Email Address",
+        value=st.session_state.user_email,
+        placeholder="e.g., john.smith@email.com",
+        key="user_email_input",
+        help="We'll use this as your primary point of contact"
+    )
+    if user_email:
+        st.session_state.user_email = user_email
 
 # CSS for animated placeholder overlay
 st.markdown("""
@@ -549,10 +582,50 @@ prompt = st.text_area(
 # Close the negative margin div
 st.markdown('</div>', unsafe_allow_html=True)
 
+# Tips for writing a good prompt
+with st.expander("💡 Tips for Writing a Good Prompt"):
+    st.markdown("""
+    **Think of this as describing your preferences to a personal flight itinerary manager who is choosing flights for you.**
+
+    At minimum, clearly describe your preferences with respect to key metrics:
+    - **Price** - Are you budget-conscious or willing to pay more for comfort?
+    - **Duration** - Do you prefer the fastest route or are you flexible?
+    - **Connections** - Direct flights only, or are layovers acceptable?
+    - **Departure/Arrival Times** - Morning person or night owl? Business hours or flexible?
+    - **Airlines** - Any preferences or airlines to avoid?
+
+    **Examples of good preference statements:**
+    - "Prioritize minimizing flight duration, but I'm flexible on price"
+    - "I want the cheapest option, even if it means multiple connections"
+    - "Direct flights only, departing in the evening, prefer Delta or United"
+    - "Balance between price and duration, avoid red-eye flights"
+
+    The more specific you are about your priorities and trade-offs, the better we can understand your preferences!
+    """)
+
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
+    # Validation
+    validation_errors = []
+
+    if not st.session_state.user_name or not st.session_state.user_name.strip():
+        validation_errors.append("Please enter your full name")
+    elif len(st.session_state.user_name.split()) < 2:
+        validation_errors.append("Please enter both first and last name")
+
+    if not st.session_state.user_email or not st.session_state.user_email.strip():
+        validation_errors.append("Please enter your email address")
+    elif '@' not in st.session_state.user_email or '.' not in st.session_state.user_email:
+        validation_errors.append("Please enter a valid email address")
+
     if not prompt or not prompt.strip():
-        st.error("Please describe your flight needs")
+        validation_errors.append("Please describe your flight needs")
+    elif len(prompt.strip()) < 200:
+        validation_errors.append(f"Please provide more detail in your flight description (minimum 200 characters, current: {len(prompt.strip())})")
+
+    if validation_errors:
+        for error in validation_errors:
+            st.error(error)
     else:
         # Clear previous selections and submissions when starting new search
         st.session_state.selected_flights = []
@@ -997,37 +1070,43 @@ if st.session_state.all_flights:
             st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Flights")
             st.markdown("**Select your top 5 flights and drag to rank them →**")
 
-        # Info banner about codeshares (appears once, above all results)
-        with st.container():
-            st.info(
-                "ℹ️ **About Your Results:** Codeshares can show the same flight under different "
-                "airlines at the same or different prices—we label these so you know it's one aircraft."
-            )
+        # Check if there are any codeshares to determine if we should show the info banner
+        outbound_codeshares = detect_codeshares(st.session_state.all_flights)
+        return_codeshares = detect_codeshares(st.session_state.all_return_flights) if has_return else {}
+        has_codeshares = any(outbound_codeshares.values()) or any(return_codeshares.values())
 
-            with st.expander("📖 Learn More: Why Do I See Multiple Entries for the Same Flight?"):
-                st.markdown("""
-                ### FAQ: Codeshare Flights Explained
+        # Info banner about codeshares (only show if codeshares exist)
+        if has_codeshares:
+            with st.container():
+                st.info(
+                    "ℹ️ **About Your Results:** Codeshares can show the same flight under different "
+                    "airlines at the same or different prices—we label these so you know it's one aircraft."
+                )
 
-                **Q: Why do some flights appear multiple times in search results?**
+                with st.expander("📖 Learn More: Why Do I See Multiple Entries for the Same Flight?"):
+                    st.markdown("""
+                    ### FAQ: Codeshare Flights Explained
 
-                Many airlines operate "codeshare" flights. This means one airline operates the plane,
-                but multiple partner airlines sell seats on that same physical flight under different
-                flight numbers.
+                    **Q: Why do some flights appear multiple times in search results?**
 
-                **Example:**
-                - United flight UA123
-                - Lufthansa flight LH9001
+                    Many airlines operate "codeshare" flights. This means one airline operates the plane,
+                    but multiple partner airlines sell seats on that same physical flight under different
+                    flight numbers.
 
-                Both may refer to the same aircraft, same departure and arrival times, same route,
-                and often the same price.
+                    **Example:**
+                    - United flight UA123
+                    - Lufthansa flight LH9001
 
-                ---
+                    Both may refer to the same aircraft, same departure and arrival times, same route,
+                    and often the same price.
 
-                **Q: Are these duplicate flights?**
+                    ---
 
-                Not technically. Each codeshare entry is a different booking option, even though
-                they correspond to the same aircraft.
-                """)
+                    **Q: Are these duplicate flights?**
+
+                    Not technically. Each codeshare entry is a different booking option, even though
+                    they correspond to the same aircraft.
+                    """)
 
         # CONDITIONAL UI: Show single or dual panels based on has_return
         if has_return:
@@ -1108,13 +1187,22 @@ if st.session_state.all_flights:
                         # Check if this flight is a codeshare
                         codeshare_label = ""
                         if outbound_codeshare_map.get(idx, False):
-                            codeshare_label = '<span style="font-size: 0.85em; color: #666; font-style: italic;"> (Codeshare)</span>'
+                            codeshare_label = '<span style="font-size: 0.75em; color: #666; font-style: italic;"> (Codeshare)</span>'
+
+                        # Format stops for display
+                        stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
 
                         st.markdown(f"""
-                        <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
-                        <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}{codeshare_label}<br>
-                        <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
-                        <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
+                        <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
+                        <div style="font-size: 1.1em; font-weight: 600; margin-bottom: 0.2rem;">
+                            <span style="color: #2563eb;">${flight['price']:.0f}</span> •
+                            <span style="color: #059669;">{duration_display}</span> •
+                            <span style="color: #7c3aed;">{stops_text}</span> •
+                            <span style="color: #dc2626;">{dept_time_display}</span>
+                        </div>
+                        <div style="font-size: 0.9em; color: #666;">
+                            {airline_name} {flight['flight_number']}{codeshare_label} | {flight['origin']} → {flight['destination']} | {dept_date_display}
+                        </div>
                         </div>
                         """, unsafe_allow_html=True)
 
@@ -1251,13 +1339,22 @@ if st.session_state.all_flights:
                         # Check if this flight is a codeshare
                         codeshare_label = ""
                         if return_codeshare_map.get(idx, False):
-                            codeshare_label = '<span style="font-size: 0.85em; color: #666; font-style: italic;"> (Codeshare)</span>'
+                            codeshare_label = '<span style="font-size: 0.75em; color: #666; font-style: italic;"> (Codeshare)</span>'
+
+                        # Format stops for display
+                        stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
 
                         st.markdown(f"""
-                        <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
-                        <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}{codeshare_label}<br>
-                        <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
-                        <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
+                        <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
+                        <div style="font-size: 1.1em; font-weight: 600; margin-bottom: 0.2rem;">
+                            <span style="color: #2563eb;">${flight['price']:.0f}</span> •
+                            <span style="color: #059669;">{duration_display}</span> •
+                            <span style="color: #7c3aed;">{stops_text}</span> •
+                            <span style="color: #dc2626;">{dept_time_display}</span>
+                        </div>
+                        <div style="font-size: 0.9em; color: #666;">
+                            {airline_name} {flight['flight_number']}{codeshare_label} | {flight['origin']} → {flight['destination']} | {dept_date_display}
+                        </div>
                         </div>
                         """, unsafe_allow_html=True)
 
@@ -1445,13 +1542,22 @@ if st.session_state.all_flights:
                         # Check if this flight is a codeshare
                         codeshare_label = ""
                         if outbound_codeshare_map.get(idx, False):
-                            codeshare_label = '<span style="font-size: 0.85em; color: #666; font-style: italic;"> (Codeshare)</span>'
+                            codeshare_label = '<span style="font-size: 0.75em; color: #666; font-style: italic;"> (Codeshare)</span>'
+
+                        # Format stops for display
+                        stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
 
                         st.markdown(f"""
-                        <div style="line-height: 1.3; margin: 0; padding: 0.3rem 0;">
-                        <strong>{unique_id}</strong> | <strong>{airline_name}</strong> {flight['flight_number']}{codeshare_label}<br>
-                        <span style="font-size: 0.95em;">{flight['origin']} → {flight['destination']} | <strong>{dept_date_display}</strong> | {dept_time_display} - {arr_time_display}</span><br>
-                        <span style="font-size: 0.9em; color: #555;">${flight['price']:.0f} | {duration_display} | {flight['stops']} stops</span>
+                        <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
+                        <div style="font-size: 1.1em; font-weight: 600; margin-bottom: 0.2rem;">
+                            <span style="color: #2563eb;">${flight['price']:.0f}</span> •
+                            <span style="color: #059669;">{duration_display}</span> •
+                            <span style="color: #7c3aed;">{stops_text}</span> •
+                            <span style="color: #dc2626;">{dept_time_display}</span>
+                        </div>
+                        <div style="font-size: 0.9em; color: #666;">
+                            {airline_name} {flight['flight_number']}{codeshare_label} | {flight['origin']} → {flight['destination']} | {dept_date_display}
+                        </div>
                         </div>
                         """, unsafe_allow_html=True)
 
