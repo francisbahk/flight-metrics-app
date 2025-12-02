@@ -322,10 +322,11 @@ if 'token_message' not in st.session_state:
     st.session_state.token_message = ''
 
 # Get token from URL parameter (?id=TOKEN)
+# Re-validate on every page load to detect if token was used
 query_params = st.query_params
-if 'id' in query_params and not st.session_state.token:
+if 'id' in query_params:
     token = query_params['id']
-    # Validate token
+    # Validate token (checks database to see if it's been used)
     from backend.db import validate_token
     token_status = validate_token(token)
 
