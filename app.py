@@ -477,18 +477,12 @@ st.info("**Note:** This website is part of a pilot data-collection study. The in
 if not st.session_state.token:
     st.error("❌ **Access Denied: No Token Provided**")
     st.warning("This study requires a unique access token. Please use the link provided to you by the researchers.")
-    st.markdown("""
-    **For researchers:** To generate participant tokens, run:
-    ```
-    python3 backend/generate_tokens.py <number_of_tokens>
-    ```
-    """)
     st.stop()
 
 if not st.session_state.token_valid:
     st.error(f"❌ **Access Denied: {st.session_state.token_message}**")
     if 'already used' in st.session_state.token_message.lower():
-        st.warning("This token has already been used. Each participant can only complete the study once.")
+        st.warning("This token has already been used. To request a new token for an additional session, please reach out to the research team.")
     else:
         st.warning("Please check your access link and try again, or contact the researchers if you believe this is an error.")
     st.stop()
