@@ -1083,9 +1083,8 @@ if st.session_state.all_flights:
                         token=st.session_state.token
                     )
 
-                    # Mark token as used
-                    from backend.db import mark_token_used
-                    mark_token_used(st.session_state.token)
+                    # Note: Token will be marked as used AFTER the 15-second countdown
+                    # (see countdown logic below where search_id is displayed)
 
                     # Also save return flight CSV if it exists
                     if st.session_state.get('csv_data_return'):
@@ -1107,8 +1106,9 @@ if st.session_state.all_flights:
 
                     st.session_state.search_id = search_id
                     st.session_state.csv_generated = True
+                    st.session_state.countdown_started = True  # Start countdown phase
                     print(f"[DEBUG] FAILSAFE: Successfully saved! Search ID: {search_id}")
-                    st.rerun()  # Rerun to show the search ID
+                    st.rerun()  # Rerun to show the success message and start countdown
             except Exception as e:
                 print(f"[DEBUG] FAILSAFE: Save failed - {str(e)}")
                 import traceback
@@ -1117,6 +1117,36 @@ if st.session_state.all_flights:
 
         if st.session_state.get('search_id'):
             st.success(f"✅ All rankings submitted successfully! (Search ID: {st.session_state.search_id})")
+
+            # Show countdown if not already completed
+            if st.session_state.get('countdown_started') and not st.session_state.get('countdown_completed'):
+                import time
+                st.info("📋 Please note your Search ID above. This session will end in:")
+
+                # Create countdown display
+                countdown_placeholder = st.empty()
+                progress_placeholder = st.empty()
+
+                for remaining in range(15, 0, -1):
+                    countdown_placeholder.markdown(f"### ⏱️ {remaining} seconds")
+                    progress_placeholder.progress((15 - remaining) / 15)
+                    time.sleep(1)
+
+                # Countdown complete
+                countdown_placeholder.markdown("### ⏱️ 0 seconds")
+                progress_placeholder.progress(1.0)
+
+                # Mark token as used NOW
+                from backend.db import mark_token_used
+                mark_token_used(st.session_state.token)
+
+                # Mark countdown as completed
+                st.session_state.countdown_completed = True
+
+                # Show session ended message
+                st.warning("🔒 Session ended. Thank you for your participation!")
+                st.info("This link can no longer be used. To participate again, please request a new token from the research team.")
+                st.stop()
         elif st.session_state.get('db_save_error'):
             st.warning("⚠️ Rankings submitted but database save failed")
             st.error(f"Database error: {st.session_state.db_save_error}")
@@ -1765,9 +1795,8 @@ if st.session_state.all_flights:
                         token=st.session_state.token
                     )
 
-                    # Mark token as used
-                    from backend.db import mark_token_used
-                    mark_token_used(st.session_state.token)
+                    # Note: Token will be marked as used AFTER the 15-second countdown
+                    # (see countdown logic below where search_id is displayed)
 
                     # Also save return flight CSV to the same search
                     if st.session_state.csv_data_return:
@@ -1788,6 +1817,7 @@ if st.session_state.all_flights:
 
                     st.session_state.csv_generated = True
                     st.session_state.search_id = search_id
+                    st.session_state.countdown_started = True  # Start countdown phase
                     st.success(f"✅ Rankings saved to database! Search ID: {search_id}")
                     st.balloons()
                     st.rerun()
@@ -1973,15 +2003,15 @@ if st.session_state.all_flights:
                                     token=st.session_state.token
                                 )
 
-                                # Mark token as used
-                                from backend.db import mark_token_used
-                                mark_token_used(st.session_state.token)
+                                # Note: Token will be marked as used AFTER the 15-second countdown
+                                # (see countdown logic below where search_id is displayed)
 
                                 print(f"[DEBUG] Save successful! Search ID: {search_id}")
                                 st.session_state.csv_data_outbound = csv_data
                                 st.session_state.outbound_submitted = True
                                 st.session_state.csv_generated = True
                                 st.session_state.search_id = search_id
+                                st.session_state.countdown_started = True  # Start countdown phase
                                 print(f"[DEBUG] Session state updated with search_id: {st.session_state.search_id}")
                                 st.success(f"✅ Rankings saved to database! Search ID: {search_id}")
                                 st.balloons()
