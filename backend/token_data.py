@@ -158,6 +158,199 @@ def export_to_csv(token_data, filename=None):
     return filename
 
 
+def export_to_html(token_data, filename=None):
+    """
+    Export token data to a color-coded HTML file.
+
+    Args:
+        token_data: List of token information dicts
+        filename: Output filename (defaults to token_report_YYYYMMDD_HHMMSS.html)
+
+    Returns:
+        Path to the created HTML file
+    """
+    if filename is None:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"token_report_{timestamp}.html"
+
+    # Define color scheme (mild colors)
+    html_colors = {
+        'amber': '#FFB84D',      # Mild amber for test tokens
+        'blue': '#87CEEB',       # Mild blue for real tokens
+        'green': '#90EE90',      # Mild green for available
+        'red': '#FFB6B9'         # Mild red for used
+    }
+
+    # Calculate summary stats
+    total = len(token_data)
+    test_tokens = sum(1 for t in token_data if t['is_test'])
+    real_tokens = total - test_tokens
+    used = sum(1 for t in token_data if t['is_used'])
+    available = total - used
+
+    # Build HTML
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Token Status Report</title>
+    <style>
+        body {{
+            font-family: 'Courier New', monospace;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+        }}
+        h1 {{
+            text-align: center;
+            border-bottom: 2px solid #4a4a4a;
+            padding-bottom: 10px;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: #2d2d2d;
+        }}
+        th {{
+            background-color: #3a3a3a;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #4a4a4a;
+            font-weight: bold;
+        }}
+        td {{
+            padding: 10px 12px;
+            border-bottom: 1px solid #3a3a3a;
+        }}
+        tr:hover {{
+            background-color: #353535;
+        }}
+        .summary {{
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }}
+        .summary h3 {{
+            margin-top: 0;
+        }}
+        .token-test {{ color: {html_colors['amber']}; font-weight: bold; }}
+        .token-real {{ color: {html_colors['blue']}; font-weight: bold; }}
+        .status-used {{ color: {html_colors['red']}; font-weight: bold; }}
+        .status-available {{ color: {html_colors['green']}; font-weight: bold; }}
+        .legend {{
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }}
+        .legend-item {{
+            display: inline-block;
+            margin-right: 20px;
+        }}
+        .color-box {{
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            margin-right: 5px;
+            vertical-align: middle;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TOKEN STATUS REPORT</h1>
+
+        <div class="legend">
+            <h3>Color Legend:</h3>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: {html_colors['amber']}"></span>
+                <span>Test Tokens (TEST*)</span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: {html_colors['blue']}"></span>
+                <span>Real Tokens</span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: {html_colors['green']}"></span>
+                <span>Available</span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: {html_colors['red']}"></span>
+                <span>Used</span>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Token</th>
+                    <th>Type</th>
+                    <th>Created At</th>
+                    <th>Status</th>
+                    <th>Used At</th>
+                    <th>Search ID</th>
+                </tr>
+            </thead>
+            <tbody>
+"""
+
+    # Add data rows
+    for token_info in token_data:
+        token_class = 'token-test' if token_info['is_test'] else 'token-real'
+        status_class = 'status-used' if token_info['is_used'] else 'status-available'
+
+        created_str = token_info['created_at'].strftime('%Y-%m-%d %H:%M:%S') if token_info['created_at'] else 'N/A'
+        used_str = token_info['used_at'].strftime('%Y-%m-%d %H:%M:%S') if token_info['used_at'] else '-'
+        search_str = str(token_info['search_id']) if token_info['search_id'] else '-'
+        status_text = 'USED' if token_info['is_used'] else 'AVAILABLE'
+
+        html += f"""                <tr>
+                    <td class="{token_class}">{token_info['token']}</td>
+                    <td class="{token_class}">{token_info['type']}</td>
+                    <td>{created_str}</td>
+                    <td class="{status_class}">{status_text}</td>
+                    <td>{used_str}</td>
+                    <td>{search_str}</td>
+                </tr>
+"""
+
+    # Add summary
+    html += f"""            </tbody>
+        </table>
+
+        <div class="summary">
+            <h3>Summary</h3>
+            <p><strong>Total Tokens:</strong> {total}</p>
+            <p>
+                <span class="token-real"><strong>Real Tokens:</strong> {real_tokens}</span> |
+                <span class="token-test"><strong>Test Tokens:</strong> {test_tokens}</span>
+            </p>
+            <p>
+                <span class="status-used"><strong>Used:</strong> {used}</span> |
+                <span class="status-available"><strong>Available:</strong> {available}</span>
+            </p>
+        </div>
+
+        <p style="text-align: center; color: #888; margin-top: 30px;">
+            Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        </p>
+    </div>
+</body>
+</html>
+"""
+
+    with open(filename, 'w') as f:
+        f.write(html)
+
+    return filename
+
+
 if __name__ == "__main__":
     print("=" * 120)
     print("FETCHING TOKEN DATA FROM DATABASE...")
@@ -175,9 +368,13 @@ if __name__ == "__main__":
         # Print colored table to terminal
         print_colored_table(token_data)
 
-        # Export to CSV
+        # Export to CSV and HTML
         csv_filename = export_to_csv(token_data)
-        print(f"✓ Token data exported to: {csv_filename}")
+        html_filename = export_to_html(token_data)
+
+        print(f"✓ Token data exported to:")
+        print(f"  - CSV:  {csv_filename}")
+        print(f"  - HTML: {html_filename} (color-coded, open in browser)")
         print(f"\n{Colors.BOLD}Color Coding Reference:{Colors.RESET}")
         print(f"  Token Type:  {Colors.AMBER}■{Colors.RESET} Test tokens (TEST*)  |  {Colors.BLUE}■{Colors.RESET} Real tokens")
         print(f"  Status:      {Colors.GREEN}■{Colors.RESET} Available          |  {Colors.RED}■{Colors.RESET} Used")
