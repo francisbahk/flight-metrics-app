@@ -368,13 +368,10 @@ if __name__ == "__main__":
         # Print colored table to terminal
         print_colored_table(token_data)
 
-        # Export to CSV and HTML
-        csv_filename = export_to_csv(token_data)
+        # Export to HTML only
         html_filename = export_to_html(token_data)
 
-        print(f"✓ Token data exported to:")
-        print(f"  - CSV:  {csv_filename}")
-        print(f"  - HTML: {html_filename} (color-coded, open in browser)")
+        print(f"✓ Token data exported to: {html_filename} (color-coded HTML report)")
         print(f"\n{Colors.BOLD}Color Coding Reference:{Colors.RESET}")
         print(f"  Token Type:  {Colors.AMBER}■{Colors.RESET} Test tokens (TEST*)  |  {Colors.BLUE}■{Colors.RESET} Real tokens")
         print(f"  Status:      {Colors.GREEN}■{Colors.RESET} Available          |  {Colors.RED}■{Colors.RESET} Used")
