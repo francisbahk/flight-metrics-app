@@ -508,7 +508,7 @@ with st.expander("💡 Tips for Writing a Good Prompt"):
     - **Duration** - Do you prefer the fastest route or are you flexible?
     - **Connections** - Direct flights only, or are layovers acceptable?
     - **Departure/Arrival Times** - Morning person or night owl? Business hours or flexible?
-    - **Airlines** - Any preferences or airlines to avoid? *(Note: Some major airlines like Delta, JetBlue, and Southwest are not available through the Amadeus API)*
+    - **Airlines** - Any preferences or airlines to avoid? *(Note: Some major airlines like American Airlines, Delta and British Airways are not available through the Amadeus Flights API)*
 
     **Examples of good preference statements:**
     - "Prioritize minimizing flight duration, but I'm flexible on price"
