@@ -383,6 +383,8 @@ if 'csv_data_outbound' not in st.session_state:
     st.session_state.csv_data_outbound = None
 if 'csv_data_return' not in st.session_state:
     st.session_state.csv_data_return = None
+if 'review_confirmed' not in st.session_state:
+    st.session_state.review_confirmed = False
 # Filter state
 if 'filter_airlines' not in st.session_state:
     st.session_state.filter_airlines = []
@@ -493,14 +495,38 @@ st.success(f"✅ Access granted! Token: {st.session_state.token}")
 # How to Use section
 st.markdown("### 📖 How to Use")
 st.markdown("""
-1. **Describe your flight** - Enter your travel details in natural language (origin, destination, dates, preferences)
-2. **Review results** - Browse all available flights
+1. **Describe your flight** - Enter your travel details in natural language (origin, destination, dates, preferences). Imagine you're actually booking this trip — get in the mindset to make it feel real! Consider mentioning filter attributes like price, connections, duration, departure/arrival times, and airlines to help guide your selection.
+2. **Review results** - Browse all available flights. Use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports.
 3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
 4. **Drag to rank** - Reorder your selections by dragging them in the right panel
 5. **Submit** - Click submit to save your rankings (download as CSV optional)
 
 **Note:** If your search includes a return flight, scroll down after the outbound flights to see the return flights section and submit those rankings separately.
 """)
+
+# Tips for writing a good prompt
+with st.expander("💡 Tips for Writing a Good Prompt"):
+    st.markdown("""
+    **Think of this as describing your preferences to a personal flight itinerary manager who is choosing flights for you.**
+
+    💡 **Take some time to write your preferences** — imagine that the results will be reordered based on what you write. The preferences you write will be used in future research to evaluate how well algorithms return flights that align with your preferences, requirements, and persona.
+
+    At minimum, clearly describe your preferences with respect to key metrics:
+    - **Price** - Are you budget-conscious or willing to pay more for reduced travel time?
+    - **Duration** - Do you prefer the fastest route or are you flexible?
+    - **Connections** - Direct flights only, or are layovers acceptable?
+    - **Departure/Arrival Times** - Morning person or night owl? Business hours or flexible?
+    - **Airlines** - Any preferences or airlines to avoid? *(Note: Some major airlines like Delta, JetBlue, and Southwest are not available through the Amadeus API)*
+
+    **Examples of good preference statements:**
+    - "Prioritize minimizing flight duration, but I'm flexible on price"
+    - "I want the cheapest option, even if it means multiple connections"
+    - "Direct flights only, departing in the evening, prefer United or American"
+    - "Balance between price and duration, avoid red-eye flights"
+    - "Would pay up to $300 more if it means being there on time" *(expressing trade-offs helps!)*
+
+    The more specific you are about your priorities and trade-offs, the better we can understand your preferences!
+    """)
 
 # # User Information Section (COMMENTED OUT - Now using token-based auth)
 # st.markdown("### 👤 Your Information")
@@ -715,27 +741,6 @@ prompt = st.text_area(
 # Close the negative margin div
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Tips for writing a good prompt
-with st.expander("💡 Tips for Writing a Good Prompt"):
-    st.markdown("""
-    **Think of this as describing your preferences to a personal flight itinerary manager who is choosing flights for you.**
-
-    At minimum, clearly describe your preferences with respect to key metrics:
-    - **Price** - Are you budget-conscious or willing to pay more for reduced travel time?
-    - **Duration** - Do you prefer the fastest route or are you flexible?
-    - **Connections** - Direct flights only, or are layovers acceptable?
-    - **Departure/Arrival Times** - Morning person or night owl? Business hours or flexible?
-    - **Airlines** - Any preferences or airlines to avoid?
-
-    **Examples of good preference statements:**
-    - "Prioritize minimizing flight duration, but I'm flexible on price"
-    - "I want the cheapest option, even if it means multiple connections"
-    - "Direct flights only, departing in the evening, prefer Delta or United"
-    - "Balance between price and duration, avoid red-eye flights"
-
-    The more specific you are about your priorities and trade-offs, the better we can understand your preferences!
-    """)
-
 # Search button
 if st.button("🔍 Search Flights", type="primary", use_container_width=True):
     # Validation
@@ -772,6 +777,7 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
         st.session_state.return_submitted = False
         st.session_state.csv_data_outbound = None
         st.session_state.csv_data_return = None
+        st.session_state.review_confirmed = False
 
         with st.spinner("✨ Parsing your request and searching flights..."):
             try:
@@ -1041,12 +1047,61 @@ if st.session_state.all_flights:
         print(f"[DEBUG] Completion screen - db_save_error: {st.session_state.get('db_save_error')}")
         print(f"[DEBUG] Completion screen - csv_generated: {st.session_state.get('csv_generated')}")
 
-        # FAILSAFE: If submitted but no search_id and no error, try saving now
+        # FAILSAFE: If submitted but no search_id and no error, check if we need review or can save
         # Check for either csv_generated (single panel) OR outbound_submitted+return_submitted (dual panel)
         ready_to_save = (st.session_state.get('csv_generated') or
                         (st.session_state.get('outbound_submitted') and st.session_state.get('return_submitted')))
 
-        if ready_to_save and not st.session_state.get('search_id') and not st.session_state.get('db_save_error'):
+        # REVIEW SECTION: Show before saving to database
+        if ready_to_save and not st.session_state.get('search_id') and not st.session_state.get('db_save_error') and not st.session_state.get('review_confirmed'):
+            st.markdown("---")
+            st.markdown("## 📋 Review Your Results")
+            st.markdown("Before finalizing your submission, please review your prompt and ensure it accurately captures your preferences.")
+
+            # Show current prompt
+            st.markdown("### Your Current Prompt:")
+            st.info(st.session_state.get('original_prompt', ''))
+
+            # Questions for reflection
+            with st.expander("❓ Review Questions", expanded=True):
+                st.markdown("""
+                Please consider the following:
+                - Does your prompt accurately describe your persona and preferences?
+                - Did you include all the preferences you used when selecting flights?
+                - Are your trade-offs and priorities clearly stated?
+                - Is there anything you forgot to mention that influenced your rankings?
+
+                **Example:** If you prioritized cheap flights but didn't mention it in your prompt, you should add it!
+                """)
+
+            # Option to edit prompt
+            st.markdown("### Edit Your Prompt (Optional)")
+            edited_prompt = st.text_area(
+                "If you'd like to revise your prompt, edit it here:",
+                value=st.session_state.get('original_prompt', ''),
+                height=150,
+                key="edited_prompt"
+            )
+
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button("✏️ Update Prompt", use_container_width=True):
+                    st.session_state.original_prompt = edited_prompt
+                    st.success("✅ Prompt updated!")
+                    st.rerun()
+
+            with col2:
+                if st.button("✅ Confirm & Submit Final Results", type="primary", use_container_width=True):
+                    # Update prompt if edited
+                    if edited_prompt != st.session_state.get('original_prompt', ''):
+                        st.session_state.original_prompt = edited_prompt
+                    st.session_state.review_confirmed = True
+                    st.rerun()
+
+            st.stop()  # Stop here until user confirms
+
+        # Now save to database ONLY after review is confirmed
+        if ready_to_save and not st.session_state.get('search_id') and not st.session_state.get('db_save_error') and st.session_state.get('review_confirmed'):
             st.info("⚙️ Attempting to save to database...")
             print(f"[DEBUG] FAILSAFE: Attempting database save in completion screen")
             try:
@@ -1164,6 +1219,7 @@ if st.session_state.all_flights:
                     st.session_state.selected_return_flights = []
                     st.session_state.all_flights = []
                     st.session_state.all_return_flights = []
+                    st.session_state.review_confirmed = False
 
                     st.info("🔄 Refresh the page to start a new search!")
                     st.stop()
@@ -1207,6 +1263,7 @@ if st.session_state.all_flights:
                 st.session_state.csv_data_return = None
                 st.session_state.has_return = False
                 st.session_state.parsed_params = None
+                st.session_state.review_confirmed = False
                 st.session_state.search_id = None
                 st.session_state.db_save_error = None
                 # Delete the prompt key to reset it (can't set widget values directly)
@@ -1642,8 +1699,16 @@ if st.session_state.all_flights:
                 else:
                     st.info("Select 5 outbound flights")
 
+            # Navigation hint to return flights
+            st.markdown("---")
+            st.info("⬇️ **Scroll down** to view and rank Return Flights below")
+
             # RETURN FLIGHTS SECTION
             st.markdown("## 🛬 Return Flights")
+
+            # Navigation button back to outbound flights
+            if st.button("⬆️ Back to Departure Flights", key="nav_to_outbound", use_container_width=False):
+                st.rerun()
 
             col_flights_ret, col_ranking_ret = st.columns([2, 1])
 

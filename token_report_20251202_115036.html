@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Token Status Report</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            border-bottom: 2px solid #4a4a4a;
+            padding-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: #2d2d2d;
+        }
+        th {
+            background-color: #3a3a3a;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #4a4a4a;
+            font-weight: bold;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #3a3a3a;
+        }
+        tr:hover {
+            background-color: #353535;
+        }
+        .summary {
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .summary h3 {
+            margin-top: 0;
+        }
+        .token-test { color: #FFB84D; font-weight: bold; }
+        .token-real { color: #87CEEB; font-weight: bold; }
+        .status-used { color: #FFB6B9; font-weight: bold; }
+        .status-available { color: #90EE90; font-weight: bold; }
+        .legend {
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .legend-item {
+            display: inline-block;
+            margin-right: 20px;
+        }
+        .color-box {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TOKEN STATUS REPORT</h1>
+
+        <div class="legend">
+            <h3>Color Legend:</h3>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: #FFB84D"></span>
+                <span>Test Tokens (TEST*)</span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: #87CEEB"></span>
+                <span>Real Tokens</span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: #90EE90"></span>
+                <span>Available</span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: #FFB6B9"></span>
+                <span>Used</span>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Token</th>
+                    <th>Type</th>
+                    <th>Created At</th>
+                    <th>Status</th>
+                    <th>Used At</th>
+                    <th>Search ID</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="token-real">22JE8HWR</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-02 05:49:48</td>
+                    <td class="status-available">AVAILABLE</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td class="token-real">7QRZU3H1</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-02 05:49:48</td>
+                    <td class="status-available">AVAILABLE</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td class="token-real">8JOT8YY9</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-02 05:49:48</td>
+                    <td class="status-available">AVAILABLE</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td class="token-real">DK55VOH8</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-02 05:49:48</td>
+                    <td class="status-used">USED</td>
+                    <td>2025-12-02 16:03:34</td>
+                    <td>52</td>
+                </tr>
+                <tr>
+                    <td class="token-real">KC1WFPCU</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-02 05:49:48</td>
+                    <td class="status-available">AVAILABLE</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td class="token-real">201CPC08</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-02 05:49:48</td>
+                    <td class="status-available">AVAILABLE</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td class="token-real">RPGNM57J</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-02 05:49:48</td>
+                    <td class="status-available">AVAILABLE</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td class="token-real">SUWKAX6S</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-02 05:49:48</td>
+                    <td class="status-available">AVAILABLE</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td class="token-real">WBYAIKQJ</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-02 05:49:48</td>
+                    <td class="status-available">AVAILABLE</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td class="token-real">Y3OS6FW1</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-02 05:49:48</td>
+                    <td class="status-available">AVAILABLE</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td class="token-test">TEST7ACUH</td>
+                    <td class="token-test">TEST</td>
+                    <td>2025-12-02 04:55:43</td>
+                    <td class="status-used">USED</td>
+                    <td>2025-12-02 05:34:57</td>
+                    <td>51</td>
+                </tr>
+                <tr>
+                    <td class="token-test">TESTJ6VSD</td>
+                    <td class="token-test">TEST</td>
+                    <td>2025-12-02 04:55:43</td>
+                    <td class="status-used">USED</td>
+                    <td>2025-12-02 05:23:22</td>
+                    <td>50</td>
+                </tr>
+                <tr>
+                    <td class="token-test">TESTUE36Y</td>
+                    <td class="token-test">TEST</td>
+                    <td>2025-12-02 04:55:43</td>
+                    <td class="status-available">AVAILABLE</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td class="token-real">EJC8PUUO</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-01 23:40:51</td>
+                    <td class="status-used">USED</td>
+                    <td>2025-12-01 23:58:52</td>
+                    <td>48</td>
+                </tr>
+                <tr>
+                    <td class="token-real">IS8XTXXI</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-01 23:40:51</td>
+                    <td class="status-available">AVAILABLE</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td class="token-real">ZCZ4J3DE</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-01 23:36:32</td>
+                    <td class="status-available">AVAILABLE</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td class="token-real">MJBZXXN3</td>
+                    <td class="token-real">REAL</td>
+                    <td>2025-12-01 23:36:32</td>
+                    <td class="status-available">AVAILABLE</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="summary">
+            <h3>Summary</h3>
+            <p><strong>Total Tokens:</strong> 17</p>
+            <p>
+                <span class="token-real"><strong>Real Tokens:</strong> 14</span> |
+                <span class="token-test"><strong>Test Tokens:</strong> 3</span>
+            </p>
+            <p>
+                <span class="status-used"><strong>Used:</strong> 4</span> |
+                <span class="status-available"><strong>Available:</strong> 13</span>
+            </p>
+        </div>
+
+        <p style="text-align: center; color: #888; margin-top: 30px;">
+            Generated on 2025-12-02 11:50:36
+        </p>
+    </div>
+</body>
+</html>
