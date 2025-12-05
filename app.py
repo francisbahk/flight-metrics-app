@@ -495,8 +495,8 @@ st.success(f"✅ Access granted! Token: {st.session_state.token}")
 # How to Use section
 st.markdown("### 📖 How to Use")
 st.markdown("""
-1. **Describe your flight** - Enter your travel details in natural language (origin, destination, dates, preferences). Imagine you're actually booking this trip — get in the mindset to make it feel real! Consider mentioning filter attributes like price, connections, duration, departure/arrival times, and airlines to help guide your selection.
-2. **Review results** - Browse all available flights. Use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports.
+1. **Describe your flight** - Enter your travel details in natural language, as if you are telling a flight itinerary manager how to book your ideal trip. What would you want them to know? Include your origin, destination, travel dates, and any preferences (such as price, number of connections, trip duration, preferred departure or arrival times, airlines, or other personal choices).
+2. **Review results** - Browse all available flights. After you submit your prompt, use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports.
 3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
 4. **Drag to rank** - Reorder your selections by dragging them in the right panel
 5. **Submit** - Click submit to save your rankings (download as CSV optional)
@@ -504,7 +504,7 @@ st.markdown("""
 **Note:** If your search includes a return flight, scroll down after the outbound flights to see the return flights section and submit those rankings separately.
 """)
 
-# Tips for writing a good prompt
+# Tips for writing a good prompt (now placed under step 1)
 with st.expander("💡 Tips for Writing a Good Prompt"):
     st.markdown("""
     **Think of this as describing your preferences to a personal flight itinerary manager who is choosing flights for you.**
