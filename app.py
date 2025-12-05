@@ -1136,17 +1136,37 @@ if st.session_state.all_flights:
                 countdown_placeholder.markdown("### ⏱️ 0 seconds")
                 progress_placeholder.progress(1.0)
 
-                # Mark token as used NOW
-                from backend.db import mark_token_used
-                mark_token_used(st.session_state.token)
+                # Mark token as used NOW (unless it's the DEMO token)
+                if st.session_state.token != "DEMO":
+                    from backend.db import mark_token_used
+                    mark_token_used(st.session_state.token)
 
-                # Mark countdown as completed
-                st.session_state.countdown_completed = True
+                    # Mark countdown as completed
+                    st.session_state.countdown_completed = True
 
-                # Show session ended message
-                st.warning("🔒 Session ended. Thank you for your participation!")
-                st.info("This link can no longer be used. To participate again, please request a new token from the research team.")
-                st.stop()
+                    # Show session ended message
+                    st.warning("🔒 Session ended. Thank you for your participation!")
+                    st.info("This link can no longer be used. To participate again, please request a new token from the research team.")
+                    st.stop()
+                else:
+                    # DEMO token - allow continued use
+                    st.session_state.countdown_completed = True
+                    st.success("✅ Thank you! You can continue using this demo link to submit more rankings.")
+                    st.info("💡 This is a DEMO token - you can use it as many times as you want!")
+
+                    # Clear the submission states to allow new submission
+                    st.session_state.outbound_submitted = False
+                    st.session_state.return_submitted = False
+                    st.session_state.csv_generated = False
+                    st.session_state.countdown_started = False
+                    st.session_state.countdown_completed = False
+                    st.session_state.selected_flights = []
+                    st.session_state.selected_return_flights = []
+                    st.session_state.all_flights = []
+                    st.session_state.all_return_flights = []
+
+                    st.info("🔄 Refresh the page to start a new search!")
+                    st.stop()
         elif st.session_state.get('db_save_error'):
             st.warning("⚠️ Rankings submitted but database save failed")
             st.error(f"Database error: {st.session_state.db_save_error}")
