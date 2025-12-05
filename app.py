@@ -495,16 +495,10 @@ st.success(f"✅ Access granted! Token: {st.session_state.token}")
 # How to Use section
 st.markdown("### 📖 How to Use")
 st.markdown("""
-1. **Describe your flight** - Enter your travel details in natural language, as if you are telling a flight itinerary manager how to book your ideal trip. What would you want them to know? Include your origin, destination, travel dates, and any preferences (such as price, number of connections, trip duration, preferred departure or arrival times, airlines, or other personal choices).
-2. **Review results** - Browse all available flights. After you submit your prompt, use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports.
-3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
-4. **Drag to rank** - Reorder your selections by dragging them in the right panel
-5. **Submit** - Click submit to save your rankings (download as CSV optional)
-
-**Note:** If your search includes a return flight, scroll down after the outbound flights to see the return flights section and submit those rankings separately.
+1. **Describe your flight** - Enter your travel details in natural language, as if you are telling a flight itinerary manager how to book your ideal trip. What would you want them to know?
 """)
 
-# Tips for writing a good prompt (now placed under step 1)
+# Tips for writing a good prompt (placed between steps 1 and 2)
 with st.expander("💡 Tips for Writing a Good Prompt"):
     st.markdown("""
     **Think of this as describing your preferences to a personal flight itinerary manager who is choosing flights for you.**
@@ -527,6 +521,15 @@ with st.expander("💡 Tips for Writing a Good Prompt"):
 
     The more specific you are about your priorities and trade-offs, the better we can understand your preferences!
     """)
+
+st.markdown("""
+2. **Review results** - Browse all available flights. After you submit your prompt, use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports.
+3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
+4. **Drag to rank** - Reorder your selections by dragging them in the right panel
+5. **Submit** - Click submit to save your rankings (download as CSV optional)
+
+**Note:** If your search includes a return flight, scroll down after the outbound flights to see the return flights section and submit those rankings separately.
+""")
 
 # # User Information Section (COMMENTED OUT - Now using token-based auth)
 # st.markdown("### 👤 Your Information")
@@ -1544,6 +1547,7 @@ if st.session_state.all_flights:
         # CONDITIONAL UI: Show single or dual panels based on has_return
         if has_return:
             # DUAL PANEL LAYOUT: Outbound + Return
+            st.markdown('<div id="outbound-flights"></div>', unsafe_allow_html=True)
             st.markdown("## 🛫 Outbound Flights")
 
             col_flights_out, col_ranking_out = st.columns([2, 1])
@@ -1699,16 +1703,61 @@ if st.session_state.all_flights:
                 else:
                     st.info("Select 5 outbound flights")
 
-            # Navigation hint to return flights
-            st.markdown("---")
-            st.info("⬇️ **Scroll down** to view and rank Return Flights below")
+            # Floating navigation button to return flights
+            st.markdown("""
+                <style>
+                    .jump-to-return {
+                        position: fixed;
+                        bottom: 30px;
+                        right: 30px;
+                        background-color: #FF4B4B;
+                        color: white;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        text-decoration: none;
+                        font-weight: 600;
+                        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+                        z-index: 1000;
+                        cursor: pointer;
+                        transition: background-color 0.3s, transform 0.2s;
+                    }
+                    .jump-to-return:hover {
+                        background-color: #E63946;
+                        transform: translateY(-2px);
+                    }
+                </style>
+                <a href="#return-flights" class="jump-to-return">⬇️ Jump to Return Flights</a>
+            """, unsafe_allow_html=True)
 
             # RETURN FLIGHTS SECTION
+            st.markdown('<div id="return-flights"></div>', unsafe_allow_html=True)
             st.markdown("## 🛬 Return Flights")
 
-            # Navigation button back to outbound flights
-            if st.button("⬆️ Back to Departure Flights", key="nav_to_outbound", use_container_width=False):
-                st.rerun()
+            # Floating navigation button back to departure flights
+            st.markdown("""
+                <style>
+                    .jump-to-departure {
+                        position: fixed;
+                        top: 80px;
+                        right: 30px;
+                        background-color: #0066CC;
+                        color: white;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        text-decoration: none;
+                        font-weight: 600;
+                        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+                        z-index: 1000;
+                        cursor: pointer;
+                        transition: background-color 0.3s, transform 0.2s;
+                    }
+                    .jump-to-departure:hover {
+                        background-color: #0052A3;
+                        transform: translateY(-2px);
+                    }
+                </style>
+                <a href="#outbound-flights" class="jump-to-departure">⬆️ Back to Departure Flights</a>
+            """, unsafe_allow_html=True)
 
             col_flights_ret, col_ranking_ret = st.columns([2, 1])
 

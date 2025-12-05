@@ -226,9 +226,9 @@ def get_test_api_fallback(airport_code: str) -> tuple[str, Optional[str]]:
         (fallback_code, warning_message)
     """
     fallbacks = {
-        'ITH': ('SYR', 'Ithaca (ITH) not in test API, using Syracuse (SYR)'),
-        'ELM': ('SYR', 'Elmira (ELM) not in test API, using Syracuse (SYR)'),
-        'BGM': ('SYR', 'Binghamton (BGM) not in test API, using Syracuse (SYR)'),
+        'ITH': ('SYR', 'Ithaca (ITH) not in API, using Syracuse (SYR)'),
+        'ELM': ('SYR', 'Elmira (ELM) not in API, using Syracuse (SYR)'),
+        'BGM': ('SYR', 'Binghamton (BGM) not in API, using Syracuse (SYR)'),
     }
 
     if airport_code in fallbacks:
