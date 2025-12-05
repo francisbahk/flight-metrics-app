@@ -501,8 +501,6 @@ st.markdown("""
 # Tips for writing a good prompt (placed between steps 1 and 2)
 with st.expander("💡 Tips for Writing a Good Prompt"):
     st.markdown("""
-    **Think of this as describing your preferences to a personal flight itinerary manager who is choosing flights for you.**
-
     💡 **Take some time to write your preferences** — imagine that the results will be reordered based on what you write. The preferences you write will be used in future research to evaluate how well algorithms return flights that align with your preferences, requirements, and persona.
 
     At minimum, clearly describe your preferences with respect to key metrics:
@@ -1176,6 +1174,39 @@ if st.session_state.all_flights:
         if st.session_state.get('search_id'):
             st.success(f"✅ All rankings submitted successfully! (Search ID: {st.session_state.search_id})")
 
+            # Provide CSV downloads
+            st.markdown("### 📥 Download Your Rankings")
+
+            if has_return:
+                col_csv1, col_csv2 = st.columns(2)
+                with col_csv1:
+                    if st.session_state.get('csv_data_outbound'):
+                        st.download_button(
+                            label="📄 Download Outbound Rankings CSV",
+                            data=st.session_state.csv_data_outbound,
+                            file_name=f"outbound_rankings_{st.session_state.search_id}.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+                with col_csv2:
+                    if st.session_state.get('csv_data_return'):
+                        st.download_button(
+                            label="📄 Download Return Rankings CSV",
+                            data=st.session_state.csv_data_return,
+                            file_name=f"return_rankings_{st.session_state.search_id}.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+            else:
+                if st.session_state.get('csv_data_outbound'):
+                    st.download_button(
+                        label="📄 Download Rankings CSV",
+                        data=st.session_state.csv_data_outbound,
+                        file_name=f"flight_rankings_{st.session_state.search_id}.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+
             # Show countdown if not already completed
             if st.session_state.get('countdown_started') and not st.session_state.get('countdown_completed'):
                 import time
@@ -1709,24 +1740,33 @@ if st.session_state.all_flights:
                     .jump-to-return {
                         position: fixed;
                         bottom: 30px;
-                        right: 30px;
-                        background-color: #FF4B4B;
-                        color: white;
-                        padding: 12px 24px;
-                        border-radius: 8px;
+                        right: 50%;
+                        transform: translateX(50%);
+                        background-color: rgba(255, 255, 255, 0.1);
+                        color: #4A4A4A;
+                        width: 60px;
+                        height: 60px;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
                         text-decoration: none;
-                        font-weight: 600;
-                        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+                        font-size: 24px;
+                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
                         z-index: 1000;
                         cursor: pointer;
                         transition: background-color 0.3s, transform 0.2s;
+                        border: 1px solid rgba(74, 74, 74, 0.2);
                     }
                     .jump-to-return:hover {
-                        background-color: #E63946;
-                        transform: translateY(-2px);
+                        background-color: rgba(255, 255, 255, 0.2);
+                        transform: translateX(50%) translateY(-2px);
+                    }
+                    .jump-to-return::before {
+                        content: '▼';
                     }
                 </style>
-                <a href="#return-flights" class="jump-to-return">⬇️ Jump to Return Flights</a>
+                <a href="#return-flights" class="jump-to-return"></a>
             """, unsafe_allow_html=True)
 
             # RETURN FLIGHTS SECTION
@@ -1739,24 +1779,33 @@ if st.session_state.all_flights:
                     .jump-to-departure {
                         position: fixed;
                         top: 80px;
-                        right: 30px;
-                        background-color: #0066CC;
-                        color: white;
-                        padding: 12px 24px;
-                        border-radius: 8px;
+                        right: 50%;
+                        transform: translateX(50%);
+                        background-color: rgba(255, 255, 255, 0.1);
+                        color: #4A4A4A;
+                        width: 60px;
+                        height: 60px;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
                         text-decoration: none;
-                        font-weight: 600;
-                        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+                        font-size: 24px;
+                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
                         z-index: 1000;
                         cursor: pointer;
                         transition: background-color 0.3s, transform 0.2s;
+                        border: 1px solid rgba(74, 74, 74, 0.2);
                     }
                     .jump-to-departure:hover {
-                        background-color: #0052A3;
-                        transform: translateY(-2px);
+                        background-color: rgba(255, 255, 255, 0.2);
+                        transform: translateX(50%) translateY(-2px);
+                    }
+                    .jump-to-departure::before {
+                        content: '▲';
                     }
                 </style>
-                <a href="#outbound-flights" class="jump-to-departure">⬆️ Back to Departure Flights</a>
+                <a href="#outbound-flights" class="jump-to-departure"></a>
             """, unsafe_allow_html=True)
 
             col_flights_ret, col_ranking_ret = st.columns([2, 1])
