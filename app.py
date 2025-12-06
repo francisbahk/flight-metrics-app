@@ -497,10 +497,7 @@ components.html("""
     #changing-word {
         display: inline-block;
         transition: all 2s ease-in-out;
-    }
-
-    #changing-word.italic {
-        font-style: italic;
+        font-style: italic; /* Always italic */
     }
 
     #ai-prefix {
@@ -524,10 +521,7 @@ components.html("""
     .subtitle span {
         display: inline-block;
         transition: all 0.8s ease-in-out;
-    }
-
-    .subtitle span.italic {
-        font-style: italic;
+        font-style: italic; /* Always italic */
     }
 </style>
 </head>
@@ -603,7 +597,6 @@ components.html("""
                 setTimeout(function() {
                     // Change text and slide in "Recommendations" from the right
                     changingWord.textContent = 'Recommendations';
-                    changingWord.classList.add('italic');
                     changingWord.style.transform = 'translateX(30px)';
                     setTimeout(function() {
                         changingWord.style.transform = 'translateX(0)';
@@ -637,7 +630,6 @@ components.html("""
                     setTimeout(function() {
                         // Change text and slide in "Ranker" from the right
                         changingWord.textContent = 'Ranker';
-                        changingWord.classList.remove('italic');
                         changingWord.style.transform = 'translateX(30px)';
                         setTimeout(function() {
                             changingWord.style.transform = 'translateX(0)';
@@ -653,7 +645,7 @@ components.html("""
         lastPhase = currentPhase;
     }
 
-    function animateSubtitleWord(wordId, newText, delay, addItalic) {
+    function animateSubtitleWord(wordId, newText, delay) {
         setTimeout(function() {
             const word = document.getElementById(wordId);
             if (word) {
@@ -662,12 +654,6 @@ components.html("""
 
                 setTimeout(function() {
                     word.textContent = newText;
-                    // Add or remove italic class
-                    if (addItalic) {
-                        word.classList.add('italic');
-                    } else {
-                        word.classList.remove('italic');
-                    }
                     word.style.transform = 'rotateX(0deg)';
                     word.style.opacity = '1';
                 }, 600);
@@ -687,12 +673,12 @@ components.html("""
         if (cyclePosition >= 0.40 && cyclePosition < 0.45) {
             if (!subtitleAnimating) {
                 subtitleAnimating = true;
-                // Animate words one by one, left to right with more time per word (add italic)
-                animateSubtitleWord('word1', 'receive', 0, true);
-                animateSubtitleWord('word2', 'smart', 800, true);
-                animateSubtitleWord('word3', 'fast', 1600, true);
-                animateSubtitleWord('word4', 'flight', 2400, true);
-                animateSubtitleWord('word5', 'results', 3200, true);
+                // Animate words one by one, left to right with more time per word
+                animateSubtitleWord('word1', 'receive', 0);
+                animateSubtitleWord('word2', 'smart', 800);
+                animateSubtitleWord('word3', 'fast', 1600);
+                animateSubtitleWord('word4', 'flight', 2400);
+                animateSubtitleWord('word5', 'results', 3200);
                 setTimeout(function() { subtitleAnimating = false; }, 4400);
             }
         }
@@ -700,12 +686,12 @@ components.html("""
         else if (cyclePosition >= 0.88 && cyclePosition < 0.93) {
             if (!subtitleAnimating && !titleAnimating) {  // Wait for title to finish
                 subtitleAnimating = true;
-                // Revert to original words (remove italic)
-                animateSubtitleWord('word1', 'help', 0, false);
-                animateSubtitleWord('word2', 'build', 800, false);
-                animateSubtitleWord('word3', 'better', 1600, false);
-                animateSubtitleWord('word4', 'ranking', 2400, false);
-                animateSubtitleWord('word5', 'systems', 3200, false);
+                // Revert to original words
+                animateSubtitleWord('word1', 'help', 0);
+                animateSubtitleWord('word2', 'build', 800);
+                animateSubtitleWord('word3', 'better', 1600);
+                animateSubtitleWord('word4', 'ranking', 2400);
+                animateSubtitleWord('word5', 'systems', 3200);
                 setTimeout(function() { subtitleAnimating = false; }, 4400);
             }
         }
