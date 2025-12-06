@@ -594,28 +594,39 @@ components.html("""
                 }, 600);
             }
         }
-        // Phase 3 (32-40%): Slide in "AI-Selected" from the left
+        // Phase 3 (32-40%): Slide in "AI-Driven" from the left
         else if (cyclePosition >= 0.32 && cyclePosition < 0.40) {
             if (!titleAnimating && aiPrefix.style.opacity !== '1') {
                 titleAnimating = true;
-                aiPrefix.textContent = 'AI-Selected';
+                aiPrefix.textContent = 'AI-Driven';
                 aiPrefix.style.opacity = '1';
                 aiPrefix.style.transform = 'translateX(0)';
                 setTimeout(function() { titleAnimating = false; }, 1500);
             }
         }
-        // Phase 4 (40-80%): Hold "AI-Selected Flight Recommendations"
+        // Phase 4 (40-80%): Hold "AI-Driven Flight Recommendations"
         else if (cyclePosition >= 0.40 && cyclePosition < 0.80) {
             // Just hold
         }
-        // Phase 5 (80-90%): Slide out "AI-Selected " then flip back to "Ranker"
-        else if (cyclePosition >= 0.80 && cyclePosition < 0.90) {
+        // Phase 5 (80-85%): Slide out "AI-Driven" and flip to "Ranker", then animate subtitle
+        else if (cyclePosition >= 0.80 && cyclePosition < 0.85) {
             if (!titleAnimating && aiPrefix.style.opacity !== '0') {
                 titleAnimating = true;
-                // Slide out AI-Selected to the left
+                // Slide out AI-Driven to the left
                 aiPrefix.style.opacity = '0';
                 aiPrefix.style.transform = 'translateX(-20px)';
-                setTimeout(function() { titleAnimating = false; }, 1500);
+                // Flip word back to "Ranker" after AI-Driven slides out
+                setTimeout(function() {
+                    changingWord.style.transform = 'rotateX(90deg)';
+                    changingWord.style.opacity = '0';
+                    setTimeout(function() {
+                        changingWord.textContent = 'Ranker';
+                        changingWord.style.transform = 'rotateX(0deg)';
+                        changingWord.style.opacity = '1';
+                        aiPrefix.textContent = '';
+                        titleAnimating = false;  // Now subtitle can animate
+                    }, 600);
+                }, 600);
             }
         }
 
@@ -656,9 +667,9 @@ components.html("""
                 setTimeout(function() { subtitleAnimating = false; }, 3500);
             }
         }
-        // Animate back to original at 90%
-        else if (cyclePosition >= 0.90 && cyclePosition < 0.95) {
-            if (!subtitleAnimating) {
+        // Animate back to original at 88% (after title finishes at ~85%)
+        else if (cyclePosition >= 0.88 && cyclePosition < 0.93) {
+            if (!subtitleAnimating && !titleAnimating) {  // Wait for title to finish
                 subtitleAnimating = true;
                 animateSubtitleWord('word1', 'help', 0);
                 animateSubtitleWord('word2', 'build', 600);
