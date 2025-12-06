@@ -469,9 +469,139 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Header
-st.markdown('<div class="main-title">✈️ Flight Ranker</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Share your flight preferences to help build better personalized ranking systems</div>', unsafe_allow_html=True)
+# Header with animated title flip
+st.markdown('''
+<style>
+    @keyframes flipWord {
+        0%, 45% {
+            transform: rotateY(0deg);
+            opacity: 1;
+        }
+        48% {
+            transform: rotateY(90deg);
+            opacity: 0;
+        }
+        52% {
+            transform: rotateY(-90deg);
+            opacity: 0;
+        }
+        55%, 95% {
+            transform: rotateY(0deg);
+            opacity: 1;
+        }
+        98% {
+            transform: rotateY(90deg);
+            opacity: 0;
+        }
+        100% {
+            transform: rotateY(0deg);
+            opacity: 1;
+        }
+    }
+
+    @keyframes slideExpand {
+        0%, 45% {
+            transform: translateX(0);
+        }
+        55%, 95% {
+            transform: translateX(80px);
+        }
+        100% {
+            transform: translateX(0);
+        }
+    }
+
+    @keyframes fadeInOut {
+        0%, 45% {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        55%, 95% {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        100% {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+    }
+
+    .animated-title-container {
+        position: relative;
+        display: inline-block;
+        min-height: 50px;
+    }
+
+    .title-part {
+        display: inline-block;
+        animation: slideExpand 20s ease-in-out infinite;
+    }
+
+    .flip-word {
+        display: inline-block;
+        animation: flipWord 20s ease-in-out infinite;
+        transform-style: preserve-3d;
+        perspective: 1000px;
+    }
+
+    .ai-prefix {
+        display: inline-block;
+        animation: fadeInOut 20s ease-in-out infinite;
+        margin-right: 8px;
+    }
+</style>
+
+<div class="main-title">
+    <span class="ai-prefix">AI-Selected</span>
+    <span class="animated-title-container">
+        <span>✈️ </span>
+        <span class="title-part">Flight </span>
+        <span class="flip-word">Ranker</span>
+    </span>
+</div>
+
+<style>
+    @keyframes morphSubtitle {
+        0%, 45% {
+            opacity: 1;
+        }
+        48%, 52% {
+            opacity: 0;
+        }
+        55%, 95% {
+            opacity: 1;
+        }
+        98%, 100% {
+            opacity: 1;
+        }
+    }
+
+    .subtitle-morph {
+        animation: morphSubtitle 20s ease-in-out infinite;
+    }
+</style>
+
+<div class="subtitle subtitle-morph" id="morphing-subtitle"></div>
+
+<script>
+    const subtitle = document.getElementById('morphing-subtitle');
+    const text1 = 'Share your flight preferences to help build better personalized ranking systems';
+    const text2 = 'Receive smart, personalized flight results';
+
+    function updateSubtitle() {
+        const cycle = (Date.now() % 20000) / 20000; // 20 second cycle
+
+        if (cycle < 0.45 || cycle >= 0.98) {
+            subtitle.textContent = text1;
+        } else if (cycle >= 0.55 && cycle < 0.95) {
+            subtitle.textContent = text2;
+        }
+    }
+
+    updateSubtitle();
+    setInterval(updateSubtitle, 100);
+</script>
+''', unsafe_allow_html=True)
 
 st.info("**Note:** This website is part of a pilot data-collection study. The information collected will be used to improve flight search tools.")
 
@@ -743,8 +873,16 @@ prompt = st.text_area(
 # Close the negative margin div
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Search button
-if st.button("🔍 Search Flights", type="primary", use_container_width=True):
+# Search buttons
+col_btn1, col_btn2 = st.columns(2)
+
+with col_btn1:
+    ai_search = st.button("🤖 Search Flights with AI Personalization", type="secondary", use_container_width=True)
+
+with col_btn2:
+    regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True)
+
+if ai_search or regular_search:
     # Validation
     validation_errors = []
 
@@ -974,7 +1112,38 @@ if st.button("🔍 Search Flights", type="primary", use_container_width=True):
                 airline_name_map = amadeus.get_airline_names(unique_airlines)
                 st.session_state.airline_names = airline_name_map
 
-                # Store all flights (no algorithm ranking)
+                # Apply AI ranking if AI search button was pressed
+                if ai_search:
+                    st.info("🤖 Running LISTEN-U AI personalization (5 iterations)...")
+                    try:
+                        from backend.listen_main_wrapper import rank_flights_with_listen_main
+
+                        preferences = parsed.get('preferences', {})
+                        preferences['origins'] = parsed.get('origins', [])
+                        preferences['destinations'] = parsed.get('destinations', [])
+
+                        # Rank outbound flights with LISTEN-U (5 iterations)
+                        all_flights = rank_flights_with_listen_main(
+                            flights=all_flights,
+                            user_prompt=prompt,
+                            user_preferences=preferences,
+                            iterations=5
+                        )
+
+                        # Rank return flights if present
+                        if has_return and all_return_flights:
+                            all_return_flights = rank_flights_with_listen_main(
+                                flights=all_return_flights,
+                                user_prompt=prompt,
+                                user_preferences=preferences,
+                                iterations=5
+                            )
+
+                        st.success("✅ AI personalization complete! Flights ranked by LISTEN-U algorithm.")
+                    except Exception as e:
+                        st.warning(f"⚠️ AI personalization failed ({str(e)}), showing unranked results")
+
+                # Store all flights
                 st.session_state.all_flights = all_flights
                 st.session_state.all_return_flights = all_return_flights
 
@@ -1333,7 +1502,7 @@ if st.session_state.all_flights:
                 .persistent-progress-container {{
                     position: fixed;
                     top: 60px;
-                    left: calc(var(--sidebar-width, 21rem) + 60px);
+                    left: 380px;
                     right: 20px;
                     z-index: 999;
                     background-color: rgba(255, 255, 255, 1);
@@ -1341,11 +1510,6 @@ if st.session_state.all_flights:
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
                     border-radius: 8px;
                     animation: progressPulse 60s ease-in-out infinite;
-                    transition: left 0.3s ease;
-                }}
-                /* Adjust when sidebar is collapsed */
-                [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stAppViewContainer"] .persistent-progress-container {{
-                    left: 60px;
                 }}
                 .persistent-progress-bar {{
                     width: 100%;
@@ -1889,16 +2053,11 @@ if st.session_state.all_flights:
                 <style>
                     .subway-nav {{
                         position: fixed;
-                        left: calc(var(--sidebar-width, 21rem) + 60px);
+                        left: 380px;
                         top: 50%;
                         transform: translateY(-50%);
                         z-index: 1000;
                         padding: 0;
-                        transition: left 0.3s ease;
-                    }}
-                    /* Adjust position when sidebar is collapsed */
-                    [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stAppViewContainer"] .subway-nav {{
-                        left: 60px;
                     }}
                     .subway-nav ul {{
                         list-style: none;
