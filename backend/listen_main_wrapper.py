@@ -162,9 +162,28 @@ def rank_flights_with_listen_main(
                 # This is a placeholder - actual parsing depends on LISTEN output format
                 pass
 
-    # Final fallback: Return all flights in original order (at least they ran through LISTEN)
-    print(f"  ⚠️ Could not parse LISTEN ranking, returning all flights")
-    return flights
+    # TEMPORARY FIX: Since LISTEN output parsing isn't working, sort by user preferences
+    print(f"  ⚠️ Could not parse LISTEN ranking from output files")
+    print(f"  ⚠️ Applying preference-based sorting as fallback...")
+
+    # Extract preference from user_preferences
+    prefer_cheap = user_preferences.get('preferences', {}).get('prefer_cheap', True) if user_preferences else True
+    prefer_nonstop = user_preferences.get('preferences', {}).get('prefer_nonstop', False) if user_preferences else False
+
+    # Sort flights based on preferences
+    sorted_flights = sorted(flights, key=lambda f: (
+        # Primary: price (ascending if cheap, descending if expensive)
+        f['price'] if prefer_cheap else -f['price'],
+        # Secondary: nonstop preference
+        f['stops'] if not prefer_nonstop else -f['stops'],
+        # Tertiary: duration
+        f['duration_min']
+    ))
+
+    print(f"  ✓ Sorted by preferences: prefer_cheap={prefer_cheap}, prefer_nonstop={prefer_nonstop}")
+    print(f"  ✓ First 3 flight prices (sorted): {[f['price'] for f in sorted_flights[:3]]}")
+
+    return sorted_flights
 
 
 def cleanup_listen_files(tag: str):
