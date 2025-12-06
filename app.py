@@ -1198,7 +1198,7 @@ if ai_search or regular_search:
                             flights=all_flights,
                             user_prompt=prompt,
                             user_preferences=preferences,
-                            iterations=5
+                            n_iterations=5
                         )
 
                         # Rank return flights if present
@@ -1207,7 +1207,7 @@ if ai_search or regular_search:
                                 flights=all_return_flights,
                                 user_prompt=prompt,
                                 user_preferences=preferences,
-                                iterations=5
+                                n_iterations=5
                             )
 
                         st.success("✅ AI personalization complete! Flights ranked by LISTEN-U algorithm.")
