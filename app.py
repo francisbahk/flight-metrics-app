@@ -525,6 +525,10 @@ components.html("""
         display: inline-block;
         transition: all 0.8s ease-in-out;
     }
+
+    .subtitle span.italic {
+        font-style: italic;
+    }
 </style>
 </head>
 <body>
@@ -649,7 +653,7 @@ components.html("""
         lastPhase = currentPhase;
     }
 
-    function animateSubtitleWord(wordId, newText, delay) {
+    function animateSubtitleWord(wordId, newText, delay, addItalic) {
         setTimeout(function() {
             const word = document.getElementById(wordId);
             if (word) {
@@ -658,6 +662,12 @@ components.html("""
 
                 setTimeout(function() {
                     word.textContent = newText;
+                    // Add or remove italic class
+                    if (addItalic) {
+                        word.classList.add('italic');
+                    } else {
+                        word.classList.remove('italic');
+                    }
                     word.style.transform = 'rotateX(0deg)';
                     word.style.opacity = '1';
                 }, 600);
@@ -677,12 +687,12 @@ components.html("""
         if (cyclePosition >= 0.40 && cyclePosition < 0.45) {
             if (!subtitleAnimating) {
                 subtitleAnimating = true;
-                // Animate words one by one, left to right with more time per word
-                animateSubtitleWord('word1', 'receive', 0);
-                animateSubtitleWord('word2', 'smart', 800);
-                animateSubtitleWord('word3', 'fast', 1600);
-                animateSubtitleWord('word4', 'flight', 2400);
-                animateSubtitleWord('word5', 'results', 3200);
+                // Animate words one by one, left to right with more time per word (add italic)
+                animateSubtitleWord('word1', 'receive', 0, true);
+                animateSubtitleWord('word2', 'smart', 800, true);
+                animateSubtitleWord('word3', 'fast', 1600, true);
+                animateSubtitleWord('word4', 'flight', 2400, true);
+                animateSubtitleWord('word5', 'results', 3200, true);
                 setTimeout(function() { subtitleAnimating = false; }, 4400);
             }
         }
@@ -690,11 +700,12 @@ components.html("""
         else if (cyclePosition >= 0.88 && cyclePosition < 0.93) {
             if (!subtitleAnimating && !titleAnimating) {  // Wait for title to finish
                 subtitleAnimating = true;
-                animateSubtitleWord('word1', 'help', 0);
-                animateSubtitleWord('word2', 'build', 800);
-                animateSubtitleWord('word3', 'better', 1600);
-                animateSubtitleWord('word4', 'ranking', 2400);
-                animateSubtitleWord('word5', 'systems', 3200);
+                // Revert to original words (remove italic)
+                animateSubtitleWord('word1', 'help', 0, false);
+                animateSubtitleWord('word2', 'build', 800, false);
+                animateSubtitleWord('word3', 'better', 1600, false);
+                animateSubtitleWord('word4', 'ranking', 2400, false);
+                animateSubtitleWord('word5', 'systems', 3200, false);
                 setTimeout(function() { subtitleAnimating = false; }, 4400);
             }
         }
