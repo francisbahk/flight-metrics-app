@@ -67,7 +67,7 @@ def rank_flights_with_listen_main(
     print(f"  ⏳ Expected runtime: ~{n_iterations * 5} seconds (Gemini rate limiting: 13 req/min)")
 
     cmd = [
-        "/usr/local/bin/python3.11",  # Use Python 3.11 (LISTEN requires 3.10+ for union type syntax)
+        "/usr/bin/python3",  # System Python 3 (3.9.6 on production server)
         "main.py",
         "--scenario", tag,
         "--algo", "utility",  # Main LISTEN algorithm - learns utility function over iterations
@@ -87,12 +87,11 @@ def rank_flights_with_listen_main(
         )
 
         if result.returncode != 0:
-            print(f"  ⚠️ LISTEN main.py failed:")
-            print(f"  STDOUT: {result.stdout[:500]}")
-            print(f"  STDERR: {result.stderr[:500]}")
-            # Return all flights in original order (no biased ranking)
-            print(f"  ⚠️ Returning unranked flights due to LISTEN failure")
-            return flights
+            error_msg = f"LISTEN main.py failed with return code {result.returncode}"
+            print(f"  ⚠️ {error_msg}")
+            print(f"  STDOUT: {result.stdout}")
+            print(f"  STDERR: {result.stderr}")
+            raise RuntimeError(f"{error_msg}\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}")
 
         print(f"  ✓ LISTEN completed successfully!")
 
@@ -101,14 +100,14 @@ def rank_flights_with_listen_main(
         print(f"  {result.stdout[-1000:]}")
         print()
 
-    except subprocess.TimeoutExpired:
-        print(f"  ⚠️ LISTEN timed out after 5 minutes")
-        print(f"  ⚠️ Returning unranked flights due to timeout")
-        return flights
+    except subprocess.TimeoutExpired as e:
+        error_msg = f"LISTEN timed out after 10 minutes"
+        print(f"  ⚠️ {error_msg}")
+        raise RuntimeError(error_msg) from e
     except Exception as e:
-        print(f"  ⚠️ Error running LISTEN: {str(e)}")
-        print(f"  ⚠️ Returning unranked flights due to error")
-        return flights
+        error_msg = f"Error running LISTEN: {str(e)}"
+        print(f"  ⚠️ {error_msg}")
+        raise RuntimeError(error_msg) from e
 
     # Step 4: Parse LISTEN JSON output to get utility function and rank ALL flights
     print(f"  ✓ Parsing LISTEN results...")
@@ -198,13 +197,18 @@ def rank_flights_with_listen_main(
 
             except Exception as e:
                 import traceback
-                print(f"  ⚠️ Error parsing LISTEN JSON output: {str(e)}")
+                error_msg = f"Error parsing LISTEN JSON output: {str(e)}"
+                print(f"  ⚠️ {error_msg}")
                 print(f"  ⚠️ Traceback: {traceback.format_exc()}")
+                raise RuntimeError(error_msg) from e
 
-    # Fallback: return original flights if parsing failed
-    print(f"  ⚠️ Could not find or parse LISTEN output, returning original order")
+    # No fallback - if we get here, LISTEN didn't produce expected output
+    error_msg = f"LISTEN did not produce expected JSON output in {output_dir}"
+    print(f"  ⚠️ {error_msg}")
     print(f"  ⚠️ Output directory checked: {output_dir}")
-    return flights
+    if output_dir.exists():
+        print(f"  ⚠️ Directory contents: {list(output_dir.iterdir())}")
+    raise RuntimeError(error_msg)
 
 
 def cleanup_listen_files(tag: str):
