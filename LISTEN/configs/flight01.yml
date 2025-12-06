@@ -1,0 +1,255 @@
+tag: flight01
+data_csv: input/New York City_Chicago_combined_numeric.csv
+metric_columns:
+  - name
+  - origin
+  - destination
+  - departure time
+  - arrival time
+  - duration
+  - stops
+  - price
+  - dis_from_origin
+  - dis_from_dest
+  - departure_seconds
+  - arrival_seconds
+  - duration_min
+  
+metric_signs:
+  name: 0
+  origin: 0
+  destination: 0
+  departure time: 0
+  arrival time: 0
+  duration: 0
+  stops: -1
+  price: -1
+  dis_from_origin: -1
+  dis_from_dest: -1
+  departure_seconds: -1
+  arrival_seconds: 0
+  duration_min: -1
+
+non_metric_metrics:
+  - name
+  - origin
+  - destination
+  - departure time
+  - arrival time
+  - duration
+
+prompts:
+  scenario_header: |
+    You are an expert travel scheduling agent that specializes in air fare.
+    The data set is only for a one-way flight. In this case, it is the second leg of a round trip. 
+    Use these definitions:
+    • name: name of airline operating the flight
+    • origin: origin airport
+    • destination: destination airport
+    • departure time: time of departure from origin airport
+    • arrival time: time of arrival at destination airport
+    • duration: how long the flight is
+    • stops: number of layover stops
+    • price: cost of the flight
+    • dis_from_origin: distance of origin airport from where the customer prefers (lower is better)
+    • dis_from_dest: distance of arrival airport from where the customer prefers (lower is better)
+    • departure_seconds: time of departure since a fixed date in seconds
+    • arrival_seconds: time of arrival since a fixed date in seconds
+    • duration_min: duration of total flight in minutes (lower is better)
+
+  comparison_base: |
+    {scenario_header}
+    Your task: Identify the SINGLE BEST flight from the options below.
+
+  utility_base: |
+    {scenario_header}
+    Your task: Define a utility function by assigning weights to these metrics, reflecting priorities for customer satisfaction. Use positive weights for metrics where higher is better and negative weights where lower is better.
+
+    Each metric is first mapped to a normalized [0,1] preference score.
+
+    Return your response in this EXACT JSON format (include ALL listed metric keys):
+    {
+      "weights": {
+      "stops": 0.0,
+      "price":0.0,
+      "dis_from_origin":0.0,
+      "dis_from_dest":0.0,
+      "departure_seconds":0.0,
+      "arrival_seconds":0.0,
+      "duration_min":0.0
+      },
+      "formula": "utility = sum(weight_i * score_i) for all metrics (score_i ∈ [0,1])",
+      "description": "Brief explanation of your weighting rationale"
+    }
+
+    STRICT OUTPUT RULES:
+    - Output ONLY a valid JSON object. No code fences. No prose. No Python.
+    - Weights may be positive or negative. Use positive weights where higher is better and negative weights where lower is better.
+    - Do not include any additional keys beyond weights, formula, description.
+    - Ensure every weight key exactly matches the metric names listed above.
+    - End your output with the delimiter: <END_JSON>
+
+  utility_refinement: |
+    You are refining a utility function for flight itinerary selection (iteration {iteration}).
+
+    CURRENT UTILITY FUNCTION (that produced the best flight below):
+    Weights: {weights}
+    Formula: {formula}
+    Description: {description}
+
+    BEST FLIGHT FOUND with the above utility function:
+    {best_solution}
+
+    ANALYSIS:
+    - Does the flight align with the desired time?
+    - Does the flight chosen factor in cost based on customer desire?
+    - Is this the most optimal flight?
+
+    Your task: Based on this best flight, adjust the utility function weights if needed. 
+    Consider:
+    {policy_guidance}
+
+    Return your response in this EXACT JSON format (include ALL listed metric keys):
+    {{
+      "weights": {{
+      "stops":  <adjusted_weight>,
+      "price": <adjusted_weight>,
+      "dis_from_origin": <adjusted_weight>,
+      "dis_from_dest": <adjusted_weight>,
+      "departure_seconds": <adjusted_weight>,
+      "arrival_seconds": <adjusted_weight>,
+      "duration_min": <adjusted_weight>
+      }},
+      "formula": "utility = sum(weight_i * score_i) for all metrics (score_i ∈ [0,1])",
+      "description": "Brief explanation of your adjustments and reasoning based on the best schedule shown above"
+    }}
+
+    STRICT OUTPUT RULES:
+    - Output ONLY a valid JSON object. No code fences. No prose. No Python.
+    - Weights may be positive or negative. Use positive weights where higher is better and negative weights where lower is better.
+    - Do not include any additional keys beyond weights, formula, description.
+    - Ensure every weight key exactly matches the metric names in the initial prompt.
+    - If no change is needed, return the previous weights unchanged in the JSON.
+    - End your output with the delimiter: <END_JSON>
+
+# Modes for flight01 scenario
+default_mode: Cost
+modes:
+  Cost:
+    prompt: >
+      Make sure to prioritize minimizing the cost of the flight. This is the most important metric.
+    weights:
+      stops: 0
+      price: -1
+      dis_from_origin: 0
+      dis_from_dest: 0
+      departure_seconds: 0
+      arrival_seconds: 0
+      duration_min: 0
+  HEIGH:
+    prompt: >
+      Your first priority is to minimize cost, then the second priority is to minimize stops then finally maximize the amount of time in the destination.
+    weights:
+      stops: -2
+      price: -3
+      dis_from_origin: 0
+      dis_from_dest: 0
+      departure_seconds: 1
+      arrival_seconds: 0
+      duration_min: 0
+
+  Minimize distance:
+    prompt: >
+      Minimize the distance the customer has to travel to and from the airport.
+    weights:
+      stops: 0
+      price: 0
+      dis_from_origin: -1
+      dis_from_dest: -1
+      departure_seconds: 0
+      arrival_seconds: 0
+      duration_min: 0
+  BASE:
+    prompt: >
+
+    weights:
+      stops: -10
+      price: -8
+      dis_from_origin: -3
+      dis_from_dest: -3
+      departure_seconds: 0
+      arrival_seconds: 0
+      duration_min: -5
+  Complicated:
+    prompt: >
+      I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports. I heavily prefer to fly into ORD. 
+      I do not feel the need to strictly minimize cost; however, I would prefer to keep the fare to under 400 dollars. Obviously, if different flights meet my requirements, I prefer the cheaper one. I prefer direct flights.
+      I would like to maximize my time in NYC on Sunday. It would be ideal to leave on the second-to-last flight leaving from the departure airport to Chicago, in case of delays and cancellations. Worst case, I would like there to be an early Monday morning departure to Chicago from the airport, in case of cancellations. 
+      I have no preference for airline. I would prefer to not leave NYC before 5 PM. I am okay with an early morning departure, as long as I arrive in Chicago by around 9 AM, as I will need to go to work. The earlier the arrival Monday morning, the better.
+    weights:
+      stops: -5.160969
+      price: -0.663106
+      dis_from_origin: -0.121922
+      dis_from_dest: -0.023018
+      departure_seconds: 0.465901
+      arrival_seconds: -0.675123
+    human_sol: [126, 302, 336, 136, 632, 471, 633, 640, 472, 485, 581, 469, 138, 139]
+
+  Complicated_structured:
+    prompt: >
+      Objective:
+        I am looking for a one-way flight for two adults from New York City to Chicago on Sunday, October 12, 2025. The main goal is to maximize our time in NYC on Sunday, while building in a practical buffer for potential travel disruptions.
+
+      Primary Requirements (Must-Haves):
+        - Route: New York City (JFK, LGA, or EWR) to Chicago O'Hare (ORD).
+        - Passengers: 2 adults.
+        - Departure Date: Sunday, October 12, 2025.
+        - Departure Time: Must be 5:00 PM or later.
+        - Budget: The fare must be under $400 per ticket.
+        - Contingency Requirement: For any recommended flight, there must be at least one backup flight available from the same departure airport early on Monday, October 13, that arrives in Chicago (ORD) by 9:00 AM.
+
+        Secondary Preferences (Tie-Breakers):
+        - These preferences should be used to select the best flight from the options that meet all the primary requirements.
+        - Optimal Flight Choice: The ideal flight is the second-to-last available flight of the day that meets the above criteria. This provides a buffer in case of delays or cancellations.
+        - Flight Type: Direct (non-stop) flights are strongly preferred.
+        - Cost: Among flights that meet all requirements, the cheapest option is best.
+        - Monday Arrival: For the backup Monday flight, an earlier arrival time in Chicago is better.
+        - Airline: No airline preference.
+    weights:
+      stops: -85.519567
+      price: -0.579673
+      dis_from_origin: -0.086445
+      dis_from_dest: -0.067119
+      departure_seconds: 9.635548
+      arrival_seconds: -10.707800
+    human_sol: [126, 302, 336, 136, 632, 471, 633, 640, 472, 485, 581, 469, 138, 139]
+
+
+  Complicated_structured_no_hard:
+    prompt: >
+      Objective:
+        I am looking for a one-way flight for two adults from New York City to Chicago on Sunday, October 12, 2025. The main goal is to maximize our time in NYC on Sunday, while building in a practical buffer for potential travel disruptions.
+
+      Preferences:
+        - Route: New York City (JFK, LGA, or EWR) to Chicago O'Hare (ORD).
+        - Passengers: 2 adults.
+        - Departure Date: Sunday, October 12, 2025.
+        - Departure Time: I prefer to depart 5:00 PM or later.
+        - Budget: I prefer the fare to be under $400 per ticket.
+        - Contingency Preference: For any recommended flight, I prefer there to be at least one backup flight available from the same departure airport early on Monday, October 13, that arrives in Chicago (ORD) by 9:00 AM.
+        - Optimal Flight Choice: The ideal flight would be the second-to-last available flight of the day that meets the above criteria. This provides a buffer in case of delays or cancellations.
+        - Flight Type: Direct (non-stop) flights are strongly preferred.
+        - Cost: Among flights that meet all requirements, the cheapest option is best.
+        - Monday Arrival: Monday morning arrival is okay. However, an earlier arrival time in Chicago is better.
+        - Airline: No airline preference.
+    weights:
+      stops: -5.160969
+      price: -0.663106
+      dis_from_origin: -0.121922
+      dis_from_dest: -0.023018
+      departure_seconds: 0.465901
+      arrival_seconds: -0.675123
+    human_sol: [126, 302, 336, 136, 632, 471, 633, 640, 472, 485, 581, 469, 138, 139, 137, 112, 2]
+
+   
+

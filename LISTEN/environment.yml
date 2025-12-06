@@ -1,0 +1,29 @@
+name: listen
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  # numerics & viz
+  - pandas
+  - numpy
+  - scikit-learn
+  - scipy
+  - matplotlib
+  - seaborn
+  - python-dotenv
+  # GPU stack
+  - pytorch
+  - pytorch-cuda=12.4
+  # HF core
+  - huggingface_hub
+  - safetensors
+  - pip:
+      - vllm>=0.5.4
+      - transformers>=4.44.0
+      - openai
+      - groq
+      - flashinfer-python
+      - google-generativeai

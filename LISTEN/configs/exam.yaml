@@ -1,0 +1,263 @@
+tag: exam
+data_csv: input/exam_data.csv
+metric_columns:
+  - conflicts
+  - quints
+  - quads
+  - four in five slots
+  - triple in 24h (no gaps)
+  - triple in same day (no gaps)
+  - three in four slots
+  - evening/morning b2b
+  - other b2b
+  - two in three slots
+  - avg_max
+
+metric_signs:
+  conflicts: -1
+  quints: -1
+  quads: -1
+  four in five slots: -1
+  triple in 24h (no gaps): -1
+  triple in same day (no gaps): -1
+  three in four slots: -1
+  evening/morning b2b: -1
+  other b2b: -1
+  two in three slots: -1
+  avg_max: -1
+
+prompts:
+  scenario_header: |
+    You are an expert university registrar choosing the best final-exam schedule.
+    Use these definitions (lower is better unless stated otherwise):
+    • conflicts: 2 exams at the same time (requires makeup)
+    • quints: 5 in a row (requires makeup)
+    • quads: 4 in a row (requires makeup)
+    • four in five slots: 4 within 5 (requires makeup)
+    • triple in 24h (no gaps): 3 within 24h, consecutive (requires makeup)
+    • triple in same day (no gaps): 3 in one day, consecutive (requires makeup)
+    • three in four slots: 3 within 4 slots
+    • evening/morning b2b: evening into next morning
+    • other b2b: any other back-to-back pair
+    • two in three slots: 2 within 3 slots
+    • avg_max: average slot of each student’s last exam (lower is earlier finish)
+
+  comparison_base: |
+    {scenario_header}
+    Your task: Identify the SINGLE BEST schedule from the options below.
+
+  utility_base: |
+    {scenario_header}
+    Your task: Define a utility function by assigning weights to these metrics, reflecting priorities for student welfare and administrative efficiency. Use positive weights for metrics where higher is better and negative weights where lower is better.
+    Each metric is first mapped to a normalized [0,1] preference score.
+
+    Return your response in this EXACT JSON format (include ALL listed metric keys):
+    {
+      "weights": {
+        "conflicts": 0.0,
+        "quints": 0.0,
+        "quads": 0.0,
+        "four in five slots": 0.0,
+        "triple in 24h (no gaps)": 0.0,
+        "triple in same day (no gaps)": 0.0,
+        "three in four slots": 0.0,
+        "evening/morning b2b": 0.0,
+        "other b2b": 0.0,
+        "two in three slots": 0.0,
+        "avg_max": 0.0
+      },
+      "formula": "utility = sum(weight_i * score_i) for all metrics (score_i ∈ [0,1])",
+      "description": "Brief explanation of your weighting rationale"
+    }
+
+    STRICT OUTPUT RULES:
+    - Output ONLY a valid JSON object. No code fences. No prose. No Python.
+    - Weights may be positive or negative. Use positive weights where higher is better and negative weights where lower is better.
+    - Do not include any additional keys beyond weights, formula, description.
+    - Ensure every weight key exactly matches the metric names listed above.
+    - End your output with the delimiter: <END_JSON>
+
+  utility_refinement: |
+    You are refining a utility function for exam schedule evaluation (iteration {iteration}).
+    Each metric is first mapped to a normalized [0,1] preference score.
+
+    CURRENT UTILITY FUNCTION (that produced the best schedule below):
+    Weights: {weights}
+    Formula: {formula}
+    Description: {description}
+
+    BEST SCHEDULE FOUND with the above utility function:
+    {best_solution}
+
+    ANALYSIS:
+    - Does this schedule seem reasonable for student welfare and administrative efficiency?
+    - Are any metrics concerning given their severity levels?
+    - Should any penalties be increased or decreased?
+
+    Your task: Based on this best schedule, adjust the utility function weights if needed. 
+    Consider:
+    {policy_guidance}
+
+    Return your response in this EXACT JSON format (include ALL listed metric keys):
+    {{
+      "weights": {{
+        "conflicts": <adjusted_weight>,
+        "quints": <adjusted_weight>,
+        "quads": <adjusted_weight>,
+        "four in five slots": <adjusted_weight>,
+        "triple in 24h (no gaps)": <adjusted_weight>,
+        "triple in same day (no gaps)": <adjusted_weight>,
+        "three in four slots": <adjusted_weight>,
+        "evening/morning b2b": <adjusted_weight>,
+        "other b2b": <adjusted_weight>,
+        "two in three slots": <adjusted_weight>,
+        "avg_max": <adjusted_weight>
+      }},
+      "formula": "utility = sum(weight_i * score_i) for all metrics (score_i ∈ [0,1])",
+      "description": "Brief explanation of your adjustments and reasoning based on the best schedule shown above"
+    }}
+
+    STRICT OUTPUT RULES:
+    - Output ONLY a valid JSON object. No code fences. No prose. No Python.
+    - Weights may be positive or negative. Use positive weights where higher is better and negative weights where lower is better.
+    - Do not include any additional keys beyond weights, formula, description.
+    - Ensure every weight key exactly matches the metric names in the initial prompt.
+    - If no change is needed, return the previous weights unchanged in the JSON.
+    - End your output with the delimiter: <END_JSON>
+
+# Modes for exam scenario
+default_mode: B2B
+modes:
+  BASE:
+    prompt: >
+      
+  B2B:
+    prompt: >
+      Make sure to prioritize minimizing back to back exams (evening/morning b2b / other b2b). This is the most important metric.
+    weights:
+      conflicts: 0
+      quints: 0
+      quads: 0
+      four in five slots: 0
+      triple in 24h (no gaps): 0
+      triple in same day (no gaps): 0
+      three in four slots: 0
+      evening/morning b2b: -1
+      other b2b: -1
+      two in three slots: 0
+  HEIGH:
+    prompt: >
+      Your first priority is to minimize conflicts, then the second priority is to minimize triples (triple in 24h (no gaps), triple in same day (no gaps)) then finally minimize back to back exams (evening/morning b2b, other b2b).
+    weights:
+      conflicts: -3
+      quints: 0
+      quads: 0
+      four in five slots: 0
+      triple in 24h (no gaps): -2
+      triple in same day (no gaps): -2
+      three in four slots: 0
+      evening/morning b2b: -1
+      other b2b: -1
+      two in three slots: 0
+  REGISTRAR:
+    prompt: >
+      *Objective:* To generate an optimal final examination schedule that minimizes student stress and administrative burden by optimizing a specific set of metrics according to a tiered priority system. 
+      *Context:* There are three exam slots available per day. Solutions must have a conflicts value of 0 or 1. 
+      *Tier 1:* Minimize Mandatory Reschedules The highest priority is to minimize the metrics associated with intense exam clusters that require a mandatory reschedule. Please minimize the following metrics in the order listed: quints (five exams in 24 hours) quads (four exams in 24 hours) four in five slots triple in 24h (no gaps) triple in same day (no gaps) 
+      *Tier 2:* Reduce Student Exam Fatigue Once Tier 1 objectives have been met, the primary tie-breaker is to minimize the total number of back-to-back exams. This objective is achieved by minimizing the sum of the following two metrics: evening/morning b2b other b2b 
+      *Tier 3:* Enhance Overall Schedule Quality As a final set of tie-breakers, prioritize schedules that improve the general student experience by optimizing these metrics in order of preference: Lower the avg_max (the average slot of a student's final exam). Minimize two in three slots. Minimize three in four slots.
+    weights:
+      conflicts: -0.010966
+      quints: -0.202926
+      quads: 0.059445
+      four in five slots: -0.002785
+      triple in 24h (no gaps): -0.128615
+      triple in same day (no gaps): 0.016317
+      three in four slots: -0.007103
+      evening/morning b2b: 0.048622
+      other b2b: 0.059812
+      two in three slots: -0.054344
+      avg_max: -0.023368
+    # human_sol: [
+    #   1519,
+    #   4344,
+    #   2091,
+    #   2620,
+    #   1527,  # loosened avg_max (nice to have), tightened three-in-four slots > b2b
+    #   3444,
+    #   71,    # loosened to 1 conflict, significantly improved triples
+    #   4719,  # better b2b but worse triples than 71
+    #   2194,  # allowed 2i3 worse, got great triples and b2b
+    #   4771,  # great b2b and triples, but 2i3 and quads high
+    #   4392   # great all-rounder
+    # ]
+  SOFTB2B:
+    prompt: >
+      While ensuring no metrics are too severe, ensure back to back exams are minimized (evening/morning b2b / other b2b).
+    weights:
+      conflicts: -100
+      quints: -50
+      quads: -50
+      four in five slots: -25
+      triple in 24h (no gaps): -10
+      triple in same day (no gaps): -10
+      three in four slots: -5
+      evening/morning b2b: -2
+      other b2b: -2
+      two in three slots: 1
+  RESCHED:
+    prompt: >
+      Focus on two in three exams. Your first priority is to minimize conflicts, then the second priority is to minimize quints and quads, then the third priority is to minimize triples (triple in 24h (no gaps), triple in same day (no gaps)).
+    weights:
+      conflicts: -1000
+      quints: -50
+      quads: -50
+      four in five slots: -25
+      triple in 24h (no gaps): -10
+      triple in same day (no gaps): -10
+      three in four slots: -5
+      evening/morning b2b: -1
+      other b2b: -1
+      two in three slots: -1
+  OPENENDED:
+    prompt: >
+      I want to avoid complaints about conflicts.
+    weights:
+      conflicts: -1000
+      quints: 0
+      quads: 0
+      four in five slots: 0
+      triple in 24h (no gaps): 0
+      triple in same day (no gaps): 0
+      three in four slots: 0
+      evening/morning b2b: 0
+      other b2b: 0
+      two in three slots: 0
+  RESCHEDULESPOLICY:
+    prompt: >
+      The university policy requires that faculty provide a makeup if students have triples, quads, quints or conflicts, so prioritize minimising those while keeping other metrics acceptable.
+    weights:
+      conflicts: -1000
+      quints: -50
+      quads: -50
+      four in five slots: -10
+      triple in 24h (no gaps): -10
+      triple in same day (no gaps): -10
+      three in four slots: -5
+      evening/morning b2b: -1
+      other b2b: -1
+      two in three slots: 0
+  NEW:  
+    prompt: >
+      @joe this one is for 100 top exams
+    weights:
+      conflicts: 0.090783
+      quints: 0.013811
+      quads: 0.062451
+      four in five slots: -0.093180
+      triple in 24h (no gaps): -0.043704
+      triple in same day (no gaps): 0.048151
+      three in four slots: 0.122178
+      evening/morning b2b: -0.006693
+      other b2b: -0.119024
+      two in three slots: -0.174580

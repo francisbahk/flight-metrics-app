@@ -1,0 +1,61 @@
+log_dir: logs
+api_model: groq
+model_configs:
+  groq:
+    model_name: llama-3.3-70b-versatile
+    api_key_env: GROQ_API_KEY
+    max_output_tokens: 8192
+    rate_limit_delay: 0.1
+    temperature: 0.2
+    top_p: 0.95
+  openai:
+    model_name: gpt-4o
+    api_key_env: OPENAI_API_KEY
+    max_output_tokens: 8192
+    rate_limit_delay: 0.1
+    temperature: 0.2
+    top_p: 0.95
+  gemini:
+    model_name: gemini-2.5-flash-lite
+    api_key_env: GEMINI_API_KEY
+    max_output_tokens: 8192
+    rate_limit_delay: 0.1
+    temperature: 0.2
+    top_p: 0.95
+  local:
+    strategy: vllm
+    default_model: qwen3_30b_instruct_2507
+    available_models:
+      gpt_oss_20b:
+        model_id: ~/scratch/huggingface/hub/gpt_oss_20b
+        tensor_parallel_size: 1
+        max_model_len: 8192
+        temperature: 0.0
+        top_p: 1.0
+        max_output_tokens: 8192
+      llama31_8b:
+        model_id: ~/scratch/huggingface/hub/llama31_8b
+        tensor_parallel_size: 1
+        max_model_len: 8192
+        temperature: 0.0
+        top_p: 1.0
+        max_output_tokens: 2048
+      qwen3_30b_instruct_2507:
+        model_id: ~/scratch/huggingface/hub/qwen3_30b_instruct_2507
+        tensor_parallel_size: 4
+        max_model_len: 8192
+        temperature: 0.0
+        top_p: 1.0
+        max_output_tokens: 8192
+      llama33_70b_instruct:
+        model_id: ~/scratch/huggingface/hub/llama33_70b_instruct
+        tensor_parallel_size: 4
+        max_model_len: 8192
+        temperature: 0.0
+        top_p: 1.0
+        max_output_tokens: 8192
+use_utility_sim: false
+reasoning: false
+comparison_batch_size: 2
+tournament_batch_size: 50
+n_batches: 25

@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+env/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS junk
+.DS_Store
+
+# Logs / temps / large junk
+*.log
+*.sqlite
+*.db
+*.tmp
+*.bak
+
+# Slurm job outputs
+p1_job_*.out
+p1_job_*.err
+
+# Logs directory
+logs*/
+
+# Node (if any)
+node_modules/
+dist/
+build/
+
+# Environment files
+.env
+
+outputs*/
+
+slurms/
+
+early_termination_history.json
