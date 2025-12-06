@@ -472,144 +472,182 @@ st.markdown("""
 # Header with animated title flip
 st.markdown('''
 <style>
+    /* Remove Streamlit's default styling */
     .main-title {
-        text-align: center;
-        transition: all 0.3s ease;
+        text-align: center !important;
+        width: 100%;
+        display: block;
+        background: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
     }
 
-    @keyframes flipRanker {
-        0%, 30% {
-            content: "Ranker";
-            transform: rotateY(0deg);
-            opacity: 1;
-        }
-        32% {
-            transform: rotateY(90deg);
-            opacity: 0;
-        }
-        34% {
-            content: "Recommendations";
-            transform: rotateY(-90deg);
-            opacity: 0;
-        }
-        36%, 84% {
-            content: "Recommendations";
-            transform: rotateY(0deg);
-            opacity: 1;
-        }
-        86% {
-            transform: rotateY(90deg);
-            opacity: 0;
-        }
-        88% {
-            content: "Ranker";
-            transform: rotateY(-90deg);
-            opacity: 0;
-        }
-        90%, 100% {
-            content: "Ranker";
-            transform: rotateY(0deg);
-            opacity: 1;
-        }
+    .title-wrapper {
+        display: inline-block;
+        position: relative;
+        background: none !important;
     }
 
-    @keyframes slideLeft {
-        0%, 30% {
-            transform: translateX(0);
-        }
-        40%, 80% {
-            transform: translateX(-80px);
-        }
-        90%, 100% {
-            transform: translateX(0);
-        }
+    .ai-prefix {
+        display: inline-block;
+        opacity: 0;
+        margin-right: 8px;
+        animation: fadeInPrefix 20s ease-in-out infinite;
+        background: none !important;
     }
 
     @keyframes fadeInPrefix {
         0%, 36% {
             opacity: 0;
-            transform: translateX(20px);
         }
         40%, 80% {
             opacity: 1;
-            transform: translateX(0);
         }
         86%, 100% {
             opacity: 0;
-            transform: translateX(20px);
         }
     }
 
     .title-container {
         display: inline-block;
-        animation: slideLeft 20s ease-in-out infinite;
+        white-space: nowrap;
+        background: none !important;
     }
 
     .flip-word {
         display: inline-block;
-        animation: flipRanker 20s ease-in-out infinite;
-        transform-style: preserve-3d;
-        perspective: 1000px;
+        position: relative;
+        min-width: 200px;
+        text-align: left;
+        background: none !important;
     }
 
-    .flip-word::before {
-        content: "Ranker";
-        animation: flipRanker 20s ease-in-out infinite;
-    }
-
-    .ai-prefix {
+    .word-ranker,
+    .word-recommendations {
         display: inline-block;
-        animation: fadeInPrefix 20s ease-in-out infinite;
-        margin-right: 8px;
+        position: absolute;
+        left: 0;
+        transform-style: preserve-3d;
+        background: none !important;
+    }
+
+    .word-ranker {
+        animation: showRanker 20s ease-in-out infinite;
+    }
+
+    .word-recommendations {
+        animation: showRecommendations 20s ease-in-out infinite;
+    }
+
+    @keyframes showRanker {
+        0%, 30% {
+            transform: rotateY(0deg);
+            opacity: 1;
+        }
+        32%, 88% {
+            transform: rotateY(90deg);
+            opacity: 0;
+        }
+        90%, 100% {
+            transform: rotateY(0deg);
+            opacity: 1;
+        }
+    }
+
+    @keyframes showRecommendations {
+        0%, 34% {
+            transform: rotateY(-90deg);
+            opacity: 0;
+        }
+        36%, 84% {
+            transform: rotateY(0deg);
+            opacity: 1;
+        }
+        86%, 100% {
+            transform: rotateY(90deg);
+            opacity: 0;
+        }
     }
 
     .subtitle {
-        text-align: center;
+        text-align: center !important;
+        width: 100%;
+        display: block;
+        margin-top: 10px;
+        background: none !important;
+        padding: 0 !important;
+    }
+
+    .word-flip {
+        display: inline-block;
+        position: relative;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+        transform-style: preserve-3d;
     }
 </style>
 
 <div class="main-title">
-    <span class="ai-prefix">AI-Selected</span>
-    <span class="title-container">
-        ✈️ Flight <span class="flip-word"></span>
-    </span>
+    <div class="title-wrapper">
+        <span class="ai-prefix">AI-Selected</span><span class="title-container">✈️ Flight <span class="flip-word"><span class="word-ranker">Ranker</span><span class="word-recommendations">Recommendations</span></span></span>
+    </div>
 </div>
 
-<div class="subtitle" id="morphing-subtitle">Share your flight preferences to help build better personalized ranking systems</div>
+<div class="subtitle">
+    <span>Share your flight preferences to </span>
+    <span id="word-help" class="word-flip">help</span>
+    <span> </span>
+    <span id="word-build" class="word-flip">build</span>
+    <span> </span>
+    <span id="word-better" class="word-flip">better</span>
+    <span> personalized </span>
+    <span id="word-ranking" class="word-flip">ranking</span>
+    <span> </span>
+    <span id="word-systems" class="word-flip">systems</span>
+</div>
 
 <script>
-    const subtitle = document.getElementById('morphing-subtitle');
-
-    // Word pairs to flip: [word1, word2]
-    const wordFlips = [
-        ['help', 'receive'],
-        ['build', 'smart'],
-        ['better', 'fast'],
-        ['ranking', 'flight'],
-        ['systems', 'results']
+(function() {
+    // Word flip animation for subtitle
+    const wordPairs = [
+        { id: 'word-help', original: 'help', replacement: 'receive' },
+        { id: 'word-build', original: 'build', replacement: 'smart' },
+        { id: 'word-better', original: 'better', replacement: 'fast' },
+        { id: 'word-ranking', original: 'ranking', replacement: 'flight' },
+        { id: 'word-systems', original: 'systems', replacement: 'results' }
     ];
 
-    function updateSubtitle() {
+    let lastPhase = null;
+
+    function updateSubtitleWords() {
         const cycle = (Date.now() % 20000) / 20000; // 20 second cycle
+        const shouldFlip = cycle >= 0.30 && cycle < 0.90;
 
-        let baseText = 'Share your flight preferences to help build better personalized ranking systems';
+        // Only trigger transitions when phase changes
+        if (lastPhase !== shouldFlip) {
+            lastPhase = shouldFlip;
 
-        // During the transition phase (30-90%), swap words one by one
-        if (cycle >= 0.30 && cycle < 0.90) {
-            // Replace words to create: "Share your flight preferences to receive smart fast personalized flight results"
-            baseText = baseText
-                .replace('help', 'receive')
-                .replace('build', 'smart')
-                .replace('better', 'fast')
-                .replace('ranking', 'flight')
-                .replace('systems', 'results');
+            wordPairs.forEach(pair => {
+                const element = document.getElementById(pair.id);
+                if (element) {
+                    const targetText = shouldFlip ? pair.replacement : pair.original;
+
+                    // Add flip animation
+                    element.style.transform = 'rotateY(90deg)';
+                    element.style.opacity = '0';
+
+                    setTimeout(() => {
+                        element.textContent = targetText;
+                        element.style.transform = 'rotateY(0deg)';
+                        element.style.opacity = '1';
+                    }, 150);
+                }
+            });
         }
-
-        subtitle.textContent = baseText;
     }
 
-    updateSubtitle();
-    setInterval(updateSubtitle, 50);
+    updateSubtitleWords();
+    setInterval(updateSubtitleWords, 100);
+})();
 </script>
 ''', unsafe_allow_html=True)
 
