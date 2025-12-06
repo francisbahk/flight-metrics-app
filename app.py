@@ -1185,8 +1185,15 @@ if ai_search or regular_search:
 
                 # Apply AI ranking if AI search button was pressed
                 if ai_search:
-                    st.info("🤖 Running LISTEN-U AI personalization (5 iterations)...")
+                    st.write("---")
+                    st.write(f"### 🤖 LISTEN-U AI Personalization")
+                    st.write(f"**Debug Info:**")
+                    st.write(f"- Outbound flights to rank: {len(all_flights)}")
+                    st.write(f"- Your prompt: *{prompt}*")
+                    st.write(f"- Extracted preferences: {parsed.get('preferences', {})}")
+
                     import traceback
+                    import time
                     try:
                         from backend.listen_main_wrapper import rank_flights_with_listen_main
 
@@ -1194,10 +1201,11 @@ if ai_search or regular_search:
                         preferences['origins'] = parsed.get('origins', [])
                         preferences['destinations'] = parsed.get('destinations', [])
 
-                        st.write(f"DEBUG: Running LISTEN-U with {len(all_flights)} outbound flights")
-                        st.write(f"DEBUG: User prompt: {prompt}")
-                        st.write(f"DEBUG: Preferences: {preferences}")
-                        st.info("⏳ LISTEN-U is learning your preferences... This takes ~2 minutes (25 iterations with Gemini rate limiting)")
+                        # Show progress
+                        progress_placeholder = st.empty()
+                        progress_placeholder.info("⏳ **LISTEN-U is running...** This takes ~2 minutes (25 iterations with Gemini rate limiting)")
+
+                        start_time = time.time()
 
                         # Rank outbound flights with LISTEN-U (25 iterations for production quality)
                         all_flights = rank_flights_with_listen_main(
@@ -1207,19 +1215,33 @@ if ai_search or regular_search:
                             n_iterations=25
                         )
 
-                        st.write(f"DEBUG: After LISTEN-U, first flight price: ${all_flights[0]['price']}")
+                        elapsed = time.time() - start_time
+                        progress_placeholder.empty()
+
+                        st.success(f"✅ **LISTEN-U completed in {elapsed:.1f} seconds!**")
+                        st.write(f"**Results:**")
+                        st.write(f"- Ranked {len(all_flights)} flights by learned utility function")
+                        st.write(f"- Top flight price: ${all_flights[0]['price']:.2f}")
 
                         # Rank return flights if present
                         if has_return and all_return_flights:
-                            st.info("⏳ Ranking return flights with LISTEN-U...")
+                            return_progress = st.empty()
+                            return_progress.info("⏳ **Ranking return flights with LISTEN-U...**")
+
+                            start_return = time.time()
                             all_return_flights = rank_flights_with_listen_main(
                                 flights=all_return_flights,
                                 user_prompt=prompt,
                                 user_preferences=preferences,
                                 n_iterations=25
                             )
+                            elapsed_return = time.time() - start_return
+                            return_progress.empty()
 
-                        st.success("✅ AI personalization complete! Flights ranked by LISTEN-U algorithm.")
+                            st.success(f"✅ **Return flights ranked in {elapsed_return:.1f} seconds!**")
+                            st.write(f"- Top return flight price: ${all_return_flights[0]['price']:.2f}")
+
+                        st.write("---")
                     except Exception as e:
                         st.error(f"⚠️ AI personalization failed: {str(e)}")
                         st.error(f"Traceback: {traceback.format_exc()}")
