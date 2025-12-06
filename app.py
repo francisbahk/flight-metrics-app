@@ -1306,25 +1306,27 @@ if st.session_state.all_flights:
         # Clamp to valid range [0.0, 1.0]
         progress_percent = max(0.0, min(1.0, progress_percent))
 
-        # Custom persistent progress bar with pulsing animation (60s cycle: 50% transparent, then 5s to opaque, then 5s back)
+        # Custom persistent progress bar with pulsing animation (60s cycle: transparent, then 5s to opaque, then 5s back)
         st.markdown(f"""
             <style>
                 @keyframes progressPulse {{
                     0%, 83.33% {{
-                        opacity: 0.5;
+                        opacity: 0.4;
                     }}
                     83.34%, 91.67% {{
                         opacity: 1;
                     }}
                     91.68%, 100% {{
-                        opacity: 0.5;
+                        opacity: 0.4;
                     }}
                 }}
                 .persistent-progress-container {{
                     position: fixed;
                     top: 60px;
-                    right: 5%;
-                    width: 35%;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 90%;
+                    max-width: 1200px;
                     z-index: 999;
                     background-color: rgba(255, 255, 255, 1);
                     padding: 8px 16px;
@@ -1433,6 +1435,27 @@ if st.session_state.all_flights:
             unique_origins = sorted(set([f['origin'] for f in all_combined_flights]))
             unique_destinations = sorted(set([f['destination'] for f in all_combined_flights]))
 
+            # Check if we should show origin/destination filters
+            # Only show if there are multiple origins or destinations WITHIN A LEG
+            show_origin_filter = False
+            show_dest_filter = False
+
+            if has_return:
+                # Check outbound leg
+                outbound_origins = set([f['origin'] for f in st.session_state.all_flights])
+                outbound_dests = set([f['destination'] for f in st.session_state.all_flights])
+                # Check return leg
+                return_origins = set([f['origin'] for f in st.session_state.all_return_flights])
+                return_dests = set([f['destination'] for f in st.session_state.all_return_flights])
+
+                # Show filter if ANY leg has multiple origins/destinations
+                show_origin_filter = len(outbound_origins) > 1 or len(return_origins) > 1
+                show_dest_filter = len(outbound_dests) > 1 or len(return_dests) > 1
+            else:
+                # Single leg - check if multiple origins/destinations
+                show_origin_filter = len(unique_origins) > 1
+                show_dest_filter = len(unique_destinations) > 1
+
             # Airline filter (expandable)
             with st.expander("✈️ Airlines", expanded=False):
                 selected_airlines = []
@@ -1441,8 +1464,8 @@ if st.session_state.all_flights:
                         selected_airlines.append(airline_code)
                 st.session_state.filter_airlines = selected_airlines if selected_airlines else None
 
-            # Origin filter (only show if more than one unique origin)
-            if len(unique_origins) > 1:
+            # Origin filter (only show if multiple origins in a leg)
+            if show_origin_filter:
                 with st.expander("🛫 Origin Airport", expanded=False):
                     selected_origins = []
                     for origin_code in unique_origins:
@@ -1450,8 +1473,8 @@ if st.session_state.all_flights:
                             selected_origins.append(origin_code)
                     st.session_state.filter_origins = selected_origins if selected_origins else None
 
-            # Destination filter (only show if more than one unique destination)
-            if len(unique_destinations) > 1:
+            # Destination filter (only show if multiple destinations in a leg)
+            if show_dest_filter:
                 with st.expander("🛬 Destination Airport", expanded=False):
                     selected_destinations = []
                     for dest_code in unique_destinations:
@@ -1636,21 +1659,8 @@ if st.session_state.all_flights:
         # CONDITIONAL UI: Show single or dual panels based on has_return
         if has_return:
             # DUAL PANEL LAYOUT: Outbound + Return
+            st.markdown('<div id="top-of-page"></div>', unsafe_allow_html=True)
             st.markdown('<div id="outbound-flights"></div>', unsafe_allow_html=True)
-
-            # Auto-scroll to outbound section when flights first load
-            st.markdown("""
-                <script>
-                    // Scroll to outbound flights on page load
-                    setTimeout(() => {
-                        const outboundSection = document.getElementById('outbound-flights');
-                        if (outboundSection) {
-                            outboundSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
-                    }, 100);
-                </script>
-            """, unsafe_allow_html=True)
-
             st.markdown("## 🛫 Outbound Flights")
 
             col_flights_out, col_ranking_out = st.columns([2, 1])
@@ -1691,22 +1701,32 @@ if st.session_state.all_flights:
                             0% {
                                 box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
                                 border-color: #ff4444;
+                                padding: 2px 6px;
+                                margin: 0 2px;
                             }
                             25% {
                                 box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
                                 border-color: #ff4444;
+                                padding: 2px 6px;
+                                margin: 0 2px;
                             }
                             50% {
                                 box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
                                 border-color: #ff4444;
+                                padding: 2px 6px;
+                                margin: 0 2px;
                             }
                             75% {
                                 box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
                                 border-color: #ff4444;
+                                padding: 2px 6px;
+                                margin: 0 2px;
                             }
                             100% {
                                 box-shadow: none;
                                 border-color: transparent;
+                                padding: 0;
+                                margin: 0;
                             }
                         }
                         .neon-metric-box {
@@ -1715,7 +1735,8 @@ if st.session_state.all_flights:
                             padding: 2px 6px;
                             border-radius: 4px;
                             margin: 0 2px;
-                            border: 1.5px solid #ff4444;
+                            border: 1.5px solid transparent;
+                            box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
                         }
                     </style>
                 """, unsafe_allow_html=True)
@@ -1847,80 +1868,98 @@ if st.session_state.all_flights:
                 else:
                     st.info("Select 5 outbound flights")
 
-            # Floating navigation button to return flights (only visible in departure section)
-            st.markdown("""
+            # Scroll-spy navigation on the left side
+            nav_items = ['Top of Page', 'Outbound Flights', 'Return Flights']
+            nav_ids = ['top-of-page', 'outbound-flights', 'return-flights']
+
+            st.markdown(f"""
                 <style>
-                    @keyframes pulse {
-                        0%, 100% {
-                            opacity: 0.75;
-                            transform: translateX(50%) scale(1);
-                        }
-                        50% {
-                            opacity: 1;
-                            transform: translateX(50%) scale(1.05);
-                        }
-                    }
-                    .jump-to-return {
+                    .scroll-spy-nav {{
                         position: fixed;
-                        bottom: 30px;
-                        right: 50%;
-                        transform: translateX(50%);
-                        background-color: rgba(255, 255, 255, 0.75);
-                        color: #6B7280;
-                        width: 60px;
-                        height: 60px;
-                        border-radius: 50%;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        text-decoration: none;
-                        font-size: 32px;
-                        line-height: 1;
-                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+                        left: 20px;
+                        top: 50%;
+                        transform: translateY(-50%);
                         z-index: 1000;
-                        cursor: pointer;
-                        border: 1px solid rgba(107, 114, 128, 0.2);
-                        animation: pulse 2s ease-in-out infinite;
-                    }
-                    .jump-to-return:hover {
-                        animation: none;
-                        opacity: 1;
-                        transform: translateX(50%) scale(1.1);
-                    }
-                    .jump-to-return::before {
-                        content: '↓';
+                        background-color: rgba(255, 255, 255, 0.95);
+                        padding: 12px;
+                        border-radius: 8px;
+                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                    }}
+                    .scroll-spy-nav ul {{
+                        list-style: none;
+                        padding: 0;
+                        margin: 0;
+                    }}
+                    .scroll-spy-nav li {{
+                        margin: 8px 0;
+                    }}
+                    .scroll-spy-nav a {{
                         display: block;
-                        margin-top: -2px;
-                    }
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 50%;
+                        background-color: #d0d0d0;
+                        border: 2px solid #999;
+                        text-decoration: none;
+                        position: relative;
+                        transition: all 0.3s ease;
+                    }}
+                    .scroll-spy-nav a:hover {{
+                        background-color: #4CAF50;
+                        border-color: #4CAF50;
+                        transform: scale(1.3);
+                    }}
+                    .scroll-spy-nav a.active {{
+                        background-color: #4CAF50;
+                        border-color: #2E7D32;
+                    }}
+                    .scroll-spy-nav a:hover::after {{
+                        content: attr(data-label);
+                        position: absolute;
+                        left: 25px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        background-color: rgba(0, 0, 0, 0.8);
+                        color: white;
+                        padding: 4px 8px;
+                        border-radius: 4px;
+                        white-space: nowrap;
+                        font-size: 12px;
+                        font-family: sans-serif;
+                    }}
                 </style>
-                <a href="#return-flights" class="jump-to-return"></a>
+                <div class="scroll-spy-nav">
+                    <ul>
+                        {' '.join(f'<li><a href="#{nav_ids[i]}" data-label="{nav_items[i]}"></a></li>' for i in range(len(nav_items)))}
+                    </ul>
+                </div>
                 <script>
-                    // Hide down arrow once clicked (when entering return section)
-                    const downArrow = document.querySelector('.jump-to-return');
-                    const returnSection = document.getElementById('return-flights');
+                    // Update active state based on scroll position
+                    function updateScrollSpy() {{
+                        const sections = {nav_ids};
+                        const navLinks = document.querySelectorAll('.scroll-spy-nav a');
 
-                    if (downArrow && returnSection) {
-                        // Click handler to hide arrow
-                        downArrow.addEventListener('click', function() {
-                            setTimeout(() => {
-                                downArrow.style.display = 'none';
-                            }, 500);
-                        });
+                        let currentSection = '';
+                        sections.forEach((sectionId, index) => {{
+                            const section = document.getElementById(sectionId);
+                            if (section) {{
+                                const rect = section.getBoundingClientRect();
+                                if (rect.top <= window.innerHeight / 3) {{
+                                    currentSection = sectionId;
+                                }}
+                            }}
+                        }});
 
-                        // Scroll handler to hide arrow when in return section
-                        function checkReturnSection() {
-                            const returnRect = returnSection.getBoundingClientRect();
-                            const viewportHeight = window.innerHeight;
+                        navLinks.forEach(link => {{
+                            link.classList.remove('active');
+                            if (link.getAttribute('href') === '#' + currentSection) {{
+                                link.classList.add('active');
+                            }}
+                        }});
+                    }}
 
-                            // Hide arrow if return section is in upper half of viewport
-                            if (returnRect.top < viewportHeight / 2) {
-                                downArrow.style.display = 'none';
-                            }
-                        }
-
-                        window.addEventListener('scroll', checkReturnSection);
-                        setTimeout(checkReturnSection, 200);
-                    }
+                    window.addEventListener('scroll', updateScrollSpy);
+                    setTimeout(updateScrollSpy, 200);
                 </script>
             """, unsafe_allow_html=True)
 
