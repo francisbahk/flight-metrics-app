@@ -145,6 +145,7 @@ def generate_listen_config(
     config = {
         'tag': tag,
         'data_csv': f'input/{csv_filename}',
+        'rate_limit_delay': 4.6,  # Gemini API: 15 req/min limit → use 13 req/min = 60/13 ≈ 4.6 sec
         'metric_columns': [
             'name',
             'origin',

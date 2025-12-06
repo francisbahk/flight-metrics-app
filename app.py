@@ -1197,24 +1197,26 @@ if ai_search or regular_search:
                         st.write(f"DEBUG: Running LISTEN-U with {len(all_flights)} outbound flights")
                         st.write(f"DEBUG: User prompt: {prompt}")
                         st.write(f"DEBUG: Preferences: {preferences}")
+                        st.info("⏳ LISTEN-U is learning your preferences... This takes ~2 minutes (25 iterations with Gemini rate limiting)")
 
-                        # Rank outbound flights with LISTEN-U (5 iterations)
+                        # Rank outbound flights with LISTEN-U (25 iterations for production quality)
                         all_flights = rank_flights_with_listen_main(
                             flights=all_flights,
                             user_prompt=prompt,
                             user_preferences=preferences,
-                            n_iterations=5
+                            n_iterations=25
                         )
 
                         st.write(f"DEBUG: After LISTEN-U, first flight price: ${all_flights[0]['price']}")
 
                         # Rank return flights if present
                         if has_return and all_return_flights:
+                            st.info("⏳ Ranking return flights with LISTEN-U...")
                             all_return_flights = rank_flights_with_listen_main(
                                 flights=all_return_flights,
                                 user_prompt=prompt,
                                 user_preferences=preferences,
-                                n_iterations=5
+                                n_iterations=25
                             )
 
                         st.success("✅ AI personalization complete! Flights ranked by LISTEN-U algorithm.")

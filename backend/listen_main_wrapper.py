@@ -64,6 +64,7 @@ def rank_flights_with_listen_main(
 
     # Step 3: Run LISTEN main.py
     print(f"  ✓ Running LISTEN main.py with {n_iterations} iterations...")
+    print(f"  ⏳ Expected runtime: ~{n_iterations * 5} seconds (Gemini rate limiting: 13 req/min)")
 
     cmd = [
         "/usr/local/bin/python3.11",  # Use Python 3.11 (LISTEN requires 3.10+ for union type syntax)
@@ -71,7 +72,7 @@ def rank_flights_with_listen_main(
         "--scenario", tag,
         "--algo", "utility",  # Main LISTEN algorithm - learns utility function over iterations
         "--mode", "User",
-        "--max-iters", str(n_iterations),  # 5 iterations to learn utility (avoids Gemini quota)
+        "--max-iters", str(n_iterations),  # 25 iterations for production-quality utility learning
         "--api-model", "gemini",
         "--seed", "42"
     ]
@@ -82,7 +83,7 @@ def rank_flights_with_listen_main(
             cwd=str(listen_dir),
             capture_output=True,
             text=True,
-            timeout=300  # 5 minute timeout (5 iterations should complete faster)
+            timeout=600  # 10 minute timeout (25 iterations * ~5 sec/iter with rate limiting = ~2 min, giving buffer)
         )
 
         if result.returncode != 0:
@@ -130,7 +131,18 @@ def rank_flights_with_listen_main(
                 weights = final_utility['weights']
 
                 print(f"  ✓ Loaded LISTEN utility function:")
-                print(f"    Weights: {weights}")
+                print(f"    📊 Learned Weights from User Prompt:")
+                print(f"       Price weight: {weights.get('price', 0):.4f}")
+                print(f"       Duration weight: {weights.get('duration_min', 0):.4f}")
+                print(f"       Stops weight: {weights.get('stops', 0):.4f}")
+                print(f"    💡 Interpretation:")
+                if weights.get('price', 0) > 0:
+                    print(f"       User prefers EXPENSIVE flights (positive price weight)")
+                elif weights.get('price', 0) < 0:
+                    print(f"       User prefers CHEAP flights (negative price weight)")
+                else:
+                    print(f"       User is NEUTRAL about price")
+                print(f"    📝 User's original prompt: {user_prompt[:100]}...")
 
                 # Now calculate utility for ALL flights using the learned weights
                 # First, we need to normalize each metric to [0, 1] like LISTEN does
