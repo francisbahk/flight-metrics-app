@@ -487,41 +487,21 @@ components.html("""
         padding: 20px 0;
         font-size: 2.5rem;
         font-weight: 600;
+        transition: all 0.8s ease-in-out;
     }
 
     .title-wrapper {
         display: inline-block;
     }
 
-    .flip {
+    #changing-word {
         display: inline-block;
-        animation: flip 1.5s ease-in-out forwards;
+        transition: all 2s ease-in-out;
     }
 
-    @keyframes flip {
-        0% { transform: rotateX(0deg); opacity: 1; }
-        50% { transform: rotateX(90deg); opacity: 0; }
-        100% { transform: rotateX(0deg); opacity: 1; }
-    }
-
-    .fade-in {
-        opacity: 0;
-        animation: fadeIn 2s ease-in-out forwards;
-    }
-
-    .fade-out {
-        opacity: 1;
-        animation: fadeOut 1.5s ease-in-out forwards;
-    }
-
-    @keyframes fadeIn {
-        0% { opacity: 0; }
-        100% { opacity: 1; }
-    }
-
-    @keyframes fadeOut {
-        0% { opacity: 1; }
-        100% { opacity: 0; }
+    #ai-prefix {
+        display: inline-block;
+        transition: opacity 3s ease-in-out;
     }
 
     .subtitle {
@@ -532,15 +512,9 @@ components.html("""
         color: #555;
     }
 
-    .word-flip {
+    .subtitle span {
         display: inline-block;
-        animation: wordFlip 1.2s ease-in-out forwards;
-    }
-
-    @keyframes wordFlip {
-        0% { transform: rotateX(0deg); opacity: 1; }
-        50% { transform: rotateX(90deg); opacity: 0; }
-        100% { transform: rotateX(0deg); opacity: 1; }
+        transition: all 0.8s ease-in-out;
     }
 </style>
 </head>
@@ -553,96 +527,124 @@ components.html("""
 </div>
 
 <div class="subtitle" id="subtitle-content">
-    Share your flight preferences to help build better personalized ranking systems
+    Share your flight preferences to <span id="word1">help</span> <span id="word2">build</span> <span id="word3">better</span> personalized <span id="word4">ranking</span> <span id="word5">systems</span>
 </div>
 
 <script>
 (function() {
-    const CYCLE_DURATION = 20000; // 20 seconds
+    const CYCLE_DURATION = 30000; // 30 seconds for slower animations
 
-    // Title animation function
+    var titleAnimating = false;
+    var subtitleAnimating = false;
+    var lastPhase = 0;
+
+    function smoothFlip(element, newText, duration) {
+        element.style.transform = 'rotateX(90deg)';
+        element.style.opacity = '0';
+
+        setTimeout(function() {
+            element.textContent = newText;
+            element.style.transform = 'rotateX(0deg)';
+            element.style.opacity = '1';
+        }, duration / 2);
+    }
+
     function animateTitle() {
         const changingWord = document.getElementById('changing-word');
         const aiPrefix = document.getElementById('ai-prefix');
-
         if (!changingWord) return;
 
         const cyclePosition = (Date.now() % CYCLE_DURATION) / CYCLE_DURATION;
+        const currentPhase = Math.floor(cyclePosition * 100);
 
-        // Phase 1 (0-30%): Show "Flight Ranker"
-        if (cyclePosition < 0.30) {
-            if (changingWord.textContent !== 'Ranker') {
-                changingWord.className = 'flip';
-                changingWord.textContent = 'Ranker';
-            }
-            if (aiPrefix.textContent !== '') {
-                aiPrefix.className = 'fade-out';
+        // Phase 1 (0-25%): Show "Flight Ranker"
+        if (cyclePosition < 0.25) {
+            if (lastPhase >= 25 && changingWord.textContent !== 'Ranker') {
+                titleAnimating = true;
+                aiPrefix.style.opacity = '0';
                 setTimeout(function() {
-                    aiPrefix.textContent = '';
-                    aiPrefix.style.opacity = '0';
+                    smoothFlip(changingWord, 'Ranker', 2000);
+                    setTimeout(function() { titleAnimating = false; }, 2000);
                 }, 1500);
             }
         }
-        // Phase 2 (30-40%): Transition to "Recommendations" and fade in "AI-Selected"
-        else if (cyclePosition >= 0.30 && cyclePosition < 0.40) {
-            if (changingWord.textContent !== 'Recommendations') {
-                changingWord.className = 'flip';
-                setTimeout(function() {
-                    changingWord.textContent = 'Recommendations';
-                }, 750);
-            }
-            if (aiPrefix.textContent !== 'AI-Selected ') {
-                aiPrefix.textContent = 'AI-Selected ';
-                aiPrefix.className = 'fade-in';
-                aiPrefix.style.opacity = '1';
+        // Phase 2 (25-35%): Transition to "Recommendations"
+        else if (cyclePosition >= 0.25 && cyclePosition < 0.35) {
+            if (!titleAnimating && changingWord.textContent === 'Ranker') {
+                titleAnimating = true;
+                smoothFlip(changingWord, 'Recommendations', 2500);
+                setTimeout(function() { titleAnimating = false; }, 2500);
             }
         }
-        // Phase 3 (40-86%): Show full "AI-Selected Flight Recommendations"
-        else if (cyclePosition >= 0.40 && cyclePosition < 0.86) {
-            if (aiPrefix.textContent !== 'AI-Selected ') {
+        // Phase 3 (35-45%): Fade in "AI-Selected"
+        else if (cyclePosition >= 0.35 && cyclePosition < 0.45) {
+            if (!titleAnimating && aiPrefix.style.opacity !== '1') {
+                titleAnimating = true;
                 aiPrefix.textContent = 'AI-Selected ';
                 aiPrefix.style.opacity = '1';
-            }
-            if (changingWord.textContent !== 'Recommendations') {
-                changingWord.textContent = 'Recommendations';
+                setTimeout(function() { titleAnimating = false; }, 3000);
             }
         }
-        // Phase 4 (86-100%): Transition back to "Ranker"
-        else {
-            if (changingWord.textContent !== 'Ranker') {
-                changingWord.className = 'flip';
-                setTimeout(function() {
-                    changingWord.textContent = 'Ranker';
-                }, 750);
-            }
-            if (aiPrefix.textContent !== '') {
-                aiPrefix.className = 'fade-out';
-                setTimeout(function() {
-                    aiPrefix.textContent = '';
-                    aiPrefix.style.opacity = '0';
-                }, 1500);
+        // Phase 4 (45-80%): Hold "AI-Selected Flight Recommendations"
+        else if (cyclePosition >= 0.45 && cyclePosition < 0.80) {
+            // Just hold
+        }
+        // Phase 5 (80-90%): Fade out "AI-Selected"
+        else if (cyclePosition >= 0.80 && cyclePosition < 0.90) {
+            if (!titleAnimating && aiPrefix.style.opacity !== '0') {
+                titleAnimating = true;
+                aiPrefix.style.opacity = '0';
+                setTimeout(function() { titleAnimating = false; }, 3000);
             }
         }
+
+        lastPhase = currentPhase;
     }
 
-    // Subtitle animation function
+    function animateSubtitleWord(wordId, newText, delay) {
+        setTimeout(function() {
+            const word = document.getElementById(wordId);
+            if (word) {
+                word.style.transform = 'rotateX(90deg)';
+                word.style.opacity = '0';
+
+                setTimeout(function() {
+                    word.textContent = newText;
+                    word.style.transform = 'rotateX(0deg)';
+                    word.style.opacity = '1';
+                }, 400);
+            }
+        }, delay);
+    }
+
     function animateSubtitle() {
-        const subtitle = document.getElementById('subtitle-content');
-        if (!subtitle) return;
+        if (titleAnimating) return; // Wait for title to finish
 
         const cyclePosition = (Date.now() % CYCLE_DURATION) / CYCLE_DURATION;
 
-        const text1 = 'Share your flight preferences to help build better personalized ranking systems';
-        const text2 = 'Share your flight preferences to receive smart fast personalized flight results';
-
-        // Transition at 30% and back at 86%
-        if (cyclePosition >= 0.30 && cyclePosition < 0.86) {
-            if (subtitle.textContent !== text2) {
-                subtitle.innerHTML = '<span class="word-flip">Share</span> your <span class="word-flip">flight</span> <span class="word-flip">preferences</span> to <span class="word-flip">receive</span> <span class="word-flip">smart</span> <span class="word-flip">fast</span> personalized <span class="word-flip">flight</span> <span class="word-flip">results</span>';
+        // Start subtitle animation AFTER title is done (at 45%)
+        if (cyclePosition >= 0.45 && cyclePosition < 0.50) {
+            if (!subtitleAnimating) {
+                subtitleAnimating = true;
+                // Animate words one by one, left to right
+                animateSubtitleWord('word1', 'receive', 0);
+                animateSubtitleWord('word2', 'smart', 300);
+                animateSubtitleWord('word3', 'fast', 600);
+                animateSubtitleWord('word4', 'flight', 900);
+                animateSubtitleWord('word5', 'results', 1200);
+                setTimeout(function() { subtitleAnimating = false; }, 2000);
             }
-        } else {
-            if (subtitle.textContent !== text1) {
-                subtitle.textContent = text1;
+        }
+        // Animate back to original at 90%
+        else if (cyclePosition >= 0.90 && cyclePosition < 0.95) {
+            if (!subtitleAnimating) {
+                subtitleAnimating = true;
+                animateSubtitleWord('word1', 'help', 0);
+                animateSubtitleWord('word2', 'build', 300);
+                animateSubtitleWord('word3', 'better', 600);
+                animateSubtitleWord('word4', 'ranking', 900);
+                animateSubtitleWord('word5', 'systems', 1200);
+                setTimeout(function() { subtitleAnimating = false; }, 2000);
             }
         }
     }
