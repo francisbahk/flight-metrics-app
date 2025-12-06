@@ -493,6 +493,7 @@ if not st.session_state.token_valid:
 st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
 # How to Use section
+st.markdown('<div id="how-to-use"></div>', unsafe_allow_html=True)
 st.markdown("### 📖 How to Use")
 st.markdown("""
 1. **Describe your flight** - Enter your travel details in natural language, as if you are telling a flight itinerary manager how to book your ideal trip. What would you want them to know?
@@ -1868,76 +1869,110 @@ if st.session_state.all_flights:
                 else:
                     st.info("Select 5 outbound flights")
 
-            # Scroll-spy navigation on the left side
-            nav_items = ['Top of Page', 'Outbound Flights', 'Return Flights']
-            nav_ids = ['top-of-page', 'outbound-flights', 'return-flights']
+            # Subway-line navigation on the left side
+            nav_items = ['How to Use', 'Outbound', 'Return']
+            nav_ids = ['how-to-use', 'outbound-flights', 'return-flights']
 
             st.markdown(f"""
                 <style>
-                    .scroll-spy-nav {{
+                    .subway-nav {{
                         position: fixed;
                         left: 20px;
                         top: 50%;
                         transform: translateY(-50%);
                         z-index: 1000;
-                        background-color: rgba(255, 255, 255, 0.95);
-                        padding: 12px;
-                        border-radius: 8px;
-                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                        padding: 0;
                     }}
-                    .scroll-spy-nav ul {{
+                    .subway-nav ul {{
                         list-style: none;
                         padding: 0;
                         margin: 0;
+                        position: relative;
                     }}
-                    .scroll-spy-nav li {{
-                        margin: 8px 0;
+                    /* Vertical line connecting stations */
+                    .subway-nav ul::before {{
+                        content: '';
+                        position: absolute;
+                        left: 12px;
+                        top: 20px;
+                        bottom: 20px;
+                        width: 4px;
+                        background-color: #FF6B35;
+                        z-index: 0;
                     }}
-                    .scroll-spy-nav a {{
-                        display: block;
-                        width: 12px;
-                        height: 12px;
-                        border-radius: 50%;
-                        background-color: #d0d0d0;
-                        border: 2px solid #999;
+                    .subway-nav li {{
+                        position: relative;
+                        margin: 40px 0;
+                    }}
+                    .subway-nav li:first-child {{
+                        margin-top: 0;
+                    }}
+                    .subway-nav li:last-child {{
+                        margin-bottom: 0;
+                    }}
+                    /* Station circles */
+                    .subway-nav a {{
+                        display: flex;
+                        align-items: center;
                         text-decoration: none;
                         position: relative;
+                        z-index: 1;
+                    }}
+                    .subway-nav a .station-circle {{
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 50%;
+                        background-color: white;
+                        border: 4px solid #FF6B35;
+                        position: relative;
                         transition: all 0.3s ease;
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
                     }}
-                    .scroll-spy-nav a:hover {{
-                        background-color: #4CAF50;
-                        border-color: #4CAF50;
+                    .subway-nav a:hover .station-circle {{
                         transform: scale(1.3);
+                        border-width: 5px;
+                        box-shadow: 0 3px 8px rgba(255, 107, 53, 0.4);
                     }}
-                    .scroll-spy-nav a.active {{
-                        background-color: #4CAF50;
-                        border-color: #2E7D32;
+                    .subway-nav a.active .station-circle {{
+                        background-color: #FF6B35;
+                        border-color: #E55A2B;
+                        box-shadow: 0 0 12px rgba(255, 107, 53, 0.6);
                     }}
-                    .scroll-spy-nav a:hover::after {{
-                        content: attr(data-label);
+                    /* Station labels */
+                    .subway-nav a .station-label {{
                         position: absolute;
-                        left: 25px;
-                        top: 50%;
-                        transform: translateY(-50%);
-                        background-color: rgba(0, 0, 0, 0.8);
-                        color: white;
-                        padding: 4px 8px;
-                        border-radius: 4px;
+                        left: 35px;
                         white-space: nowrap;
-                        font-size: 12px;
-                        font-family: sans-serif;
+                        background-color: rgba(0, 0, 0, 0.85);
+                        color: white;
+                        padding: 6px 12px;
+                        border-radius: 6px;
+                        font-size: 13px;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                        font-weight: 500;
+                        opacity: 0;
+                        pointer-events: none;
+                        transition: opacity 0.2s ease;
+                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+                    }}
+                    .subway-nav a:hover .station-label {{
+                        opacity: 1;
+                    }}
+                    .subway-nav a.active .station-label {{
+                        opacity: 1;
+                        background-color: rgba(255, 107, 53, 0.95);
                     }}
                 </style>
-                <div class="scroll-spy-nav">
+                <div class="subway-nav">
                     <ul>
-                        {' '.join(f'<li><a href="#{nav_ids[i]}" data-label="{nav_items[i]}"></a></li>' for i in range(len(nav_items)))}
+                        {''.join(f'<li><a href="#{nav_ids[i]}"><div class="station-circle"></div><div class="station-label">{nav_items[i]}</div></a></li>' for i in range(len(nav_items)))}
                     </ul>
                 </div>
                 <script>
                     // Update active state based on scroll position
-                    function updateScrollSpy() {{
+                    function updateSubwayNav() {{
                         const sections = {nav_ids};
-                        const navLinks = document.querySelectorAll('.scroll-spy-nav a');
+                        const navLinks = document.querySelectorAll('.subway-nav a');
 
                         let currentSection = '';
                         sections.forEach((sectionId, index) => {{
@@ -1958,8 +1993,8 @@ if st.session_state.all_flights:
                         }});
                     }}
 
-                    window.addEventListener('scroll', updateScrollSpy);
-                    setTimeout(updateScrollSpy, 200);
+                    window.addEventListener('scroll', updateSubwayNav);
+                    setTimeout(updateSubwayNav, 200);
                 </script>
             """, unsafe_allow_html=True)
 
