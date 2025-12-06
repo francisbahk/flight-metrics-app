@@ -1009,6 +1009,9 @@ with col_btn2:
 st.markdown("""
 <style>
 /* Make ONLY the AI search button black with white text */
+.ai-search-button-wrapper {
+    display: contents; /* Prevent wrapper from affecting layout */
+}
 .ai-search-button-wrapper button[kind="secondary"] {
     background-color: #000000 !important;
     color: white !important;
