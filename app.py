@@ -499,9 +499,14 @@ components.html("""
         transition: all 2s ease-in-out;
     }
 
+    #changing-word.italic {
+        font-style: italic;
+    }
+
     #ai-prefix {
         display: inline-block;
         transition: opacity 1.5s ease-in-out, transform 1.5s ease-in-out;
+        font-style: italic;
     }
 
     #flight-word {
@@ -594,6 +599,7 @@ components.html("""
                 setTimeout(function() {
                     // Change text and slide in "Recommendations" from the right
                     changingWord.textContent = 'Recommendations';
+                    changingWord.classList.add('italic');
                     changingWord.style.transform = 'translateX(30px)';
                     setTimeout(function() {
                         changingWord.style.transform = 'translateX(0)';
@@ -620,16 +626,21 @@ components.html("""
                 // Slide out AI-Driven to the left
                 aiPrefix.style.opacity = '0';
                 aiPrefix.style.transform = 'translateX(-20px)';
-                // Flip word back to "Ranker" after AI-Driven slides out
+                // Slide out "Recommendations" to the right (matching its slide-in direction)
                 setTimeout(function() {
-                    changingWord.style.transform = 'rotateX(90deg)';
+                    changingWord.style.transform = 'translateX(30px)';
                     changingWord.style.opacity = '0';
                     setTimeout(function() {
+                        // Change text and slide in "Ranker" from the right
                         changingWord.textContent = 'Ranker';
-                        changingWord.style.transform = 'rotateX(0deg)';
-                        changingWord.style.opacity = '1';
-                        aiPrefix.textContent = '';
-                        titleAnimating = false;  // Now subtitle can animate
+                        changingWord.classList.remove('italic');
+                        changingWord.style.transform = 'translateX(30px)';
+                        setTimeout(function() {
+                            changingWord.style.transform = 'translateX(0)';
+                            changingWord.style.opacity = '1';
+                            aiPrefix.textContent = '';
+                            titleAnimating = false;  // Now subtitle can animate
+                        }, 50);
                     }, 600);
                 }, 600);
             }
@@ -732,7 +743,7 @@ with st.expander("💡 Tips for Writing a Good Prompt"):
     st.markdown("""
     💡 **Take some time to write your preferences** — imagine that the results will be reordered based on what you write. The preferences you write will be used in future research to evaluate how well algorithms return flights that align with your preferences, requirements, and persona.
 
-    At minimum, clearly describe your preferences with respect to key metrics:
+    For example, you may describe your preferences with respect to key metrics:
     - **Price** - Are you budget-conscious or willing to pay more for reduced travel time?
     - **Duration** - Do you prefer the fastest route or are you flexible?
     - **Connections** - Direct flights only, or are layovers acceptable?
@@ -742,7 +753,7 @@ with st.expander("💡 Tips for Writing a Good Prompt"):
     **Examples of good preference statements:**
     - "Prioritize minimizing flight duration, but I'm flexible on price"
     - "I want the cheapest option, even if it means multiple connections"
-    - "Direct flights only, departing in the evening, prefer United or American"
+    - "Direct flights only, departing in the evening, prefer United or JetBlue"
     - "Balance between price and duration, avoid red-eye flights"
     - "Would pay up to $300 more if it means being there on time" *(expressing trade-offs helps!)*
 
@@ -750,9 +761,7 @@ with st.expander("💡 Tips for Writing a Good Prompt"):
     """)
 
 st.markdown("""
-2. **Review results** - Browse all available flights using Standard Search or AI Search. After you submit your prompt, use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports.
-
-   *Note: AI Search results may be less accurate while we continue to improve the system.*
+2. **Review results** - Browse all available flights using Standard Search or AI Search. After you submit your prompt, use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports. *Note: AI Search results may be less accurate while we continue to improve the system.*
 3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
 4. **Drag to rank** - Reorder your selections by dragging them in the right panel
 5. **Submit** - Click submit to save your rankings (download as CSV optional)
@@ -976,34 +985,30 @@ st.markdown('</div>', unsafe_allow_html=True)
 # Search buttons
 col_btn1, col_btn2 = st.columns(2)
 
-# Custom CSS for black AI button
-st.markdown("""
-<style>
-/* Make AI button black with white text - use multiple selectors for reliability */
-button[kind="secondary"] {
-    background-color: #000000 !important;
-    color: white !important;
-    border: 1px solid #333333 !important;
-}
-button[kind="secondary"]:hover {
-    background-color: #1a1a1a !important;
-    border: 1px solid #4a4a4a !important;
-}
-/* More specific selectors */
-div[data-testid="column"] button[kind="secondary"],
-.stButton > button[kind="secondary"] {
-    background-color: #000000 !important;
-    color: white !important;
-    border: 1px solid #333333 !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
 with col_btn1:
     regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True)
 
 with col_btn2:
+    # Wrap AI button in a div with unique class for targeted styling
+    st.markdown('<div class="ai-search-button-wrapper">', unsafe_allow_html=True)
     ai_search = st.button("🔎 Search Flights with AI Personalization", type="secondary", use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Custom CSS for black AI button - target only the AI search button
+st.markdown("""
+<style>
+/* Make ONLY the AI search button black with white text */
+.ai-search-button-wrapper button[kind="secondary"] {
+    background-color: #000000 !important;
+    color: white !important;
+    border: 1px solid #333333 !important;
+}
+.ai-search-button-wrapper button[kind="secondary"]:hover {
+    background-color: #1a1a1a !important;
+    border: 1px solid #4a4a4a !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # Rate limiting for AI search (prevent quota exhaustion)
 import time
@@ -1783,20 +1788,20 @@ if st.session_state.all_flights:
                 <style>
                     @keyframes filterHeadingNeon {
                         0% {
-                            box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
+                            box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444;
                             border-color: #ff4444;
                         }
                         25% {
-                            box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
-                            border-color: #ff4444;
+                            box-shadow: 0 0 8px #ff4444, 0 0 16px #ff4444, 0 0 24px #ff4444;
+                            border-color: #ff6666;
                         }
                         50% {
-                            box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
+                            box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444;
                             border-color: #ff4444;
                         }
                         75% {
-                            box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
-                            border-color: #ff4444;
+                            box-shadow: 0 0 8px #ff4444, 0 0 16px #ff4444, 0 0 24px #ff4444;
+                            border-color: #ff6666;
                         }
                         100% {
                             box-shadow: none;
@@ -1809,6 +1814,30 @@ if st.session_state.all_flights:
                         padding: 4px 12px;
                         border-radius: 6px;
                         border: 1.5px solid #ff4444;
+                    }
+
+                    /* Flight metric neon boxes - infinite pulsing animation */
+                    @keyframes flightMetricNeon {
+                        0% {
+                            box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444;
+                            border-color: #ff4444;
+                        }
+                        50% {
+                            box-shadow: 0 0 8px #ff4444, 0 0 16px #ff4444, 0 0 24px #ff4444;
+                            border-color: #ff6666;
+                        }
+                        100% {
+                            box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444;
+                            border-color: #ff4444;
+                        }
+                    }
+                    .metric-neon {
+                        display: inline-block;
+                        animation: flightMetricNeon 3s ease-in-out infinite;
+                        padding: 2px 6px;
+                        border-radius: 4px;
+                        border: 1px solid #ff4444;
+                        margin: 0 2px;
                     }
                 </style>
                 <h2><span class="filter-heading-neon">🔍 Filters</span></h2>
@@ -2473,16 +2502,19 @@ if st.session_state.all_flights:
                         # Format stops for display
                         stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
 
+                        # Add neon glow to first flight only
+                        neon_class = "metric-neon" if idx == 0 else ""
+
                         st.markdown(f"""
                         <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
                         <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
-                            <span style="font-weight: 700;">${flight['price']:.0f}</span> •
-                            <span style="font-weight: 600;">{duration_display}</span> •
-                            <span style="font-weight: 500;">{stops_text}</span> •
-                            <span style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
+                            <span class="{neon_class}" style="font-weight: 700;">${flight['price']:.0f}</span> •
+                            <span class="{neon_class}" style="font-weight: 600;">{duration_display}</span> •
+                            <span class="{neon_class}" style="font-weight: 500;">{stops_text}</span> •
+                            <span class="{neon_class}" style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
                         </div>
                         <div style="font-size: 0.9em; color: #666;">
-                            {airline_name} {flight['flight_number']}{codeshare_label} | {flight['origin']} → {flight['destination']} | {dept_date_display}
+                            <span class="{neon_class}">{airline_name} {flight['flight_number']}{codeshare_label}</span> | <span class="{neon_class}">{flight['origin']} → {flight['destination']}</span> | <span class="{neon_class}">{dept_date_display}</span>
                         </div>
                         </div>
                         """, unsafe_allow_html=True)
@@ -2689,16 +2721,19 @@ if st.session_state.all_flights:
                         # Format stops for display
                         stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
 
+                        # Add neon glow to first flight only
+                        neon_class = "metric-neon" if idx == 0 else ""
+
                         st.markdown(f"""
                         <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
                         <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
-                            <span style="font-weight: 700;">${flight['price']:.0f}</span> •
-                            <span style="font-weight: 600;">{duration_display}</span> •
-                            <span style="font-weight: 500;">{stops_text}</span> •
-                            <span style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
+                            <span class="{neon_class}" style="font-weight: 700;">${flight['price']:.0f}</span> •
+                            <span class="{neon_class}" style="font-weight: 600;">{duration_display}</span> •
+                            <span class="{neon_class}" style="font-weight: 500;">{stops_text}</span> •
+                            <span class="{neon_class}" style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
                         </div>
                         <div style="font-size: 0.9em; color: #666;">
-                            {airline_name} {flight['flight_number']}{codeshare_label} | {flight['origin']} → {flight['destination']} | {dept_date_display}
+                            <span class="{neon_class}">{airline_name} {flight['flight_number']}{codeshare_label}</span> | <span class="{neon_class}">{flight['origin']} → {flight['destination']}</span> | <span class="{neon_class}">{dept_date_display}</span>
                         </div>
                         </div>
                         """, unsafe_allow_html=True)
