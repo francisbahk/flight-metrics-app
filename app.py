@@ -977,6 +977,18 @@ with col_btn2:
     ai_search = st.button("🤖 Search Flights with AI Personalization", type="secondary", use_container_width=True)
 
 if ai_search or regular_search:
+    # Reset session state to clear previous results
+    st.session_state.all_flights = []
+    st.session_state.selected_flights = []
+    st.session_state.all_return_flights = []
+    st.session_state.selected_return_flights = []
+    st.session_state.has_return = False
+    st.session_state.outbound_submitted = False
+    st.session_state.return_submitted = False
+    st.session_state.csv_data_outbound = None
+    st.session_state.csv_data_return = None
+    st.session_state.review_confirmed = False
+
     # Validation
     validation_errors = []
 
@@ -1223,22 +1235,59 @@ if ai_search or regular_search:
                         preferences['origins'] = parsed.get('origins', [])
                         preferences['destinations'] = parsed.get('destinations', [])
 
-                        # Show progress
+                        # Show progress with simulated progress bar
                         n_iters = 25
+                        expected_time = n_iters * 5  # ~5 seconds per iteration with Gemini rate limiting
+
+                        progress_bar = st.progress(0)
                         status_text = st.empty()
-                        status_text.info(f"⏳ **LISTEN-U is running...** ({n_iters} iterations, ~2 minutes)")
+
+                        # Run LISTEN in background while updating progress bar
+                        import threading
+
+                        result_container = {'flights': None, 'error': None}
+
+                        def run_listen():
+                            try:
+                                result_container['flights'] = rank_flights_with_listen_main(
+                                    flights=all_flights,
+                                    user_prompt=prompt,
+                                    user_preferences=preferences,
+                                    n_iterations=n_iters
+                                )
+                            except Exception as e:
+                                result_container['error'] = e
+
+                        thread = threading.Thread(target=run_listen)
+                        thread.start()
 
                         start_time = time.time()
 
-                        # Rank outbound flights with LISTEN-U (25 iterations for production quality)
-                        all_flights = rank_flights_with_listen_main(
-                            flights=all_flights,
-                            user_prompt=prompt,
-                            user_preferences=preferences,
-                            n_iterations=n_iters
-                        )
+                        # Update progress bar while LISTEN runs
+                        while thread.is_alive():
+                            elapsed = time.time() - start_time
+                            progress = min(elapsed / expected_time, 0.99)  # Cap at 99% until actually done
+                            estimated_iter = int(progress * n_iters)
 
+                            progress_bar.progress(progress)
+                            status_text.info(f"⏳ **LISTEN-U iteration ~{estimated_iter}/{n_iters}** (Learning your preferences...)")
+                            time.sleep(0.5)
+
+                        thread.join()
+
+                        # Check for errors
+                        if result_container['error']:
+                            progress_bar.empty()
+                            status_text.empty()
+                            raise result_container['error']
+
+                        all_flights = result_container['flights']
                         elapsed = time.time() - start_time
+
+                        progress_bar.progress(1.0)
+                        status_text.success(f"✅ **LISTEN-U completed!**")
+                        time.sleep(0.5)
+                        progress_bar.empty()
                         status_text.empty()
 
                         st.success(f"✅ **LISTEN-U completed in {elapsed:.1f} seconds!**")
