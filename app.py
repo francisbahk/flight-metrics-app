@@ -537,6 +537,8 @@ components.html("""
 <script>
 (function() {
     const CYCLE_DURATION = 30000; // 30 seconds for slower animations
+    const START_DELAY = 3000; // Start animation 3 seconds after page load
+    const startTime = Date.now() + START_DELAY; // Offset start time
 
     var titleAnimating = false;
     var subtitleAnimating = false;
@@ -558,7 +560,10 @@ components.html("""
         const aiPrefix = document.getElementById('ai-prefix');
         if (!changingWord) return;
 
-        const cyclePosition = (Date.now() % CYCLE_DURATION) / CYCLE_DURATION;
+        const now = Date.now();
+        if (now < startTime) return; // Don't animate until after delay
+
+        const cyclePosition = ((now - startTime) % CYCLE_DURATION) / CYCLE_DURATION;
         const currentPhase = Math.floor(cyclePosition * 100);
 
         // Phase 1 (0-25%): Show "Flight Ranker"
@@ -579,36 +584,32 @@ components.html("""
                 }, 600);
             }
         }
-        // Phase 2 (25-32%): Flip "Ranker" to "Recommendations" (like subtitle words)
+        // Phase 2 (25-32%): Slide "Recommendations" in from right, then slide in "AI-Driven" from left
         else if (cyclePosition >= 0.25 && cyclePosition < 0.32) {
             if (!titleAnimating && changingWord.textContent === 'Ranker') {
                 titleAnimating = true;
-                // Flip word just like subtitle words
-                changingWord.style.transform = 'rotateX(90deg)';
+                // Slide "Recommendations" in from the right
+                changingWord.style.transform = 'translateX(20px)';
                 changingWord.style.opacity = '0';
                 setTimeout(function() {
                     changingWord.textContent = 'Recommendations';
-                    changingWord.style.transform = 'rotateX(0deg)';
+                    changingWord.style.transform = 'translateX(0)';
                     changingWord.style.opacity = '1';
-                    setTimeout(function() { titleAnimating = false; }, 600);
-                }, 600);
+                }, 300);
+                // Then slide in "AI-Driven" from the left
+                setTimeout(function() {
+                    aiPrefix.textContent = 'AI-Driven';
+                    aiPrefix.style.opacity = '1';
+                    aiPrefix.style.transform = 'translateX(0)';
+                    titleAnimating = false;
+                }, 1200);
             }
         }
-        // Phase 3 (32-40%): Slide in "AI-Driven" from the left
-        else if (cyclePosition >= 0.32 && cyclePosition < 0.40) {
-            if (!titleAnimating && aiPrefix.style.opacity !== '1') {
-                titleAnimating = true;
-                aiPrefix.textContent = 'AI-Driven';
-                aiPrefix.style.opacity = '1';
-                aiPrefix.style.transform = 'translateX(0)';
-                setTimeout(function() { titleAnimating = false; }, 1500);
-            }
-        }
-        // Phase 4 (40-80%): Hold "AI-Driven Flight Recommendations"
-        else if (cyclePosition >= 0.40 && cyclePosition < 0.80) {
+        // Phase 3 (32-80%): Hold "AI-Driven Flight Recommendations"
+        else if (cyclePosition >= 0.32 && cyclePosition < 0.80) {
             // Just hold
         }
-        // Phase 5 (80-85%): Slide out "AI-Driven" and flip to "Ranker", then animate subtitle
+        // Phase 4 (80-85%): Slide out "AI-Driven" and slide "Recommendations" out, then slide "Ranker" back in
         else if (cyclePosition >= 0.80 && cyclePosition < 0.85) {
             if (!titleAnimating && aiPrefix.style.opacity !== '0') {
                 titleAnimating = true;
@@ -652,7 +653,10 @@ components.html("""
     function animateSubtitle() {
         if (titleAnimating) return; // Wait for title to finish
 
-        const cyclePosition = (Date.now() % CYCLE_DURATION) / CYCLE_DURATION;
+        const now = Date.now();
+        if (now < startTime) return; // Don't animate until after delay
+
+        const cyclePosition = ((now - startTime) % CYCLE_DURATION) / CYCLE_DURATION;
 
         // Start subtitle animation AFTER title is done (at 40%)
         if (cyclePosition >= 0.40 && cyclePosition < 0.45) {
@@ -742,7 +746,7 @@ with st.expander("💡 Tips for Writing a Good Prompt"):
     """)
 
 st.markdown("""
-2. **Review results** - Browse all available flights. After you submit your prompt, use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports.
+2. **Review results** - Browse all available flights using Standard Search or AI Search. After you submit your prompt, use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports.
 3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
 4. **Drag to rank** - Reorder your selections by dragging them in the right panel
 5. **Submit** - Click submit to save your rankings (download as CSV optional)
@@ -969,12 +973,13 @@ col_btn1, col_btn2 = st.columns(2)
 # Custom CSS for black AI button
 st.markdown("""
 <style>
-div[data-testid="column"]:first-child button[kind="secondary"] {
+/* Make AI button black with white text */
+div[data-testid="column"]:nth-child(2) button[kind="secondary"] {
     background-color: #000000 !important;
     color: white !important;
     border: 1px solid #333333 !important;
 }
-div[data-testid="column"]:first-child button[kind="secondary"]:hover {
+div[data-testid="column"]:nth-child(2) button[kind="secondary"]:hover {
     background-color: #1a1a1a !important;
     border: 1px solid #4a4a4a !important;
 }
@@ -985,7 +990,7 @@ with col_btn1:
     regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True)
 
 with col_btn2:
-    ai_search = st.button("🤖 Search Flights with AI Personalization", type="secondary", use_container_width=True)
+    ai_search = st.button("🔎 Search Flights with AI Personalization", type="secondary", use_container_width=True)
 
 # Rate limiting for AI search (prevent quota exhaustion)
 import time
@@ -2082,46 +2087,32 @@ if st.session_state.all_flights:
                 # Add neon trace effect CSS (only for first flight in first 10 seconds)
                 st.markdown("""
                     <style>
-                        @keyframes redNeonTrace {
+                        @keyframes redNeonPulse {
                             0% {
-                                box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
+                                box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444, 0 0 9px #ff4444;
                                 border-color: #ff4444;
-                                padding: 2px 6px;
-                                margin: 0 2px;
-                            }
-                            25% {
-                                box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
-                                border-color: #ff4444;
-                                padding: 2px 6px;
-                                margin: 0 2px;
+                                transform: scale(1);
                             }
                             50% {
-                                box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
-                                border-color: #ff4444;
-                                padding: 2px 6px;
-                                margin: 0 2px;
-                            }
-                            75% {
-                                box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
-                                border-color: #ff4444;
-                                padding: 2px 6px;
-                                margin: 0 2px;
+                                box-shadow: 0 0 6px #ff4444, 0 0 12px #ff4444, 0 0 18px #ff4444;
+                                border-color: #ff6666;
+                                transform: scale(1.05);
                             }
                             100% {
-                                box-shadow: none;
-                                border-color: transparent;
-                                padding: 0;
-                                margin: 0;
+                                box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444, 0 0 9px #ff4444;
+                                border-color: #ff4444;
+                                transform: scale(1);
                             }
                         }
                         .neon-metric-box {
                             display: inline-block;
-                            animation: redNeonTrace 15s ease-in-out forwards;
-                            padding: 2px 6px;
-                            border-radius: 4px;
-                            margin: 0 2px;
-                            border: 1.5px solid transparent;
-                            box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
+                            animation: redNeonPulse 2s ease-in-out infinite;
+                            padding: 3px 8px;
+                            border-radius: 5px;
+                            margin: 0 3px;
+                            border: 2px solid #ff4444;
+                            box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444, 0 0 9px #ff4444;
+                            transition: all 0.3s ease;
                         }
                     </style>
                 """, unsafe_allow_html=True)
