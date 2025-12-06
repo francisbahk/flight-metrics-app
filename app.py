@@ -540,7 +540,7 @@ components.html("""
 <script>
 (function() {
     const CYCLE_DURATION = 30000; // 30 seconds for slower animations
-    const START_DELAY = 0; // Start animation immediately
+    const START_DELAY = 1000; // Start animation after 1 second
     const startTime = Date.now() + START_DELAY; // Offset start time
 
     var titleAnimating = false;

@@ -92,6 +92,10 @@ EXAMPLES of correct city → airport code conversion:
 
 **DO NOT extract random words from the sentence as airport codes!**
 **ONLY return valid 3-letter IATA airport codes that you KNOW are real airports.**
+**CRITICAL: Common words that are NOT airport codes:**
+- "get", "fly", "go", "come", "see", "via", "and", "the", "for", "can", "use", "put", "set", "may", "run", "let"
+- If you see "get to [city]", extract [city] as the destination, NOT "get"
+- Example: "I need to GET to Atlanta" → destinations: ["ATL"] (NOT ["GET"])
 
 For small cities, include nearby major airports within 100 miles as alternatives.
 """
@@ -111,6 +115,24 @@ For small cities, include nearby major airports within 100 miles as alternatives
 
         # Parse JSON
         parsed = json.loads(response_text)
+
+        # Filter out common words that are NOT airport codes
+        INVALID_CODES = {
+            'GET', 'FLY', 'GO', 'RUN', 'SET', 'PUT', 'LET', 'MAY', 'CAN', 'USE',
+            'AND', 'THE', 'FOR', 'ARE', 'WAS', 'SEE', 'VIA', 'HAS', 'HAD', 'BUT',
+            'NOT', 'YOU', 'ALL', 'DAY', 'NEW', 'OLD', 'WAY', 'OUT', 'NOW', 'OUR',
+            'TWO', 'HOW', 'ITS', 'SAY', 'SHE', 'HER', 'HIM', 'HIS', 'WHO', 'BOY',
+            'DID', 'ITS', 'LET', 'OWN', 'SAW', 'TOO', 'WHY', 'TRY', 'ASK', 'MEN',
+            'BIG', 'FEW', 'GOT', 'HAS', 'HER', 'HIM', 'HIS', 'HOW', 'MAN', 'NEW'
+        }
+
+        # Clean origins
+        if 'origins' in parsed:
+            parsed['origins'] = [code for code in parsed['origins'] if code.upper() not in INVALID_CODES]
+
+        # Clean destinations
+        if 'destinations' in parsed:
+            parsed['destinations'] = [code for code in parsed['destinations'] if code.upper() not in INVALID_CODES]
 
         # Validate and clean up
         departure_dates = parsed.get('departure_dates', [])
