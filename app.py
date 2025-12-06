@@ -1573,7 +1573,7 @@ if st.session_state.all_flights:
                 .persistent-progress-container {{
                     position: fixed;
                     top: 60px;
-                    left: 380px;
+                    left: 280px;
                     right: 20px;
                     z-index: 999;
                     background-color: rgba(255, 255, 255, 1);
@@ -2003,7 +2003,7 @@ if st.session_state.all_flights:
                         # Use flight unique key for checkbox (sanitized for Streamlit)
                         checkbox_key = f"chk_out_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
                         selected = st.checkbox(
-                            "✓" if is_selected else "",
+                            "Select flight",
                             value=is_selected,
                             key=checkbox_key,
                             label_visibility="collapsed",
@@ -2124,7 +2124,7 @@ if st.session_state.all_flights:
                 <style>
                     .subway-nav {{
                         position: fixed;
-                        left: 380px;
+                        left: 280px;
                         top: 50%;
                         transform: translateY(-50%);
                         z-index: 1000;
@@ -2294,7 +2294,7 @@ if st.session_state.all_flights:
                         # Use flight unique key for checkbox (sanitized for Streamlit)
                         checkbox_key = f"chk_ret_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
                         selected = st.checkbox(
-                            "✓" if is_selected else "",
+                            "Select flight",
                             value=is_selected,
                             key=checkbox_key,
                             label_visibility="collapsed",
@@ -2501,7 +2501,7 @@ if st.session_state.all_flights:
                         # Use flight unique key for checkbox (sanitized for Streamlit)
                         checkbox_key = f"chk_single_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
                         selected = st.checkbox(
-                            "✓" if is_selected else "",
+                            "Select flight",
                             value=is_selected,
                             key=checkbox_key,
                             label_visibility="collapsed",
