@@ -1306,29 +1306,31 @@ if st.session_state.all_flights:
         # Clamp to valid range [0.0, 1.0]
         progress_percent = max(0.0, min(1.0, progress_percent))
 
-        # Custom persistent progress bar with pulsing animation
+        # Custom persistent progress bar with pulsing animation (60s cycle: 50% transparent, then 5s to opaque, then 5s back)
         st.markdown(f"""
             <style>
                 @keyframes progressPulse {{
                     0%, 83.33% {{
+                        opacity: 0.5;
+                    }}
+                    83.34%, 91.67% {{
                         opacity: 1;
                     }}
-                    83.34%, 100% {{
-                        opacity: 1;
+                    91.68%, 100% {{
+                        opacity: 0.5;
                     }}
                 }}
                 .persistent-progress-container {{
                     position: fixed;
                     top: 60px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    width: 50%;
+                    right: 5%;
+                    width: 35%;
                     z-index: 999;
                     background-color: rgba(255, 255, 255, 1);
                     padding: 8px 16px;
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
                     border-radius: 8px;
-                    animation: progressPulse 12s ease-in-out infinite;
+                    animation: progressPulse 60s ease-in-out infinite;
                 }}
                 .persistent-progress-bar {{
                     width: 100%;
@@ -1398,7 +1400,7 @@ if st.session_state.all_flights:
                     }
                     .filter-heading-neon {
                         display: inline-block;
-                        animation: filterHeadingNeon 10s ease-in-out forwards;
+                        animation: filterHeadingNeon 15s ease-in-out forwards;
                         padding: 4px 12px;
                         border-radius: 6px;
                         border: 1.5px solid #ff4444;
@@ -1635,6 +1637,20 @@ if st.session_state.all_flights:
         if has_return:
             # DUAL PANEL LAYOUT: Outbound + Return
             st.markdown('<div id="outbound-flights"></div>', unsafe_allow_html=True)
+
+            # Auto-scroll to outbound section when flights first load
+            st.markdown("""
+                <script>
+                    // Scroll to outbound flights on page load
+                    setTimeout(() => {
+                        const outboundSection = document.getElementById('outbound-flights');
+                        if (outboundSection) {
+                            outboundSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    }, 100);
+                </script>
+            """, unsafe_allow_html=True)
+
             st.markdown("## 🛫 Outbound Flights")
 
             col_flights_out, col_ranking_out = st.columns([2, 1])
@@ -1695,7 +1711,7 @@ if st.session_state.all_flights:
                         }
                         .neon-metric-box {
                             display: inline-block;
-                            animation: redNeonTrace 10s ease-in-out forwards;
+                            animation: redNeonTrace 15s ease-in-out forwards;
                             padding: 2px 6px;
                             border-radius: 4px;
                             margin: 0 2px;
@@ -1877,102 +1893,40 @@ if st.session_state.all_flights:
                         margin-top: -2px;
                     }
                 </style>
-                <a href="#return-flights" class="jump-to-return" onclick="setTimeout(updateArrows, 500)"></a>
+                <a href="#return-flights" class="jump-to-return"></a>
                 <script>
-                    // Update both arrows based on scroll position
-                    function updateArrows() {
-                        const downArrow = document.querySelector('.jump-to-return');
-                        const upArrow = document.querySelector('.jump-to-departure');
-                        const returnSection = document.getElementById('return-flights');
-                        const outboundSection = document.getElementById('outbound-flights');
+                    // Hide down arrow once clicked (when entering return section)
+                    const downArrow = document.querySelector('.jump-to-return');
+                    const returnSection = document.getElementById('return-flights');
 
-                        if (!returnSection) return;
+                    if (downArrow && returnSection) {
+                        // Click handler to hide arrow
+                        downArrow.addEventListener('click', function() {
+                            setTimeout(() => {
+                                downArrow.style.display = 'none';
+                            }, 500);
+                        });
 
-                        const returnRect = returnSection.getBoundingClientRect();
-                        const viewportHeight = window.innerHeight;
+                        // Scroll handler to hide arrow when in return section
+                        function checkReturnSection() {
+                            const returnRect = returnSection.getBoundingClientRect();
+                            const viewportHeight = window.innerHeight;
 
-                        // Return section is visible/scrolled to
-                        const inReturnSection = returnRect.top < viewportHeight / 2;
-
-                        // Update down arrow
-                        if (downArrow) {
-                            downArrow.style.display = inReturnSection ? 'none' : 'flex';
+                            // Hide arrow if return section is in upper half of viewport
+                            if (returnRect.top < viewportHeight / 2) {
+                                downArrow.style.display = 'none';
+                            }
                         }
 
-                        // Update up arrow
-                        if (upArrow) {
-                            upArrow.style.display = inReturnSection ? 'flex' : 'none';
-                        }
+                        window.addEventListener('scroll', checkReturnSection);
+                        setTimeout(checkReturnSection, 200);
                     }
-
-                    // Listen to scroll events
-                    window.addEventListener('scroll', updateArrows);
-
-                    // Initial check
-                    setTimeout(updateArrows, 200);
                 </script>
             """, unsafe_allow_html=True)
 
             # RETURN FLIGHTS SECTION
             st.markdown('<div id="return-flights"></div>', unsafe_allow_html=True)
             st.markdown("## 🛬 Return Flights")
-
-            # Floating navigation button back to departure flights (only visible in return section)
-            st.markdown("""
-                <style>
-                    @keyframes pulseUp {
-                        0%, 100% {
-                            opacity: 0.75;
-                            transform: translateX(50%) scale(1);
-                        }
-                        50% {
-                            opacity: 1;
-                            transform: translateX(50%) scale(1.05);
-                        }
-                    }
-                    .jump-to-departure {
-                        position: fixed;
-                        top: 80px;
-                        right: 50%;
-                        transform: translateX(50%);
-                        background-color: rgba(255, 255, 255, 0.75);
-                        color: #6B7280;
-                        width: 60px;
-                        height: 60px;
-                        border-radius: 50%;
-                        display: none;
-                        align-items: center;
-                        justify-content: center;
-                        text-decoration: none;
-                        font-size: 32px;
-                        line-height: 1;
-                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-                        z-index: 1000;
-                        cursor: pointer;
-                        border: 1px solid rgba(107, 114, 128, 0.2);
-                        animation: pulseUp 2s ease-in-out infinite;
-                    }
-                    .jump-to-departure:hover {
-                        animation: none;
-                        opacity: 1;
-                        transform: translateX(50%) scale(1.1);
-                    }
-                    .jump-to-departure::before {
-                        content: '↑';
-                        display: block;
-                        margin-bottom: -2px;
-                    }
-                </style>
-                <a href="#outbound-flights" class="jump-to-departure" onclick="setTimeout(updateArrows, 500)"></a>
-                <script>
-                    // Update arrows on click - uses the updateArrows function from down arrow script
-                    setTimeout(() => {
-                        if (typeof updateArrows === 'function') {
-                            updateArrows();
-                        }
-                    }, 300);
-                </script>
-            """, unsafe_allow_html=True)
 
             col_flights_ret, col_ranking_ret = st.columns([2, 1])
 
