@@ -522,7 +522,7 @@ components.html("""
 
 <div class="main-title">
     <div class="title-wrapper">
-        <span>✈️ <span id="ai-prefix" style="opacity: 0;"></span>Flight <span id="changing-word">Ranker</span></span>
+        <span>✈️ <span id="ai-prefix" style="opacity: 0; margin-right: 5px;"></span>Flight <span id="changing-word">Ranker</span></span>
     </div>
 </div>
 
@@ -561,40 +561,53 @@ components.html("""
         if (cyclePosition < 0.25) {
             if (lastPhase >= 25 && changingWord.textContent !== 'Ranker') {
                 titleAnimating = true;
+                // First fade out AI-Selected
                 aiPrefix.style.opacity = '0';
+                // Then flip word back to Ranker
                 setTimeout(function() {
                     smoothFlip(changingWord, 'Ranker', 2000);
-                    setTimeout(function() { titleAnimating = false; }, 2000);
-                }, 1500);
+                    setTimeout(function() {
+                        aiPrefix.textContent = '';
+                        titleAnimating = false;
+                    }, 2000);
+                }, 2000);
             }
         }
-        // Phase 2 (25-35%): Transition to "Recommendations"
-        else if (cyclePosition >= 0.25 && cyclePosition < 0.35) {
+        // Phase 2 (25-32%): Flip "Ranker" to "Recommendations" (like subtitle words)
+        else if (cyclePosition >= 0.25 && cyclePosition < 0.32) {
             if (!titleAnimating && changingWord.textContent === 'Ranker') {
                 titleAnimating = true;
-                smoothFlip(changingWord, 'Recommendations', 2500);
-                setTimeout(function() { titleAnimating = false; }, 2500);
+                // Flip word just like subtitle words
+                changingWord.style.transform = 'rotateX(90deg)';
+                changingWord.style.opacity = '0';
+                setTimeout(function() {
+                    changingWord.textContent = 'Recommendations';
+                    changingWord.style.transform = 'rotateX(0deg)';
+                    changingWord.style.opacity = '1';
+                    setTimeout(function() { titleAnimating = false; }, 600);
+                }, 600);
             }
         }
-        // Phase 3 (35-45%): Fade in "AI-Selected"
-        else if (cyclePosition >= 0.35 && cyclePosition < 0.45) {
+        // Phase 3 (32-40%): Fade in "AI-Selected"
+        else if (cyclePosition >= 0.32 && cyclePosition < 0.40) {
             if (!titleAnimating && aiPrefix.style.opacity !== '1') {
                 titleAnimating = true;
-                aiPrefix.textContent = 'AI-Selected ';
+                aiPrefix.textContent = 'AI-Selected';
                 aiPrefix.style.opacity = '1';
                 setTimeout(function() { titleAnimating = false; }, 3000);
             }
         }
-        // Phase 4 (45-80%): Hold "AI-Selected Flight Recommendations"
-        else if (cyclePosition >= 0.45 && cyclePosition < 0.80) {
+        // Phase 4 (40-80%): Hold "AI-Selected Flight Recommendations"
+        else if (cyclePosition >= 0.40 && cyclePosition < 0.80) {
             // Just hold
         }
-        // Phase 5 (80-90%): Fade out "AI-Selected"
+        // Phase 5 (80-90%): Fade out "AI-Selected" then flip back to "Ranker"
         else if (cyclePosition >= 0.80 && cyclePosition < 0.90) {
             if (!titleAnimating && aiPrefix.style.opacity !== '0') {
                 titleAnimating = true;
+                // Fade out AI-Selected first
                 aiPrefix.style.opacity = '0';
-                setTimeout(function() { titleAnimating = false; }, 3000);
+                setTimeout(function() { titleAnimating = false; }, 2000);
             }
         }
 
@@ -612,7 +625,7 @@ components.html("""
                     word.textContent = newText;
                     word.style.transform = 'rotateX(0deg)';
                     word.style.opacity = '1';
-                }, 400);
+                }, 600);
             }
         }, delay);
     }
@@ -622,17 +635,17 @@ components.html("""
 
         const cyclePosition = (Date.now() % CYCLE_DURATION) / CYCLE_DURATION;
 
-        // Start subtitle animation AFTER title is done (at 45%)
-        if (cyclePosition >= 0.45 && cyclePosition < 0.50) {
+        // Start subtitle animation AFTER title is done (at 40%)
+        if (cyclePosition >= 0.40 && cyclePosition < 0.45) {
             if (!subtitleAnimating) {
                 subtitleAnimating = true;
-                // Animate words one by one, left to right
+                // Animate words one by one, left to right with more time per word
                 animateSubtitleWord('word1', 'receive', 0);
-                animateSubtitleWord('word2', 'smart', 300);
-                animateSubtitleWord('word3', 'fast', 600);
-                animateSubtitleWord('word4', 'flight', 900);
-                animateSubtitleWord('word5', 'results', 1200);
-                setTimeout(function() { subtitleAnimating = false; }, 2000);
+                animateSubtitleWord('word2', 'smart', 600);
+                animateSubtitleWord('word3', 'fast', 1200);
+                animateSubtitleWord('word4', 'flight', 1800);
+                animateSubtitleWord('word5', 'results', 2400);
+                setTimeout(function() { subtitleAnimating = false; }, 3500);
             }
         }
         // Animate back to original at 90%
@@ -640,11 +653,11 @@ components.html("""
             if (!subtitleAnimating) {
                 subtitleAnimating = true;
                 animateSubtitleWord('word1', 'help', 0);
-                animateSubtitleWord('word2', 'build', 300);
-                animateSubtitleWord('word3', 'better', 600);
-                animateSubtitleWord('word4', 'ranking', 900);
-                animateSubtitleWord('word5', 'systems', 1200);
-                setTimeout(function() { subtitleAnimating = false; }, 2000);
+                animateSubtitleWord('word2', 'build', 600);
+                animateSubtitleWord('word3', 'better', 1200);
+                animateSubtitleWord('word4', 'ranking', 1800);
+                animateSubtitleWord('word5', 'systems', 2400);
+                setTimeout(function() { subtitleAnimating = false; }, 3500);
             }
         }
     }
