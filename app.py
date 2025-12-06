@@ -1301,12 +1301,60 @@ if st.session_state.all_flights:
 
     else:
         # FLIGHT SELECTION INTERFACE
-        # Progress bar (only show when not all submitted)
+        # Persistent progress bar with pulsing animation
         progress_percent = (num_completed / num_required) if num_required > 0 else 0.0
         # Clamp to valid range [0.0, 1.0]
         progress_percent = max(0.0, min(1.0, progress_percent))
-        st.progress(progress_percent)
-        st.caption(f"{num_completed} / {num_required} submitted")
+
+        # Custom persistent progress bar with pulsing animation
+        st.markdown(f"""
+            <style>
+                @keyframes progressPulse {{
+                    0%, 83.33% {{
+                        opacity: 0.9;
+                    }}
+                    83.34%, 100% {{
+                        opacity: 1;
+                    }}
+                }}
+                .persistent-progress-container {{
+                    position: fixed;
+                    top: 60px;
+                    left: 0;
+                    right: 0;
+                    z-index: 999;
+                    background-color: rgba(255, 255, 255, 0.95);
+                    padding: 8px 16px;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                    animation: progressPulse 12s ease-in-out infinite;
+                }}
+                .persistent-progress-bar {{
+                    width: 100%;
+                    height: 8px;
+                    background-color: #e0e0e0;
+                    border-radius: 4px;
+                    overflow: hidden;
+                }}
+                .persistent-progress-fill {{
+                    height: 100%;
+                    background-color: #4CAF50;
+                    width: {progress_percent * 100}%;
+                    transition: width 0.3s ease;
+                }}
+                .persistent-progress-text {{
+                    margin-top: 4px;
+                    font-size: 12px;
+                    color: #666;
+                    text-align: center;
+                }}
+            </style>
+            <div class="persistent-progress-container">
+                <div class="persistent-progress-bar">
+                    <div class="persistent-progress-fill"></div>
+                </div>
+                <div class="persistent-progress-text">{num_completed} / {num_required} submitted</div>
+            </div>
+        """, unsafe_allow_html=True)
 
         # Check if we have return flights
         has_return = st.session_state.has_return and st.session_state.all_return_flights
@@ -1321,6 +1369,26 @@ if st.session_state.all_flights:
         # SIDEBAR FILTERS
         with st.sidebar:
             st.markdown("## 🔍 Filters")
+
+            # Add neon trace effect for sidebar filters
+            st.markdown("""
+                <style>
+                    @keyframes sidebarNeonTrace {
+                        0%, 100% {
+                            box-shadow: 0 0 5px #00ffff, 0 0 10px #00ffff, 0 0 15px #00ffff;
+                            border: 2px solid #00ffff;
+                        }
+                        50% {
+                            box-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff;
+                            border: 2px solid #00ffff;
+                        }
+                    }
+                    section[data-testid="stSidebar"] > div:first-child {
+                        animation: sidebarNeonTrace 2s ease-in-out 0s 5;
+                        border-radius: 8px;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
 
             # Get all flights for filter options (combine outbound and return if applicable)
             all_combined_flights = st.session_state.all_flights[:]
@@ -1583,6 +1651,36 @@ if st.session_state.all_flights:
                 # Detect codeshares in outbound flights (on filtered list)
                 outbound_codeshare_map = detect_codeshares(filtered_outbound)
 
+                # Add neon trace effect CSS (only for first flight in first 10 seconds)
+                st.markdown("""
+                    <style>
+                        @keyframes neonTrace {
+                            0%, 100% {
+                                box-shadow: 0 0 5px #00ffff, 0 0 10px #00ffff, 0 0 15px #00ffff, 0 0 20px #00ffff;
+                                border: 2px solid #00ffff;
+                            }
+                            50% {
+                                box-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff, 0 0 40px #00ffff;
+                                border: 2px solid #00ffff;
+                            }
+                        }
+                        .first-flight-highlight {
+                            animation: neonTrace 2s ease-in-out 0s 5;
+                            animation-fill-mode: forwards;
+                            padding: 8px;
+                            border-radius: 8px;
+                            margin: 4px 0;
+                        }
+                        .neon-metric {
+                            display: inline-block;
+                            animation: neonTrace 2s ease-in-out 0s 5;
+                            padding: 2px 6px;
+                            border-radius: 4px;
+                            margin: 0 2px;
+                        }
+                    </style>
+                """, unsafe_allow_html=True)
+
                 # Display all outbound flights with checkboxes
                 for idx, flight in enumerate(filtered_outbound):
                     unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
@@ -1635,16 +1733,20 @@ if st.session_state.all_flights:
                         # Format stops for display
                         stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
 
+                        # Apply highlight class only to first flight
+                        highlight_class = 'class="first-flight-highlight"' if idx == 0 else ''
+                        neon_class = 'class="neon-metric"' if idx == 0 else ''
+
                         st.markdown(f"""
-                        <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
+                        <div {highlight_class} style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
                         <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
-                            <span style="font-weight: 700;">${flight['price']:.0f}</span> •
-                            <span style="font-weight: 600;">{duration_display}</span> •
-                            <span style="font-weight: 500;">{stops_text}</span> •
-                            <span style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
+                            <span {neon_class} style="font-weight: 700;">${flight['price']:.0f}</span> •
+                            <span {neon_class} style="font-weight: 600;">{duration_display}</span> •
+                            <span {neon_class} style="font-weight: 500;">{stops_text}</span> •
+                            <span {neon_class} style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
                         </div>
                         <div style="font-size: 0.9em; color: #666;">
-                            {airline_name} {flight['flight_number']}{codeshare_label} | {flight['origin']} → {flight['destination']} | {dept_date_display}
+                            <span {neon_class}>{airline_name} {flight['flight_number']}{codeshare_label} | {flight['origin']} → {flight['destination']} | {dept_date_display}</span>
                         </div>
                         </div>
                         """, unsafe_allow_html=True)
@@ -1710,11 +1812,11 @@ if st.session_state.all_flights:
                 <style>
                     @keyframes pulse {
                         0%, 100% {
-                            opacity: 0.3;
+                            opacity: 0.75;
                             transform: translateX(50%) scale(1);
                         }
                         50% {
-                            opacity: 0.6;
+                            opacity: 1;
                             transform: translateX(50%) scale(1.05);
                         }
                     }
@@ -1723,7 +1825,7 @@ if st.session_state.all_flights:
                         bottom: 30px;
                         right: 50%;
                         transform: translateX(50%);
-                        background-color: rgba(255, 255, 255, 0.3);
+                        background-color: rgba(255, 255, 255, 0.75);
                         color: #6B7280;
                         width: 60px;
                         height: 60px;
@@ -1732,7 +1834,8 @@ if st.session_state.all_flights:
                         align-items: center;
                         justify-content: center;
                         text-decoration: none;
-                        font-size: 28px;
+                        font-size: 32px;
+                        line-height: 1;
                         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
                         z-index: 1000;
                         cursor: pointer;
@@ -1741,37 +1844,38 @@ if st.session_state.all_flights:
                     }
                     .jump-to-return:hover {
                         animation: none;
-                        opacity: 0.8;
+                        opacity: 1;
                         transform: translateX(50%) scale(1.1);
                     }
                     .jump-to-return::before {
                         content: '↓';
-                    }
-                    /* Hide down arrow when in return section */
-                    #return-flights ~ * .jump-to-return {
-                        display: none;
+                        display: block;
+                        margin-top: -2px;
                     }
                 </style>
                 <a href="#return-flights" class="jump-to-return"></a>
                 <script>
-                    // Hide down arrow when scrolled to return section
-                    const observer = new IntersectionObserver((entries) => {
+                    // Show/hide down arrow based on scroll position
+                    function updateDownArrow() {
                         const downArrow = document.querySelector('.jump-to-return');
-                        entries.forEach(entry => {
-                            if (entry.target.id === 'return-flights' && entry.isIntersecting) {
-                                if (downArrow) downArrow.style.display = 'none';
-                            } else if (entry.target.id === 'outbound-flights' && entry.isIntersecting) {
-                                if (downArrow) downArrow.style.display = 'flex';
-                            }
-                        });
-                    }, { threshold: 0.1 });
-
-                    setTimeout(() => {
                         const returnSection = document.getElementById('return-flights');
-                        const outboundSection = document.getElementById('outbound-flights');
-                        if (returnSection) observer.observe(returnSection);
-                        if (outboundSection) observer.observe(outboundSection);
-                    }, 100);
+
+                        if (!downArrow || !returnSection) return;
+
+                        const returnRect = returnSection.getBoundingClientRect();
+                        // Hide down arrow when return section header is at or above viewport top
+                        if (returnRect.top <= 0) {
+                            downArrow.style.display = 'none';
+                        } else {
+                            downArrow.style.display = 'flex';
+                        }
+                    }
+
+                    // Update on scroll
+                    window.addEventListener('scroll', updateDownArrow);
+
+                    // Initial check
+                    setTimeout(updateDownArrow, 100);
                 </script>
             """, unsafe_allow_html=True)
 
@@ -1784,11 +1888,11 @@ if st.session_state.all_flights:
                 <style>
                     @keyframes pulseUp {
                         0%, 100% {
-                            opacity: 0.3;
+                            opacity: 0.75;
                             transform: translateX(50%) scale(1);
                         }
                         50% {
-                            opacity: 0.6;
+                            opacity: 1;
                             transform: translateX(50%) scale(1.05);
                         }
                     }
@@ -1797,7 +1901,7 @@ if st.session_state.all_flights:
                         top: 80px;
                         right: 50%;
                         transform: translateX(50%);
-                        background-color: rgba(255, 255, 255, 0.3);
+                        background-color: rgba(255, 255, 255, 0.75);
                         color: #6B7280;
                         width: 60px;
                         height: 60px;
@@ -1806,7 +1910,8 @@ if st.session_state.all_flights:
                         align-items: center;
                         justify-content: center;
                         text-decoration: none;
-                        font-size: 28px;
+                        font-size: 32px;
+                        line-height: 1;
                         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
                         z-index: 1000;
                         cursor: pointer;
@@ -1815,33 +1920,38 @@ if st.session_state.all_flights:
                     }
                     .jump-to-departure:hover {
                         animation: none;
-                        opacity: 0.8;
+                        opacity: 1;
                         transform: translateX(50%) scale(1.1);
                     }
                     .jump-to-departure::before {
                         content: '↑';
+                        display: block;
+                        margin-bottom: -2px;
                     }
                 </style>
                 <a href="#outbound-flights" class="jump-to-departure"></a>
                 <script>
-                    // Show up arrow only when in return section
-                    const observerUp = new IntersectionObserver((entries) => {
+                    // Show/hide up arrow based on scroll position
+                    function updateUpArrow() {
                         const upArrow = document.querySelector('.jump-to-departure');
-                        entries.forEach(entry => {
-                            if (entry.target.id === 'return-flights' && entry.isIntersecting) {
-                                if (upArrow) upArrow.style.display = 'flex';
-                            } else if (entry.target.id === 'outbound-flights' && entry.isIntersecting) {
-                                if (upArrow) upArrow.style.display = 'none';
-                            }
-                        });
-                    }, { threshold: 0.1 });
-
-                    setTimeout(() => {
                         const returnSection = document.getElementById('return-flights');
-                        const outboundSection = document.getElementById('outbound-flights');
-                        if (returnSection) observerUp.observe(returnSection);
-                        if (outboundSection) observerUp.observe(outboundSection);
-                    }, 100);
+
+                        if (!upArrow || !returnSection) return;
+
+                        const returnRect = returnSection.getBoundingClientRect();
+                        // Show up arrow when return section header is at or above viewport top
+                        if (returnRect.top <= 0) {
+                            upArrow.style.display = 'flex';
+                        } else {
+                            upArrow.style.display = 'none';
+                        }
+                    }
+
+                    // Update on scroll
+                    window.addEventListener('scroll', updateUpArrow);
+
+                    // Initial check
+                    setTimeout(updateUpArrow, 100);
                 </script>
             """, unsafe_allow_html=True)
 
