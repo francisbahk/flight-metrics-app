@@ -472,106 +472,43 @@ st.markdown("""
 # Header with animated title flip
 st.markdown('''
 <style>
-    /* Remove Streamlit's default styling */
     .main-title {
         text-align: center !important;
         width: 100%;
         display: block;
         background: none !important;
         padding: 0 !important;
-        margin: 0 !important;
+        margin: 20px 0 !important;
+        font-size: 2.5rem;
     }
 
     .title-wrapper {
         display: inline-block;
-        position: relative;
-        background: none !important;
     }
 
-    .ai-prefix {
+    /* Title flip animations */
+    .flip {
         display: inline-block;
+        animation: flip 0.6s forwards;
+    }
+
+    @keyframes flip {
+        0% { transform: rotateX(0deg); opacity: 1; }
+        50% { transform: rotateX(90deg); opacity: 0; }
+        100% { transform: rotateX(0deg); opacity: 1; }
+    }
+
+    .fade-in {
         opacity: 0;
-        margin-left: 8px;
-        animation: fadeInPrefix 20s ease-in-out infinite;
-        background: none !important;
+        animation: fadeIn 0.8s forwards;
+        animation-delay: 0.3s;
     }
 
-    @keyframes fadeInPrefix {
-        0%, 36% {
-            opacity: 0;
-        }
-        40%, 80% {
-            opacity: 1;
-        }
-        86%, 100% {
-            opacity: 0;
-        }
+    @keyframes fadeIn {
+        to { opacity: 1; }
     }
 
-    .title-container {
-        display: inline-block;
-        white-space: nowrap;
-        background: none !important;
-        vertical-align: baseline;
-    }
-
-    .flip-word {
-        display: inline-block;
-        position: relative;
-        min-width: 200px;
-        height: 1.2em;
-        vertical-align: baseline;
-        background: none !important;
-    }
-
-    .word-ranker,
-    .word-recommendations {
-        display: inline-block;
-        position: absolute;
-        left: 0;
-        top: 0;
-        transform-style: preserve-3d;
-        background: none !important;
-    }
-
-    .word-ranker {
-        animation: showRanker 20s ease-in-out infinite;
-    }
-
-    .word-recommendations {
-        animation: showRecommendations 20s ease-in-out infinite;
-    }
-
-    @keyframes showRanker {
-        0%, 30% {
-            transform: rotateY(0deg);
-            opacity: 1;
-        }
-        32%, 88% {
-            transform: rotateY(90deg);
-            opacity: 0;
-        }
-        90%, 100% {
-            transform: rotateY(0deg);
-            opacity: 1;
-        }
-    }
-
-    @keyframes showRecommendations {
-        0%, 34% {
-            transform: rotateY(-90deg);
-            opacity: 0;
-        }
-        36%, 84% {
-            transform: rotateY(0deg);
-            opacity: 1;
-        }
-        86%, 100% {
-            transform: rotateY(90deg);
-            opacity: 0;
-        }
-    }
-
+    /* Subtitle animations */
     .subtitle {
         text-align: center !important;
         width: 100%;
@@ -579,75 +516,119 @@ st.markdown('''
         margin-top: 10px;
         background: none !important;
         padding: 0 !important;
+        font-size: 1.1rem;
     }
 
     .word-flip {
-        display: inline;
-        transition: transform 0.3s ease, opacity 0.3s ease;
-        transform-style: preserve-3d;
+        display: inline-block;
+        animation: wordFlip 0.6s forwards;
+    }
+
+    @keyframes wordFlip {
+        0% { transform: rotateX(0deg); opacity: 1; }
+        50% { transform: rotateX(90deg); opacity: 0; }
+        100% { transform: rotateX(0deg); opacity: 1; }
     }
 </style>
 
 <div class="main-title">
     <div class="title-wrapper">
-        <span class="title-container">✈️ Flight <span class="flip-word"><span class="word-ranker">Ranker</span><span class="word-recommendations">Recommendations</span></span></span><span class="ai-prefix">AI-Selected</span>
+        <span id="title-content">✈️ Flight <span id="changing-word">Ranker</span></span>
+        <span id="ai-prefix" style="opacity: 0;"></span>
     </div>
 </div>
 
-<div class="subtitle">
-    <span>Share your flight preferences to </span>
-    <span id="word-help" class="word-flip">help</span>
-    <span> </span>
-    <span id="word-build" class="word-flip">build</span>
-    <span> </span>
-    <span id="word-better" class="word-flip">better</span>
-    <span> personalized </span>
-    <span id="word-ranking" class="word-flip">ranking</span>
-    <span> </span>
-    <span id="word-systems" class="word-flip">systems</span>
+<div class="subtitle" id="subtitle-content">
+    Share your flight preferences to help build better personalized ranking systems
 </div>
 
 <script>
-setTimeout(function() {
-    const wordPairs = [
-        { id: 'word-help', original: 'help', replacement: 'receive' },
-        { id: 'word-build', original: 'build', replacement: 'smart' },
-        { id: 'word-better', original: 'better', replacement: 'fast' },
-        { id: 'word-ranking', original: 'ranking', replacement: 'flight' },
-        { id: 'word-systems', original: 'systems', replacement: 'results' }
-    ];
+(function() {
+    let animationCycle = 0;
+    const CYCLE_DURATION = 20000; // 20 seconds
 
-    let lastPhase = null;
+    // Title animation function
+    function animateTitle() {
+        const changingWord = document.getElementById('changing-word');
+        const aiPrefix = document.getElementById('ai-prefix');
+        const titleContent = document.getElementById('title-content');
 
-    function updateSubtitleWords() {
-        const cycle = (Date.now() % 20000) / 20000;
-        const shouldFlip = cycle >= 0.30 && cycle < 0.90;
+        if (!changingWord) return;
 
-        if (lastPhase !== shouldFlip) {
-            lastPhase = shouldFlip;
+        const cyclePosition = (Date.now() % CYCLE_DURATION) / CYCLE_DURATION;
 
-            wordPairs.forEach(function(pair) {
-                const element = document.getElementById(pair.id);
-                if (element) {
-                    const targetText = shouldFlip ? pair.replacement : pair.original;
+        // Phase 1 (0-30%): Show "Ranker"
+        if (cyclePosition < 0.30) {
+            if (changingWord.textContent !== 'Ranker') {
+                changingWord.className = 'flip';
+                changingWord.textContent = 'Ranker';
+                aiPrefix.style.opacity = '0';
+                aiPrefix.textContent = '';
+            }
+        }
+        // Phase 2 (30-40%): Transition to "Recommendations"
+        else if (cyclePosition >= 0.30 && cyclePosition < 0.40) {
+            if (changingWord.textContent !== 'Recommendations') {
+                changingWord.className = 'flip';
+                setTimeout(function() {
+                    changingWord.textContent = 'Recommendations';
+                }, 300);
 
-                    element.style.transition = 'transform 0.15s ease, opacity 0.15s ease';
-                    element.style.transform = 'rotateY(90deg)';
-                    element.style.opacity = '0';
-
-                    setTimeout(function() {
-                        element.textContent = targetText;
-                        element.style.transform = 'rotateY(0deg)';
-                        element.style.opacity = '1';
-                    }, 150);
-                }
-            });
+                // Fade in AI-Selected
+                setTimeout(function() {
+                    aiPrefix.textContent = ' AI-Selected';
+                    aiPrefix.className = 'fade-in';
+                    aiPrefix.style.opacity = '1';
+                }, 400);
+            }
+        }
+        // Phase 3 (40-86%): Show full "AI-Selected Flight Recommendations"
+        else if (cyclePosition >= 0.40 && cyclePosition < 0.86) {
+            if (aiPrefix.style.opacity !== '1') {
+                aiPrefix.style.opacity = '1';
+            }
+        }
+        // Phase 4 (86-100%): Transition back to "Ranker"
+        else {
+            if (changingWord.textContent !== 'Ranker') {
+                aiPrefix.style.opacity = '0';
+                changingWord.className = 'flip';
+                setTimeout(function() {
+                    changingWord.textContent = 'Ranker';
+                    aiPrefix.textContent = '';
+                }, 300);
+            }
         }
     }
 
-    updateSubtitleWords();
-    setInterval(updateSubtitleWords, 100);
-}, 100);
+    // Subtitle animation function
+    function animateSubtitle() {
+        const subtitle = document.getElementById('subtitle-content');
+        if (!subtitle) return;
+
+        const cyclePosition = (Date.now() % CYCLE_DURATION) / CYCLE_DURATION;
+
+        const text1 = 'Share your flight preferences to help build better personalized ranking systems';
+        const text2 = 'Share your flight preferences to receive smart fast personalized flight results';
+
+        // Transition at 30% and back at 86%
+        if (cyclePosition >= 0.30 && cyclePosition < 0.86) {
+            if (subtitle.textContent !== text2) {
+                subtitle.innerHTML = '<span class="word-flip">Share</span> your <span class="word-flip">flight</span> <span class="word-flip">preferences</span> to <span class="word-flip">receive</span> <span class="word-flip">smart</span> <span class="word-flip">fast</span> personalized <span class="word-flip">flight</span> <span class="word-flip">results</span>';
+            }
+        } else {
+            if (subtitle.textContent !== text1) {
+                subtitle.textContent = text1;
+            }
+        }
+    }
+
+    // Run animations
+    setInterval(function() {
+        animateTitle();
+        animateSubtitle();
+    }, 100);
+})();
 </script>
 ''', unsafe_allow_html=True)
 
