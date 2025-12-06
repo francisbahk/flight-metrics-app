@@ -501,7 +501,11 @@ components.html("""
 
     #ai-prefix {
         display: inline-block;
-        transition: opacity 3s ease-in-out;
+        transition: opacity 1.5s ease-in-out, transform 1.5s ease-in-out;
+    }
+
+    #flight-word {
+        display: inline-block;
     }
 
     .subtitle {
@@ -522,7 +526,7 @@ components.html("""
 
 <div class="main-title">
     <div class="title-wrapper">
-        <span>✈️ <span id="ai-prefix" style="opacity: 0; margin-right: 5px;"></span>Flight <span id="changing-word">Ranker</span></span>
+        <span>✈️ <span id="ai-prefix" style="opacity: 0; transform: translateX(-20px); margin-right: 0px;"></span><span id="flight-word">Flight </span><span id="changing-word">Ranker</span></span>
     </div>
 </div>
 
@@ -561,8 +565,9 @@ components.html("""
         if (cyclePosition < 0.25) {
             if (lastPhase >= 25 && changingWord.textContent !== 'Ranker') {
                 titleAnimating = true;
-                // First fade out AI-Selected
+                // First slide out AI-Selected to the left
                 aiPrefix.style.opacity = '0';
+                aiPrefix.style.transform = 'translateX(-20px)';
                 // Then flip word back to Ranker
                 setTimeout(function() {
                     smoothFlip(changingWord, 'Ranker', 2000);
@@ -588,26 +593,28 @@ components.html("""
                 }, 600);
             }
         }
-        // Phase 3 (32-40%): Fade in "AI-Selected"
+        // Phase 3 (32-40%): Slide in "AI-Selected " from the left
         else if (cyclePosition >= 0.32 && cyclePosition < 0.40) {
             if (!titleAnimating && aiPrefix.style.opacity !== '1') {
                 titleAnimating = true;
-                aiPrefix.textContent = 'AI-Selected';
+                aiPrefix.textContent = 'AI-Selected ';  // Space after AI-Selected
                 aiPrefix.style.opacity = '1';
-                setTimeout(function() { titleAnimating = false; }, 3000);
+                aiPrefix.style.transform = 'translateX(0)';
+                setTimeout(function() { titleAnimating = false; }, 1500);
             }
         }
         // Phase 4 (40-80%): Hold "AI-Selected Flight Recommendations"
         else if (cyclePosition >= 0.40 && cyclePosition < 0.80) {
             // Just hold
         }
-        // Phase 5 (80-90%): Fade out "AI-Selected" then flip back to "Ranker"
+        // Phase 5 (80-90%): Slide out "AI-Selected " then flip back to "Ranker"
         else if (cyclePosition >= 0.80 && cyclePosition < 0.90) {
             if (!titleAnimating && aiPrefix.style.opacity !== '0') {
                 titleAnimating = true;
-                // Fade out AI-Selected first
+                // Slide out AI-Selected to the left
                 aiPrefix.style.opacity = '0';
-                setTimeout(function() { titleAnimating = false; }, 2000);
+                aiPrefix.style.transform = 'translateX(-20px)';
+                setTimeout(function() { titleAnimating = false; }, 1500);
             }
         }
 
@@ -947,11 +954,26 @@ st.markdown('</div>', unsafe_allow_html=True)
 # Search buttons
 col_btn1, col_btn2 = st.columns(2)
 
+# Custom CSS for black AI button
+st.markdown("""
+<style>
+div[data-testid="column"]:first-child button[kind="secondary"] {
+    background-color: #000000 !important;
+    color: white !important;
+    border: 1px solid #333333 !important;
+}
+div[data-testid="column"]:first-child button[kind="secondary"]:hover {
+    background-color: #1a1a1a !important;
+    border: 1px solid #4a4a4a !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 with col_btn1:
-    ai_search = st.button("🤖 Search Flights with AI Personalization", type="secondary", use_container_width=True)
+    regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True)
 
 with col_btn2:
-    regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True)
+    ai_search = st.button("🤖 Search Flights with AI Personalization", type="secondary", use_container_width=True)
 
 if ai_search or regular_search:
     # Validation
@@ -1190,7 +1212,6 @@ if ai_search or regular_search:
                     st.write(f"**Debug Info:**")
                     st.write(f"- Outbound flights to rank: {len(all_flights)}")
                     st.write(f"- Your prompt: *{prompt}*")
-                    st.write(f"- Extracted preferences: {parsed.get('preferences', {})}")
 
                     import traceback
                     import time
