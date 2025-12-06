@@ -546,7 +546,7 @@ components.html("""
 <script>
 (function() {
     const CYCLE_DURATION = 30000; // 30 seconds for slower animations
-    const START_DELAY = 3000; // Start animation 3 seconds after page load
+    const START_DELAY = 0; // Start animation immediately
     const startTime = Date.now() + START_DELAY; // Offset start time
 
     var titleAnimating = false;
@@ -1841,6 +1841,18 @@ if st.session_state.all_flights:
                         }
                     }
 
+                    /* Shrink padding after glow ends */
+                    @keyframes shrinkPadding {
+                        0% {
+                            padding: 2px 6px;
+                            margin: 0 2px;
+                        }
+                        100% {
+                            padding: 0;
+                            margin: 0;
+                        }
+                    }
+
                     .filter-heading-neon {
                         display: inline-block;
                         animation: neonGlow10s 10s ease-in-out forwards;
@@ -1851,7 +1863,9 @@ if st.session_state.all_flights:
 
                     .metric-neon {
                         display: inline-block;
-                        animation: neonGlow10s 10s ease-in-out forwards;
+                        animation:
+                            neonGlow10s 10s ease-in-out forwards,
+                            shrinkPadding 2s ease-in-out 10s forwards;
                         padding: 2px 6px;
                         border-radius: 4px;
                         border: 1px solid #ff4444;
