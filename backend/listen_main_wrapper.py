@@ -88,12 +88,17 @@ def rank_flights_with_listen_main(
     ]
 
     try:
+        # Pass environment variables to subprocess (including Gemini API key)
+        import os
+        env = os.environ.copy()
+
         result = subprocess.run(
             cmd,
             cwd=str(listen_dir),
             capture_output=True,
             text=True,
-            timeout=600  # 10 minute timeout (25 iterations * ~5 sec/iter with rate limiting = ~2 min, giving buffer)
+            timeout=600,  # 10 minute timeout (25 iterations * ~5 sec/iter with rate limiting = ~2 min, giving buffer)
+            env=env  # Pass environment variables including GEMINI_API_KEY
         )
 
         if result.returncode != 0:
