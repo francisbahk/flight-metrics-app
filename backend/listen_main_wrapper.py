@@ -125,9 +125,19 @@ def rank_flights_with_listen_main(
     # LISTEN saves JSON output in outputs/{tag}/ directory
     output_dir = listen_dir / "outputs" / tag  # Note: "outputs" not "output"
 
+    print(f"  📂 Looking for output in: {output_dir}")
+    print(f"  📂 Output directory exists: {output_dir.exists()}")
+
     if output_dir.exists():
+        # List all files in the directory
+        all_files = list(output_dir.iterdir())
+        print(f"  📂 Found {len(all_files)} files in output directory:")
+        for f in all_files:
+            print(f"     - {f.name}")
+
         # Find the JSON result file
         json_files = list(output_dir.glob("*.json"))
+        print(f"  📂 Found {len(json_files)} JSON files")
 
         if json_files:
             try:

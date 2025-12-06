@@ -526,7 +526,7 @@ components.html("""
 
 <div class="main-title">
     <div class="title-wrapper">
-        <span>✈️ <span id="ai-prefix" style="opacity: 0; transform: translateX(-20px); margin-right: 0px;"></span><span id="flight-word">Flight </span><span id="changing-word">Ranker</span></span>
+        <span>✈️ <span id="ai-prefix" style="opacity: 0; transform: translateX(-20px);"></span> <span id="flight-word">Flight</span> <span id="changing-word">Ranker</span></span>
     </div>
 </div>
 
@@ -565,17 +565,18 @@ components.html("""
         if (cyclePosition < 0.25) {
             if (lastPhase >= 25 && changingWord.textContent !== 'Ranker') {
                 titleAnimating = true;
-                // First slide out AI-Selected to the left
+                // Slide out AI-Selected and flip word simultaneously
                 aiPrefix.style.opacity = '0';
                 aiPrefix.style.transform = 'translateX(-20px)';
-                // Then flip word back to Ranker
+                changingWord.style.transform = 'rotateX(90deg)';
+                changingWord.style.opacity = '0';
                 setTimeout(function() {
-                    smoothFlip(changingWord, 'Ranker', 2000);
-                    setTimeout(function() {
-                        aiPrefix.textContent = '';
-                        titleAnimating = false;
-                    }, 2000);
-                }, 2000);
+                    changingWord.textContent = 'Ranker';
+                    changingWord.style.transform = 'rotateX(0deg)';
+                    changingWord.style.opacity = '1';
+                    aiPrefix.textContent = '';
+                    titleAnimating = false;
+                }, 600);
             }
         }
         // Phase 2 (25-32%): Flip "Ranker" to "Recommendations" (like subtitle words)
@@ -593,11 +594,11 @@ components.html("""
                 }, 600);
             }
         }
-        // Phase 3 (32-40%): Slide in "AI-Selected " from the left
+        // Phase 3 (32-40%): Slide in "AI-Selected" from the left
         else if (cyclePosition >= 0.32 && cyclePosition < 0.40) {
             if (!titleAnimating && aiPrefix.style.opacity !== '1') {
                 titleAnimating = true;
-                aiPrefix.textContent = 'AI-Selected ';  // Space after AI-Selected
+                aiPrefix.textContent = 'AI-Selected';
                 aiPrefix.style.opacity = '1';
                 aiPrefix.style.transform = 'translateX(0)';
                 setTimeout(function() { titleAnimating = false; }, 1500);
@@ -1223,8 +1224,9 @@ if ai_search or regular_search:
                         preferences['destinations'] = parsed.get('destinations', [])
 
                         # Show progress
-                        progress_placeholder = st.empty()
-                        progress_placeholder.info("⏳ **LISTEN-U is running...** This takes ~2 minutes (25 iterations with Gemini rate limiting)")
+                        n_iters = 25
+                        status_text = st.empty()
+                        status_text.info(f"⏳ **LISTEN-U is running...** ({n_iters} iterations, ~2 minutes)")
 
                         start_time = time.time()
 
@@ -1233,11 +1235,11 @@ if ai_search or regular_search:
                             flights=all_flights,
                             user_prompt=prompt,
                             user_preferences=preferences,
-                            n_iterations=25
+                            n_iterations=n_iters
                         )
 
                         elapsed = time.time() - start_time
-                        progress_placeholder.empty()
+                        status_text.empty()
 
                         st.success(f"✅ **LISTEN-U completed in {elapsed:.1f} seconds!**")
                         st.write(f"**Results:**")
