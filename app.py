@@ -1000,28 +1000,33 @@ with col_btn1:
     regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True)
 
 with col_btn2:
-    # Wrap AI button in a div with unique class for targeted styling
-    st.markdown('<div class="ai-search-button-wrapper">', unsafe_allow_html=True)
     ai_search = st.button("🔎 Search Flights with AI Personalization", type="secondary", use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
-# Custom CSS for black AI button - target only the AI search button
+# Custom CSS and JavaScript for black AI button
 st.markdown("""
 <style>
-/* Make ONLY the AI search button black with white text */
-.ai-search-button-wrapper {
-    display: contents; /* Prevent wrapper from affecting layout */
-}
-.ai-search-button-wrapper button[kind="secondary"] {
+/* Make the AI search button black with white text */
+button.ai-search-black {
     background-color: #000000 !important;
     color: white !important;
     border: 1px solid #333333 !important;
 }
-.ai-search-button-wrapper button[kind="secondary"]:hover {
+button.ai-search-black:hover {
     background-color: #1a1a1a !important;
     border: 1px solid #4a4a4a !important;
 }
 </style>
+<script>
+// Add class to AI search button (secondary button containing AI Personalization text)
+setTimeout(function() {
+    const buttons = document.querySelectorAll('button[kind="secondary"]');
+    buttons.forEach(function(btn) {
+        if (btn.textContent.includes('AI Personalization')) {
+            btn.classList.add('ai-search-black');
+        }
+    });
+}, 100);
+</script>
 """, unsafe_allow_html=True)
 
 # Rate limiting for AI search (prevent quota exhaustion)
