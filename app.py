@@ -1277,56 +1277,27 @@ if st.session_state.all_flights:
             """)
         st.markdown("### What would you like to do next?")
 
-        # Create columns based on whether we have return flights
-        if has_return:
-            col1, col2, col3 = st.columns(3)
-        else:
-            col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("🔍 New Search", use_container_width=True, type="primary"):
-                # Reset session state for new search
-                st.session_state.all_flights = []
-                st.session_state.selected_flights = []
-                st.session_state.all_return_flights = []
-                st.session_state.selected_return_flights = []
-                st.session_state.csv_generated = False
-                st.session_state.outbound_submitted = False
-                st.session_state.return_submitted = False
-                st.session_state.csv_data_outbound = None
-                st.session_state.csv_data_return = None
-                st.session_state.has_return = False
-                st.session_state.parsed_params = None
-                st.session_state.review_confirmed = False
-                st.session_state.search_id = None
-                st.session_state.db_save_error = None
-                # Delete the prompt key to reset it (can't set widget values directly)
-                if 'flight_prompt_input' in st.session_state:
-                    del st.session_state.flight_prompt_input
-                st.rerun()
-
-        with col2:
-            if st.session_state.csv_data_outbound:
-                st.download_button(
-                    label="📥 Download Outbound CSV",
-                    data=st.session_state.csv_data_outbound,
-                    file_name=f"outbound_rankings_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    type="secondary"
-                )
-
-        if has_return:
-            with col3:
-                if st.session_state.csv_data_return:
-                    st.download_button(
-                        label="📥 Download Return CSV",
-                        data=st.session_state.csv_data_return,
-                        file_name=f"return_rankings_{st.session_state.session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        type="secondary"
-                    )
+        # New Search button takes full width
+        if st.button("🔍 New Search", use_container_width=True, type="primary"):
+            # Reset session state for new search
+            st.session_state.all_flights = []
+            st.session_state.selected_flights = []
+            st.session_state.all_return_flights = []
+            st.session_state.selected_return_flights = []
+            st.session_state.csv_generated = False
+            st.session_state.outbound_submitted = False
+            st.session_state.return_submitted = False
+            st.session_state.csv_data_outbound = None
+            st.session_state.csv_data_return = None
+            st.session_state.has_return = False
+            st.session_state.parsed_params = None
+            st.session_state.review_confirmed = False
+            st.session_state.search_id = None
+            st.session_state.db_save_error = None
+            # Delete the prompt key to reset it (can't set widget values directly)
+            if 'flight_prompt_input' in st.session_state:
+                del st.session_state.flight_prompt_input
+            st.rerun()
 
     else:
         # FLIGHT SELECTION INTERFACE
@@ -1734,16 +1705,26 @@ if st.session_state.all_flights:
                 else:
                     st.info("Select 5 outbound flights")
 
-            # Floating navigation button to return flights
+            # Floating navigation button to return flights (only visible in departure section)
             st.markdown("""
                 <style>
+                    @keyframes pulse {
+                        0%, 100% {
+                            opacity: 0.3;
+                            transform: translateX(50%) scale(1);
+                        }
+                        50% {
+                            opacity: 0.6;
+                            transform: translateX(50%) scale(1.05);
+                        }
+                    }
                     .jump-to-return {
                         position: fixed;
                         bottom: 30px;
                         right: 50%;
                         transform: translateX(50%);
-                        background-color: rgba(255, 255, 255, 0.1);
-                        color: #4A4A4A;
+                        background-color: rgba(255, 255, 255, 0.3);
+                        color: #6B7280;
                         width: 60px;
                         height: 60px;
                         border-radius: 50%;
@@ -1751,61 +1732,117 @@ if st.session_state.all_flights:
                         align-items: center;
                         justify-content: center;
                         text-decoration: none;
-                        font-size: 24px;
+                        font-size: 28px;
                         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
                         z-index: 1000;
                         cursor: pointer;
-                        transition: background-color 0.3s, transform 0.2s;
-                        border: 1px solid rgba(74, 74, 74, 0.2);
+                        border: 1px solid rgba(107, 114, 128, 0.2);
+                        animation: pulse 2s ease-in-out infinite;
                     }
                     .jump-to-return:hover {
-                        background-color: rgba(255, 255, 255, 0.2);
-                        transform: translateX(50%) translateY(-2px);
+                        animation: none;
+                        opacity: 0.8;
+                        transform: translateX(50%) scale(1.1);
                     }
                     .jump-to-return::before {
-                        content: '▼';
+                        content: '↓';
+                    }
+                    /* Hide down arrow when in return section */
+                    #return-flights ~ * .jump-to-return {
+                        display: none;
                     }
                 </style>
                 <a href="#return-flights" class="jump-to-return"></a>
+                <script>
+                    // Hide down arrow when scrolled to return section
+                    const observer = new IntersectionObserver((entries) => {
+                        const downArrow = document.querySelector('.jump-to-return');
+                        entries.forEach(entry => {
+                            if (entry.target.id === 'return-flights' && entry.isIntersecting) {
+                                if (downArrow) downArrow.style.display = 'none';
+                            } else if (entry.target.id === 'outbound-flights' && entry.isIntersecting) {
+                                if (downArrow) downArrow.style.display = 'flex';
+                            }
+                        });
+                    }, { threshold: 0.1 });
+
+                    setTimeout(() => {
+                        const returnSection = document.getElementById('return-flights');
+                        const outboundSection = document.getElementById('outbound-flights');
+                        if (returnSection) observer.observe(returnSection);
+                        if (outboundSection) observer.observe(outboundSection);
+                    }, 100);
+                </script>
             """, unsafe_allow_html=True)
 
             # RETURN FLIGHTS SECTION
             st.markdown('<div id="return-flights"></div>', unsafe_allow_html=True)
             st.markdown("## 🛬 Return Flights")
 
-            # Floating navigation button back to departure flights
+            # Floating navigation button back to departure flights (only visible in return section)
             st.markdown("""
                 <style>
+                    @keyframes pulseUp {
+                        0%, 100% {
+                            opacity: 0.3;
+                            transform: translateX(50%) scale(1);
+                        }
+                        50% {
+                            opacity: 0.6;
+                            transform: translateX(50%) scale(1.05);
+                        }
+                    }
                     .jump-to-departure {
                         position: fixed;
                         top: 80px;
                         right: 50%;
                         transform: translateX(50%);
-                        background-color: rgba(255, 255, 255, 0.1);
-                        color: #4A4A4A;
+                        background-color: rgba(255, 255, 255, 0.3);
+                        color: #6B7280;
                         width: 60px;
                         height: 60px;
                         border-radius: 50%;
-                        display: flex;
+                        display: none;
                         align-items: center;
                         justify-content: center;
                         text-decoration: none;
-                        font-size: 24px;
+                        font-size: 28px;
                         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
                         z-index: 1000;
                         cursor: pointer;
-                        transition: background-color 0.3s, transform 0.2s;
-                        border: 1px solid rgba(74, 74, 74, 0.2);
+                        border: 1px solid rgba(107, 114, 128, 0.2);
+                        animation: pulseUp 2s ease-in-out infinite;
                     }
                     .jump-to-departure:hover {
-                        background-color: rgba(255, 255, 255, 0.2);
-                        transform: translateX(50%) translateY(-2px);
+                        animation: none;
+                        opacity: 0.8;
+                        transform: translateX(50%) scale(1.1);
                     }
                     .jump-to-departure::before {
-                        content: '▲';
+                        content: '↑';
                     }
                 </style>
                 <a href="#outbound-flights" class="jump-to-departure"></a>
+                <script>
+                    // Show up arrow only when in return section
+                    const observerUp = new IntersectionObserver((entries) => {
+                        const upArrow = document.querySelector('.jump-to-departure');
+                        entries.forEach(entry => {
+                            if (entry.target.id === 'return-flights' && entry.isIntersecting) {
+                                if (upArrow) upArrow.style.display = 'flex';
+                            } else if (entry.target.id === 'outbound-flights' && entry.isIntersecting) {
+                                if (upArrow) upArrow.style.display = 'none';
+                            }
+                        });
+                    }, { threshold: 0.1 });
+
+                    setTimeout(() => {
+                        const returnSection = document.getElementById('return-flights');
+                        const outboundSection = document.getElementById('outbound-flights');
+                        if (returnSection) observerUp.observe(returnSection);
+                        if (outboundSection) observerUp.observe(outboundSection);
+                    }, 100);
+                </script>
             """, unsafe_allow_html=True)
 
             col_flights_ret, col_ranking_ret = st.columns([2, 1])
