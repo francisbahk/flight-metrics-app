@@ -976,6 +976,23 @@ with col_btn1:
 with col_btn2:
     ai_search = st.button("🤖 Search Flights with AI Personalization", type="secondary", use_container_width=True)
 
+# Rate limiting for AI search (prevent quota exhaustion)
+import time
+if 'last_ai_search_time' not in st.session_state:
+    st.session_state.last_ai_search_time = 0
+
+if ai_search:
+    current_time = time.time()
+    time_since_last = current_time - st.session_state.last_ai_search_time
+    cooldown_seconds = 45  # 45 second cooldown between AI searches (allows ~5 iterations at 6s each + buffer)
+
+    if time_since_last < cooldown_seconds:
+        remaining = int(cooldown_seconds - time_since_last)
+        st.error(f"⏳ Please wait {remaining} seconds before searching again (Gemini API rate limit protection)")
+        st.stop()
+
+    st.session_state.last_ai_search_time = current_time
+
 if ai_search or regular_search:
     # Reset session state to clear previous results
     st.session_state.all_flights = []
@@ -1236,7 +1253,7 @@ if ai_search or regular_search:
                         preferences['destinations'] = parsed.get('destinations', [])
 
                         # Show progress with simulated progress bar
-                        n_iters = 25
+                        n_iters = 5  # Reduced from 25 to stay within Gemini free tier quota (15 req/min)
                         expected_time = n_iters * 6  # ~6 seconds per iteration with Gemini free tier safe limit (10 req/min)
 
                         progress_bar = st.progress(0)
@@ -1305,7 +1322,7 @@ if ai_search or regular_search:
                                 flights=all_return_flights,
                                 user_prompt=prompt,
                                 user_preferences=preferences,
-                                n_iterations=25
+                                n_iterations=5  # Reduced from 25 to stay within Gemini free tier quota
                             )
                             elapsed_return = time.time() - start_return
                             return_progress.empty()
