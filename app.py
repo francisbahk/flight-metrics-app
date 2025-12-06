@@ -1311,21 +1311,23 @@ if st.session_state.all_flights:
             <style>
                 @keyframes progressPulse {{
                     0%, 83.33% {{
-                        opacity: 0.9;
+                        opacity: 0.7;
                     }}
                     83.34%, 100% {{
-                        opacity: 1;
+                        opacity: 0.95;
                     }}
                 }}
                 .persistent-progress-container {{
                     position: fixed;
                     top: 60px;
-                    left: 0;
-                    right: 0;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 50%;
                     z-index: 999;
-                    background-color: rgba(255, 255, 255, 0.95);
+                    background-color: rgba(255, 255, 255, 0.6);
                     padding: 8px 16px;
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                    border-radius: 8px;
                     animation: progressPulse 12s ease-in-out infinite;
                 }}
                 .persistent-progress-bar {{
@@ -1337,7 +1339,7 @@ if st.session_state.all_flights:
                 }}
                 .persistent-progress-fill {{
                     height: 100%;
-                    background-color: #4CAF50;
+                    background-color: #90ee90;
                     width: {progress_percent * 100}%;
                     transition: width 0.3s ease;
                 }}
@@ -1346,13 +1348,14 @@ if st.session_state.all_flights:
                     font-size: 12px;
                     color: #666;
                     text-align: center;
+                    font-weight: 500;
                 }}
             </style>
             <div class="persistent-progress-container">
                 <div class="persistent-progress-bar">
                     <div class="persistent-progress-fill"></div>
                 </div>
-                <div class="persistent-progress-text">{num_completed} / {num_required} submitted</div>
+                <div class="persistent-progress-text">{num_completed} / {num_required} sections submitted</div>
             </div>
         """, unsafe_allow_html=True)
 
@@ -1368,26 +1371,44 @@ if st.session_state.all_flights:
 
         # SIDEBAR FILTERS
         with st.sidebar:
-            st.markdown("## 🔍 Filters")
-
-            # Add neon trace effect for sidebar filters
+            # Add neon trace effect for Filters heading
             st.markdown("""
                 <style>
-                    @keyframes sidebarNeonTrace {
-                        0%, 100% {
-                            box-shadow: 0 0 5px #00ffff, 0 0 10px #00ffff, 0 0 15px #00ffff;
-                            border: 2px solid #00ffff;
+                    @keyframes filterHeadingNeon {
+                        0% {
+                            box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
+                            border: 1.5px solid #ff4444;
+                            opacity: 1;
+                        }
+                        25% {
+                            box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
+                            border: 1.5px solid #ff4444;
+                            opacity: 1;
                         }
                         50% {
-                            box-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff;
-                            border: 2px solid #00ffff;
+                            box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
+                            border: 1.5px solid #ff4444;
+                            opacity: 1;
+                        }
+                        75% {
+                            box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
+                            border: 1.5px solid #ff4444;
+                            opacity: 1;
+                        }
+                        100% {
+                            box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
+                            border: 1.5px solid #ff4444;
+                            opacity: 0;
                         }
                     }
-                    section[data-testid="stSidebar"] > div:first-child {
-                        animation: sidebarNeonTrace 2s ease-in-out 0s 5;
-                        border-radius: 8px;
+                    .filter-heading-neon {
+                        display: inline-block;
+                        animation: filterHeadingNeon 10s ease-in-out forwards;
+                        padding: 4px 12px;
+                        border-radius: 6px;
                     }
                 </style>
+                <h2><span class="filter-heading-neon">🔍 Filters</span></h2>
             """, unsafe_allow_html=True)
 
             # Get all flights for filter options (combine outbound and return if applicable)
@@ -1654,26 +1675,36 @@ if st.session_state.all_flights:
                 # Add neon trace effect CSS (only for first flight in first 10 seconds)
                 st.markdown("""
                     <style>
-                        @keyframes neonTrace {
-                            0%, 100% {
-                                box-shadow: 0 0 5px #00ffff, 0 0 10px #00ffff, 0 0 15px #00ffff, 0 0 20px #00ffff;
-                                border: 2px solid #00ffff;
+                        @keyframes redNeonTrace {
+                            0% {
+                                box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
+                                border: 1.5px solid #ff4444;
+                                opacity: 1;
+                            }
+                            25% {
+                                box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
+                                border: 1.5px solid #ff4444;
+                                opacity: 1;
                             }
                             50% {
-                                box-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff, 0 0 40px #00ffff;
-                                border: 2px solid #00ffff;
+                                box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
+                                border: 1.5px solid #ff4444;
+                                opacity: 1;
+                            }
+                            75% {
+                                box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
+                                border: 1.5px solid #ff4444;
+                                opacity: 1;
+                            }
+                            100% {
+                                box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
+                                border: 1.5px solid #ff4444;
+                                opacity: 0;
                             }
                         }
-                        .first-flight-highlight {
-                            animation: neonTrace 2s ease-in-out 0s 5;
-                            animation-fill-mode: forwards;
-                            padding: 8px;
-                            border-radius: 8px;
-                            margin: 4px 0;
-                        }
-                        .neon-metric {
+                        .neon-metric-box {
                             display: inline-block;
-                            animation: neonTrace 2s ease-in-out 0s 5;
+                            animation: redNeonTrace 10s ease-in-out forwards;
                             padding: 2px 6px;
                             border-radius: 4px;
                             margin: 0 2px;
@@ -1733,12 +1764,11 @@ if st.session_state.all_flights:
                         # Format stops for display
                         stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
 
-                        # Apply highlight class only to first flight
-                        highlight_class = 'class="first-flight-highlight"' if idx == 0 else ''
-                        neon_class = 'class="neon-metric"' if idx == 0 else ''
+                        # Apply neon boxes only to first flight (7 small boxes for each metric)
+                        neon_class = 'class="neon-metric-box"' if idx == 0 else ''
 
                         st.markdown(f"""
-                        <div {highlight_class} style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
+                        <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
                         <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
                             <span {neon_class} style="font-weight: 700;">${flight['price']:.0f}</span> •
                             <span {neon_class} style="font-weight: 600;">{duration_display}</span> •
@@ -1746,7 +1776,9 @@ if st.session_state.all_flights:
                             <span {neon_class} style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
                         </div>
                         <div style="font-size: 0.9em; color: #666;">
-                            <span {neon_class}>{airline_name} {flight['flight_number']}{codeshare_label} | {flight['origin']} → {flight['destination']} | {dept_date_display}</span>
+                            <span {neon_class}>{airline_name} {flight['flight_number']}{codeshare_label}</span> |
+                            <span {neon_class}>{flight['origin']} → {flight['destination']}</span> |
+                            <span {neon_class}>{dept_date_display}</span>
                         </div>
                         </div>
                         """, unsafe_allow_html=True)
@@ -1863,16 +1895,17 @@ if st.session_state.all_flights:
                         if (!downArrow || !returnSection) return;
 
                         const returnRect = returnSection.getBoundingClientRect();
-                        // Hide down arrow when return section header is at or above viewport top
-                        if (returnRect.top <= 0) {
+                        // Hide down arrow when return section header is visible in viewport (within 100px from top)
+                        if (returnRect.top <= 100) {
                             downArrow.style.display = 'none';
                         } else {
                             downArrow.style.display = 'flex';
                         }
                     }
 
-                    // Update on scroll
+                    // Update on scroll and hash change
                     window.addEventListener('scroll', updateDownArrow);
+                    window.addEventListener('hashchange', () => setTimeout(updateDownArrow, 100));
 
                     // Initial check
                     setTimeout(updateDownArrow, 100);
@@ -1939,16 +1972,17 @@ if st.session_state.all_flights:
                         if (!upArrow || !returnSection) return;
 
                         const returnRect = returnSection.getBoundingClientRect();
-                        // Show up arrow when return section header is at or above viewport top
-                        if (returnRect.top <= 0) {
+                        // Show up arrow when return section header is visible in viewport (within 100px from top)
+                        if (returnRect.top <= 100) {
                             upArrow.style.display = 'flex';
                         } else {
                             upArrow.style.display = 'none';
                         }
                     }
 
-                    // Update on scroll
+                    // Update on scroll and hash change
                     window.addEventListener('scroll', updateUpArrow);
+                    window.addEventListener('hashchange', () => setTimeout(updateUpArrow, 100));
 
                     // Initial check
                     setTimeout(updateUpArrow, 100);
