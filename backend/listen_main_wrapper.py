@@ -42,10 +42,12 @@ def rank_flights_with_listen_main(
     listen_dir = Path(__file__).parent.parent / "LISTEN"
     input_dir = listen_dir / "input"
     config_dir = listen_dir / "configs"
+    outputs_dir = listen_dir / "outputs"
 
     # Create directories if they don't exist
     input_dir.mkdir(exist_ok=True)
     config_dir.mkdir(exist_ok=True)
+    outputs_dir.mkdir(exist_ok=True)  # LISTEN creates output subdirectories here
 
     # File names
     csv_filename = f"{tag}.csv"
