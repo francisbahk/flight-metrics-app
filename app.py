@@ -1800,16 +1800,25 @@ if st.session_state.all_flights:
             # Add neon trace effect for Filters heading
             st.markdown("""
                 <style>
-                    @keyframes filterHeadingNeon {
+                    /* Neon glow animation - runs for 10 seconds then fades out */
+                    @keyframes neonGlow10s {
                         0% {
                             box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444;
                             border-color: #ff4444;
                         }
-                        25% {
+                        15% {
                             box-shadow: 0 0 8px #ff4444, 0 0 16px #ff4444, 0 0 24px #ff4444;
                             border-color: #ff6666;
                         }
-                        50% {
+                        30% {
+                            box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444;
+                            border-color: #ff4444;
+                        }
+                        45% {
+                            box-shadow: 0 0 8px #ff4444, 0 0 16px #ff4444, 0 0 24px #ff4444;
+                            border-color: #ff6666;
+                        }
+                        60% {
                             box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444;
                             border-color: #ff4444;
                         }
@@ -1817,37 +1826,27 @@ if st.session_state.all_flights:
                             box-shadow: 0 0 8px #ff4444, 0 0 16px #ff4444, 0 0 24px #ff4444;
                             border-color: #ff6666;
                         }
+                        90% {
+                            box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444;
+                            border-color: #ff4444;
+                        }
                         100% {
                             box-shadow: none;
                             border-color: transparent;
                         }
                     }
+
                     .filter-heading-neon {
                         display: inline-block;
-                        animation: filterHeadingNeon 15s ease-in-out forwards;
+                        animation: neonGlow10s 10s ease-in-out forwards;
                         padding: 4px 12px;
                         border-radius: 6px;
                         border: 1.5px solid #ff4444;
                     }
 
-                    /* Flight metric neon boxes - infinite pulsing animation */
-                    @keyframes flightMetricNeon {
-                        0% {
-                            box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444;
-                            border-color: #ff4444;
-                        }
-                        50% {
-                            box-shadow: 0 0 8px #ff4444, 0 0 16px #ff4444, 0 0 24px #ff4444;
-                            border-color: #ff6666;
-                        }
-                        100% {
-                            box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444;
-                            border-color: #ff4444;
-                        }
-                    }
                     .metric-neon {
                         display: inline-block;
-                        animation: flightMetricNeon 3s ease-in-out infinite;
+                        animation: neonGlow10s 10s ease-in-out forwards;
                         padding: 2px 6px;
                         border-radius: 4px;
                         border: 1px solid #ff4444;
