@@ -1186,12 +1186,17 @@ if ai_search or regular_search:
                 # Apply AI ranking if AI search button was pressed
                 if ai_search:
                     st.info("🤖 Running LISTEN-U AI personalization (5 iterations)...")
+                    import traceback
                     try:
                         from backend.listen_main_wrapper import rank_flights_with_listen_main
 
                         preferences = parsed.get('preferences', {})
                         preferences['origins'] = parsed.get('origins', [])
                         preferences['destinations'] = parsed.get('destinations', [])
+
+                        st.write(f"DEBUG: Running LISTEN-U with {len(all_flights)} outbound flights")
+                        st.write(f"DEBUG: User prompt: {prompt}")
+                        st.write(f"DEBUG: Preferences: {preferences}")
 
                         # Rank outbound flights with LISTEN-U (5 iterations)
                         all_flights = rank_flights_with_listen_main(
@@ -1200,6 +1205,8 @@ if ai_search or regular_search:
                             user_preferences=preferences,
                             n_iterations=5
                         )
+
+                        st.write(f"DEBUG: After LISTEN-U, first flight price: ${all_flights[0]['price']}")
 
                         # Rank return flights if present
                         if has_return and all_return_flights:
@@ -1212,7 +1219,9 @@ if ai_search or regular_search:
 
                         st.success("✅ AI personalization complete! Flights ranked by LISTEN-U algorithm.")
                     except Exception as e:
-                        st.warning(f"⚠️ AI personalization failed ({str(e)}), showing unranked results")
+                        st.error(f"⚠️ AI personalization failed: {str(e)}")
+                        st.error(f"Traceback: {traceback.format_exc()}")
+                        st.warning("Showing unranked results")
 
                 # Store all flights
                 st.session_state.all_flights = all_flights
