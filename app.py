@@ -1243,9 +1243,13 @@ if ai_search or regular_search:
 
                         st.write("---")
                     except Exception as e:
-                        st.error(f"⚠️ AI personalization failed: {str(e)}")
-                        st.error(f"Traceback: {traceback.format_exc()}")
-                        st.warning("Showing unranked results")
+                        st.error(f"⚠️ **LISTEN-U AI PERSONALIZATION FAILED**")
+                        st.error(f"**Error:** {str(e)}")
+                        with st.expander("Show Full Error Details"):
+                            st.code(traceback.format_exc())
+                        st.error("**CANNOT CONTINUE - LISTEN-U IS REQUIRED FOR AI SEARCH**")
+                        st.info("Please use the regular '🔍 Search Flights' button instead, or contact support if this error persists.")
+                        st.stop()  # STOP execution - do NOT show flights if LISTEN failed
 
                 # Store all flights
                 st.session_state.all_flights = all_flights
