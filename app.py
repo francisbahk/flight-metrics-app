@@ -491,7 +491,7 @@ st.markdown('''
     .ai-prefix {
         display: inline-block;
         opacity: 0;
-        margin-right: 8px;
+        margin-left: 8px;
         animation: fadeInPrefix 20s ease-in-out infinite;
         background: none !important;
     }
@@ -512,13 +512,15 @@ st.markdown('''
         display: inline-block;
         white-space: nowrap;
         background: none !important;
+        vertical-align: baseline;
     }
 
     .flip-word {
         display: inline-block;
         position: relative;
         min-width: 200px;
-        text-align: left;
+        height: 1.2em;
+        vertical-align: baseline;
         background: none !important;
     }
 
@@ -527,6 +529,7 @@ st.markdown('''
         display: inline-block;
         position: absolute;
         left: 0;
+        top: 0;
         transform-style: preserve-3d;
         background: none !important;
     }
@@ -579,8 +582,7 @@ st.markdown('''
     }
 
     .word-flip {
-        display: inline-block;
-        position: relative;
+        display: inline;
         transition: transform 0.3s ease, opacity 0.3s ease;
         transform-style: preserve-3d;
     }
@@ -588,7 +590,7 @@ st.markdown('''
 
 <div class="main-title">
     <div class="title-wrapper">
-        <span class="ai-prefix">AI-Selected</span><span class="title-container">✈️ Flight <span class="flip-word"><span class="word-ranker">Ranker</span><span class="word-recommendations">Recommendations</span></span></span>
+        <span class="title-container">✈️ Flight <span class="flip-word"><span class="word-ranker">Ranker</span><span class="word-recommendations">Recommendations</span></span></span><span class="ai-prefix">AI-Selected</span>
     </div>
 </div>
 
@@ -606,8 +608,7 @@ st.markdown('''
 </div>
 
 <script>
-(function() {
-    // Word flip animation for subtitle
+setTimeout(function() {
     const wordPairs = [
         { id: 'word-help', original: 'help', replacement: 'receive' },
         { id: 'word-build', original: 'build', replacement: 'smart' },
@@ -619,23 +620,22 @@ st.markdown('''
     let lastPhase = null;
 
     function updateSubtitleWords() {
-        const cycle = (Date.now() % 20000) / 20000; // 20 second cycle
+        const cycle = (Date.now() % 20000) / 20000;
         const shouldFlip = cycle >= 0.30 && cycle < 0.90;
 
-        // Only trigger transitions when phase changes
         if (lastPhase !== shouldFlip) {
             lastPhase = shouldFlip;
 
-            wordPairs.forEach(pair => {
+            wordPairs.forEach(function(pair) {
                 const element = document.getElementById(pair.id);
                 if (element) {
                     const targetText = shouldFlip ? pair.replacement : pair.original;
 
-                    // Add flip animation
+                    element.style.transition = 'transform 0.15s ease, opacity 0.15s ease';
                     element.style.transform = 'rotateY(90deg)';
                     element.style.opacity = '0';
 
-                    setTimeout(() => {
+                    setTimeout(function() {
                         element.textContent = targetText;
                         element.style.transform = 'rotateY(0deg)';
                         element.style.opacity = '1';
@@ -647,7 +647,7 @@ st.markdown('''
 
     updateSubtitleWords();
     setInterval(updateSubtitleWords, 100);
-})();
+}, 100);
 </script>
 ''', unsafe_allow_html=True)
 
