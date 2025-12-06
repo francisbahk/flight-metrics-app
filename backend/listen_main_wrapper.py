@@ -66,32 +66,13 @@ def rank_flights_with_listen_main(
     print(f"  ✓ Running LISTEN main.py with {n_iterations} iterations...")
     print(f"  ⏳ Expected runtime: ~{n_iterations * 5} seconds (Gemini rate limiting: 13 req/min)")
 
-    # Find suitable Python 3.10+ (LISTEN requires union type syntax: float | None)
-    # Try in order of preference: python3.11, python3.10, python3.13
-    import shutil
+    # Use current Python interpreter (has all packages from requirements.txt)
+    # LISTEN requires Python 3.10+ for union type syntax (float | None)
+    # Streamlit Cloud deployment uses runtime.txt to ensure Python 3.11
     import sys
 
-    python_candidates = [
-        "/usr/local/bin/python3.11",  # Homebrew on macOS
-        "/usr/local/bin/python3.10",
-        "/usr/local/bin/python3.13",
-        shutil.which("python3.11"),  # System PATH
-        shutil.which("python3.10"),
-        shutil.which("python3.13"),
-    ]
-
-    python_executable = None
-    for candidate in python_candidates:
-        if candidate and Path(candidate).exists():
-            python_executable = candidate
-            print(f"  ✓ Found Python 3.10+: {python_executable}")
-            break
-
-    if not python_executable:
-        # Last resort: use current Python (will fail if < 3.10)
-        python_executable = sys.executable
-        print(f"  ⚠️  Could not find Python 3.10+, using current Python: {python_executable}")
-        print(f"  ⚠️  LISTEN requires Python 3.10+ for union type syntax")
+    python_executable = sys.executable
+    print(f"  ✓ Using Python: {python_executable}")
 
     cmd = [
         python_executable,
