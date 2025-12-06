@@ -162,82 +162,8 @@ For small cities, include nearby major airports within 100 miles as alternatives
         return result
 
     except Exception as e:
-        print(f"LLM parsing failed: {e}")
-        # Fallback to simple parsing
-        return parse_flight_prompt_simple(prompt)
-
-
-def parse_flight_prompt_simple(prompt: str) -> Dict:
-    """
-    Simple fallback parser using regex when LLM fails.
-    """
-    result = {
-        'parsed_successfully': False,
-        'origins': [],
-        'destinations': [],
-        'departure_dates': [],  # Changed to list
-        'return_date': None,
-        'preferences': {},
-        'warnings': ['Using simple parser - LLM parsing failed'],
-        'original_prompt': prompt
-    }
-
-    # Try to extract airport codes
-    airport_pattern = r'\b[A-Z]{3}\b'
-    airports = re.findall(airport_pattern, prompt.upper())
-
-    if len(airports) >= 2:
-        result['origins'] = [airports[0]]
-        result['destinations'] = [airports[1]]
-
-    # Extract date patterns
-    date_patterns = [
-        r'(\d{1,2})/(\d{1,2})/(\d{4})',  # MM/DD/YYYY
-        r'(\d{1,2})-(\d{1,2})-(\d{4})',  # MM-DD-YYYY
-        r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s*(\d{4})',  # Month DD, YYYY
-        r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})',  # Month DD (without year)
-    ]
-
-    for pattern in date_patterns:
-        match = re.search(pattern, prompt, re.IGNORECASE)
-        if match:
-            try:
-                # Parse based on pattern
-                if len(match.groups()) == 3 and match.group(1).isdigit():
-                    # Numeric date MM/DD/YYYY or MM-DD-YYYY
-                    month, day, year = match.groups()
-                    result['departure_dates'].append(f"{year}-{month.zfill(2)}-{day.zfill(2)}")
-                elif len(match.groups()) == 3:
-                    # Month name with year: "January 5, 2026"
-                    month_name = match.group(1)
-                    day = match.group(2)
-                    year = match.group(3)
-                    month_num = datetime.strptime(month_name, "%B").month
-                    result['departure_dates'].append(f"{year}-{month_num:02d}-{int(day):02d}")
-                else:
-                    # Month name without year: "January 5"
-                    month_name = match.group(1)
-                    day = match.group(2)
-                    year = datetime.now().year
-                    month_num = datetime.strptime(month_name, "%B").month
-                    result['departure_dates'].append(f"{year}-{month_num:02d}-{int(day):02d}")
-                break
-            except:
-                pass
-
-    # Extract preferences from keywords
-    prompt_lower = prompt.lower()
-
-    if any(word in prompt_lower for word in ['cheap', 'budget', 'affordable', 'inexpensive']):
-        result['preferences']['prefer_cheap'] = True
-
-    if any(word in prompt_lower for word in ['fast', 'quick', 'shortest']):
-        result['preferences']['prefer_fast'] = True
-
-    if any(word in prompt_lower for word in ['direct', 'nonstop', 'non-stop']):
-        result['preferences']['prefer_direct'] = True
-
-    return result
+        print(f"⚠️ LLM parsing failed: {e}")
+        raise RuntimeError(f"Failed to parse flight prompt: {e}") from e
 
 
 def get_test_api_fallback(airport_code: str) -> tuple[str, Optional[str]]:
