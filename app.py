@@ -1237,7 +1237,7 @@ if ai_search or regular_search:
 
                         # Show progress with simulated progress bar
                         n_iters = 25
-                        expected_time = n_iters * 5  # ~5 seconds per iteration with Gemini rate limiting
+                        expected_time = n_iters * 6  # ~6 seconds per iteration with Gemini free tier safe limit (10 req/min)
 
                         progress_bar = st.progress(0)
                         status_text = st.empty()

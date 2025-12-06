@@ -66,7 +66,7 @@ def rank_flights_with_listen_main(
 
     # Step 3: Run LISTEN main.py
     print(f"  ✓ Running LISTEN main.py with {n_iterations} iterations...")
-    print(f"  ⏳ Expected runtime: ~{n_iterations * 5} seconds (Gemini rate limiting: 13 req/min)")
+    print(f"  ⏳ Expected runtime: ~{n_iterations * 6} seconds (Gemini free tier: 10 req/min safe limit)")
 
     # Use current Python interpreter (has all packages from requirements.txt)
     # LISTEN requires Python 3.10+ for union type syntax (float | None)
