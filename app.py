@@ -660,11 +660,11 @@ components.html("""
                 subtitleAnimating = true;
                 // Animate words one by one, left to right with more time per word
                 animateSubtitleWord('word1', 'receive', 0);
-                animateSubtitleWord('word2', 'smart', 600);
-                animateSubtitleWord('word3', 'fast', 1200);
-                animateSubtitleWord('word4', 'flight', 1800);
-                animateSubtitleWord('word5', 'results', 2400);
-                setTimeout(function() { subtitleAnimating = false; }, 3500);
+                animateSubtitleWord('word2', 'smart', 800);
+                animateSubtitleWord('word3', 'fast', 1600);
+                animateSubtitleWord('word4', 'flight', 2400);
+                animateSubtitleWord('word5', 'results', 3200);
+                setTimeout(function() { subtitleAnimating = false; }, 4400);
             }
         }
         // Animate back to original at 88% (after title finishes at ~85%)
@@ -672,11 +672,11 @@ components.html("""
             if (!subtitleAnimating && !titleAnimating) {  // Wait for title to finish
                 subtitleAnimating = true;
                 animateSubtitleWord('word1', 'help', 0);
-                animateSubtitleWord('word2', 'build', 600);
-                animateSubtitleWord('word3', 'better', 1200);
-                animateSubtitleWord('word4', 'ranking', 1800);
-                animateSubtitleWord('word5', 'systems', 2400);
-                setTimeout(function() { subtitleAnimating = false; }, 3500);
+                animateSubtitleWord('word2', 'build', 800);
+                animateSubtitleWord('word3', 'better', 1600);
+                animateSubtitleWord('word4', 'ranking', 2400);
+                animateSubtitleWord('word5', 'systems', 3200);
+                setTimeout(function() { subtitleAnimating = false; }, 4400);
             }
         }
     }
@@ -2592,6 +2592,10 @@ if st.session_state.all_flights:
 
         else:
             # SINGLE PANEL LAYOUT: Outbound only
+            st.markdown('<div id="top-of-page"></div>', unsafe_allow_html=True)
+            st.markdown('<div id="outbound-flights"></div>', unsafe_allow_html=True)
+            st.markdown("## 🛫 Outbound Flights")
+
             col_flights, col_ranking = st.columns([2, 1])
 
             with col_flights:
@@ -2798,6 +2802,138 @@ if st.session_state.all_flights:
                         st.info(f"Select {5 - len(st.session_state.selected_flights)} more flights")
                 else:
                     st.info("Check boxes on the left to select flights")
+
+            # Subway-line navigation on the left side (simplified for one-way)
+            nav_items = ['How to Use', 'Outbound']
+            nav_ids = ['how-to-use', 'outbound-flights']
+
+            st.markdown(f"""
+                <style>
+                    .subway-nav {{
+                        position: fixed;
+                        left: 280px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        z-index: 1000;
+                        padding: 0;
+                    }}
+                    .subway-nav ul {{
+                        list-style: none;
+                        padding: 0;
+                        margin: 0;
+                        position: relative;
+                    }}
+                    /* Vertical line connecting stations */
+                    .subway-nav ul::before {{
+                        content: '';
+                        position: absolute;
+                        left: 12px;
+                        top: 20px;
+                        bottom: 20px;
+                        width: 2px;
+                        background-color: rgba(150, 150, 150, 0.3);
+                        z-index: 0;
+                    }}
+                    .subway-nav li {{
+                        position: relative;
+                        margin: 40px 0;
+                    }}
+                    .subway-nav li:first-child {{
+                        margin-top: 0;
+                    }}
+                    .subway-nav li:last-child {{
+                        margin-bottom: 0;
+                    }}
+                    /* Station circles */
+                    .subway-nav a {{
+                        display: flex;
+                        align-items: center;
+                        text-decoration: none;
+                        position: relative;
+                        z-index: 1;
+                    }}
+                    .subway-nav a .station-circle {{
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 50%;
+                        background-color: rgba(255, 255, 255, 0.7);
+                        border: 4px solid #FF6B35;
+                        position: relative;
+                        transition: all 0.3s ease;
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+                        flex-shrink: 0;
+                    }}
+                    .subway-nav a:hover .station-circle {{
+                        background-color: #FF6B35;
+                        border-color: #FF6B35;
+                        box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.2), 0 2px 6px rgba(0, 0, 0, 0.25);
+                        transform: scale(1.15);
+                    }}
+                    .subway-nav a.active .station-circle {{
+                        background-color: #FF6B35;
+                        border-color: #FF6B35;
+                        box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.3), 0 2px 6px rgba(0, 0, 0, 0.25);
+                        transform: scale(1.2);
+                    }}
+                    /* Station labels */
+                    .subway-nav a .station-label {{
+                        position: absolute;
+                        left: 35px;
+                        white-space: nowrap;
+                        background-color: rgba(0, 0, 0, 0.85);
+                        color: white;
+                        padding: 6px 12px;
+                        border-radius: 6px;
+                        font-size: 13px;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                        font-weight: 500;
+                        opacity: 0;
+                        pointer-events: none;
+                        transition: opacity 0.2s ease;
+                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+                    }}
+                    .subway-nav a:hover .station-label {{
+                        opacity: 1;
+                    }}
+                    .subway-nav a.active .station-label {{
+                        opacity: 1;
+                        background-color: rgba(255, 107, 53, 0.95);
+                    }}
+                </style>
+                <div class="subway-nav">
+                    <ul>
+                        {''.join(f'<li><a href="#{nav_ids[i]}"><div class="station-circle"></div><div class="station-label">{nav_items[i]}</div></a></li>' for i in range(len(nav_items)))}
+                    </ul>
+                </div>
+                <script>
+                    // Update active state based on scroll position
+                    function updateSubwayNav() {{
+                        const sections = {nav_ids};
+                        const navLinks = document.querySelectorAll('.subway-nav a');
+
+                        let currentSection = '';
+                        sections.forEach((sectionId, index) => {{
+                            const section = document.getElementById(sectionId);
+                            if (section) {{
+                                const rect = section.getBoundingClientRect();
+                                if (rect.top <= window.innerHeight / 3) {{
+                                    currentSection = sectionId;
+                                }}
+                            }}
+                        }});
+
+                        navLinks.forEach(link => {{
+                            link.classList.remove('active');
+                            if (link.getAttribute('href') === '#' + currentSection) {{
+                                link.classList.add('active');
+                            }}
+                        }});
+                    }}
+
+                    window.addEventListener('scroll', updateSubwayNav);
+                    setTimeout(updateSubwayNav, 200);
+                </script>
+            """, unsafe_allow_html=True)
 
 # Footer
 st.markdown("---")
