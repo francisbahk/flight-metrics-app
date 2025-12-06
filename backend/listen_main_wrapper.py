@@ -167,10 +167,13 @@ def rank_flights_with_listen_main(
                 # Calculate utility for each flight
                 flight_utilities = []
                 for i, flight in enumerate(flights):
-                    # Normalize metrics
-                    price_score = normalize_metric(flight['price'], min_price, max_price, lower_is_better=True)
-                    duration_score = normalize_metric(flight['duration_min'], min_duration, max_duration, lower_is_better=True)
-                    stops_score = normalize_metric(flight['stops'], min_stops, max_stops, lower_is_better=True)
+                    # Normalize metrics to [0,1] WITHOUT inverting
+                    # LISTEN's weights already encode direction:
+                    #   - Positive weight = higher is better (e.g., +0.4 for price means prefer expensive)
+                    #   - Negative weight = lower is better (e.g., -0.3 for stops means prefer fewer stops)
+                    price_score = normalize_metric(flight['price'], min_price, max_price, lower_is_better=False)
+                    duration_score = normalize_metric(flight['duration_min'], min_duration, max_duration, lower_is_better=False)
+                    stops_score = normalize_metric(flight['stops'], min_stops, max_stops, lower_is_better=False)
 
                     # Calculate utility = sum(weight_i * score_i)
                     utility = (
