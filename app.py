@@ -469,24 +469,30 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Header with animated title flip
-st.markdown('''
+# Header with animated title flip using components.html for full control
+components.html("""
+<!DOCTYPE html>
+<html>
+<head>
 <style>
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Source Sans Pro', sans-serif;
+    }
+
     .main-title {
-        text-align: center !important;
+        text-align: center;
         width: 100%;
-        display: block;
-        background: none !important;
-        padding: 0 !important;
-        margin: 20px 0 !important;
+        padding: 20px 0;
         font-size: 2.5rem;
+        font-weight: 600;
     }
 
     .title-wrapper {
         display: inline-block;
     }
 
-    /* Title flip animations */
     .flip {
         display: inline-block;
         animation: flip 0.6s forwards;
@@ -508,15 +514,12 @@ st.markdown('''
         to { opacity: 1; }
     }
 
-    /* Subtitle animations */
     .subtitle {
-        text-align: center !important;
+        text-align: center;
         width: 100%;
-        display: block;
         margin-top: 10px;
-        background: none !important;
-        padding: 0 !important;
         font-size: 1.1rem;
+        color: #555;
     }
 
     .word-flip {
@@ -530,6 +533,8 @@ st.markdown('''
         100% { transform: rotateX(0deg); opacity: 1; }
     }
 </style>
+</head>
+<body>
 
 <div class="main-title">
     <div class="title-wrapper">
@@ -544,14 +549,12 @@ st.markdown('''
 
 <script>
 (function() {
-    let animationCycle = 0;
     const CYCLE_DURATION = 20000; // 20 seconds
 
     // Title animation function
     function animateTitle() {
         const changingWord = document.getElementById('changing-word');
         const aiPrefix = document.getElementById('ai-prefix');
-        const titleContent = document.getElementById('title-content');
 
         if (!changingWord) return;
 
@@ -630,7 +633,10 @@ st.markdown('''
     }, 100);
 })();
 </script>
-''', unsafe_allow_html=True)
+
+</body>
+</html>
+""", height=150)
 
 st.info("**Note:** This website is part of a pilot data-collection study. The information collected will be used to improve flight search tools.")
 
