@@ -495,7 +495,7 @@ components.html("""
 
     .flip {
         display: inline-block;
-        animation: flip 0.6s forwards;
+        animation: flip 1.5s ease-in-out forwards;
     }
 
     @keyframes flip {
@@ -506,12 +506,22 @@ components.html("""
 
     .fade-in {
         opacity: 0;
-        animation: fadeIn 0.8s forwards;
-        animation-delay: 0.3s;
+        animation: fadeIn 2s ease-in-out forwards;
+    }
+
+    .fade-out {
+        opacity: 1;
+        animation: fadeOut 1.5s ease-in-out forwards;
     }
 
     @keyframes fadeIn {
-        to { opacity: 1; }
+        0% { opacity: 0; }
+        100% { opacity: 1; }
+    }
+
+    @keyframes fadeOut {
+        0% { opacity: 1; }
+        100% { opacity: 0; }
     }
 
     .subtitle {
@@ -524,7 +534,7 @@ components.html("""
 
     .word-flip {
         display: inline-block;
-        animation: wordFlip 0.6s forwards;
+        animation: wordFlip 1.2s ease-in-out forwards;
     }
 
     @keyframes wordFlip {
@@ -538,8 +548,7 @@ components.html("""
 
 <div class="main-title">
     <div class="title-wrapper">
-        <span id="title-content">✈️ Flight <span id="changing-word">Ranker</span></span>
-        <span id="ai-prefix" style="opacity: 0;"></span>
+        <span>✈️ <span id="ai-prefix" style="opacity: 0;"></span>Flight <span id="changing-word">Ranker</span></span>
     </div>
 </div>
 
@@ -560,46 +569,58 @@ components.html("""
 
         const cyclePosition = (Date.now() % CYCLE_DURATION) / CYCLE_DURATION;
 
-        // Phase 1 (0-30%): Show "Ranker"
+        // Phase 1 (0-30%): Show "Flight Ranker"
         if (cyclePosition < 0.30) {
             if (changingWord.textContent !== 'Ranker') {
                 changingWord.className = 'flip';
                 changingWord.textContent = 'Ranker';
-                aiPrefix.style.opacity = '0';
-                aiPrefix.textContent = '';
+            }
+            if (aiPrefix.textContent !== '') {
+                aiPrefix.className = 'fade-out';
+                setTimeout(function() {
+                    aiPrefix.textContent = '';
+                    aiPrefix.style.opacity = '0';
+                }, 1500);
             }
         }
-        // Phase 2 (30-40%): Transition to "Recommendations"
+        // Phase 2 (30-40%): Transition to "Recommendations" and fade in "AI-Selected"
         else if (cyclePosition >= 0.30 && cyclePosition < 0.40) {
             if (changingWord.textContent !== 'Recommendations') {
                 changingWord.className = 'flip';
                 setTimeout(function() {
                     changingWord.textContent = 'Recommendations';
-                }, 300);
-
-                // Fade in AI-Selected
-                setTimeout(function() {
-                    aiPrefix.textContent = ' AI-Selected';
-                    aiPrefix.className = 'fade-in';
-                    aiPrefix.style.opacity = '1';
-                }, 400);
+                }, 750);
+            }
+            if (aiPrefix.textContent !== 'AI-Selected ') {
+                aiPrefix.textContent = 'AI-Selected ';
+                aiPrefix.className = 'fade-in';
+                aiPrefix.style.opacity = '1';
             }
         }
         // Phase 3 (40-86%): Show full "AI-Selected Flight Recommendations"
         else if (cyclePosition >= 0.40 && cyclePosition < 0.86) {
-            if (aiPrefix.style.opacity !== '1') {
+            if (aiPrefix.textContent !== 'AI-Selected ') {
+                aiPrefix.textContent = 'AI-Selected ';
                 aiPrefix.style.opacity = '1';
+            }
+            if (changingWord.textContent !== 'Recommendations') {
+                changingWord.textContent = 'Recommendations';
             }
         }
         // Phase 4 (86-100%): Transition back to "Ranker"
         else {
             if (changingWord.textContent !== 'Ranker') {
-                aiPrefix.style.opacity = '0';
                 changingWord.className = 'flip';
                 setTimeout(function() {
                     changingWord.textContent = 'Ranker';
+                }, 750);
+            }
+            if (aiPrefix.textContent !== '') {
+                aiPrefix.className = 'fade-out';
+                setTimeout(function() {
                     aiPrefix.textContent = '';
-                }, 300);
+                    aiPrefix.style.opacity = '0';
+                }, 1500);
             }
         }
     }
