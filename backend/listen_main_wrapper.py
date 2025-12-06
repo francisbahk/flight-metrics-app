@@ -109,81 +109,87 @@ def rank_flights_with_listen_main(
         print(f"  ⚠️ Returning unranked flights due to error")
         return flights
 
-    # Step 4: Parse LISTEN output to get ranked flights
+    # Step 4: Parse LISTEN JSON output to get utility function and rank ALL flights
     print(f"  ✓ Parsing LISTEN results...")
 
-    # LISTEN saves results in various places. Let's check for output files
-    # The comparison algorithm typically saves best solutions
-    output_dir = listen_dir / "output" / tag
+    # LISTEN saves JSON output in outputs/{tag}/ directory
+    output_dir = listen_dir / "outputs" / tag  # Note: "outputs" not "output"
 
     if output_dir.exists():
-        # Look for results file
-        result_files = list(output_dir.glob("*.csv")) + list(output_dir.glob("*.json"))
+        # Find the JSON result file
+        json_files = list(output_dir.glob("*.json"))
 
-        if result_files:
-            # Parse the results file to get ranking
-            # For now, let's just use the order from the CSV
+        if json_files:
             try:
-                # Read the best solution indices if available
-                best_file = output_dir / "best_solutions.json"
-                if best_file.exists():
-                    with open(best_file) as f:
-                        best_data = json.load(f)
-                    # Extract flight indices in ranked order
-                    ranked_indices = best_data.get('ranked_indices', list(range(len(flights))))
-                else:
-                    # Fall back to reading utility scores if available
-                    ranked_indices = list(range(len(flights)))
+                # Read the LISTEN output JSON
+                with open(json_files[0]) as f:
+                    listen_data = json.load(f)
 
-                # Map indices back to all flights
-                ranked_flights = []
-                for idx in ranked_indices:
-                    if 0 <= idx < len(flights):
-                        ranked_flights.append(flights[idx])
+                # Extract the final utility function weights
+                final_utility = listen_data['optimization_results']['final_utility_function']
+                weights = final_utility['weights']
 
-                if ranked_flights:
-                    print(f"  ✓ Retrieved {len(ranked_flights)} ranked flights from LISTEN")
-                    return ranked_flights
+                print(f"  ✓ Loaded LISTEN utility function:")
+                print(f"    Weights: {weights}")
+
+                # Now calculate utility for ALL flights using the learned weights
+                # First, we need to normalize each metric to [0, 1] like LISTEN does
+                def normalize_metric(value, min_val, max_val, lower_is_better=False):
+                    """Normalize to [0,1] range"""
+                    if max_val == min_val:
+                        return 0.5
+                    normalized = (value - min_val) / (max_val - min_val)
+                    if lower_is_better:
+                        normalized = 1 - normalized  # Invert so 1 is best
+                    return normalized
+
+                # Calculate min/max for each metric across all flights
+                prices = [f['price'] for f in flights]
+                durations = [f['duration_min'] for f in flights]
+                stops = [f['stops'] for f in flights]
+
+                min_price, max_price = min(prices), max(prices)
+                min_duration, max_duration = min(durations), max(durations)
+                min_stops, max_stops = min(stops), max(stops)
+
+                # Calculate utility for each flight
+                flight_utilities = []
+                for i, flight in enumerate(flights):
+                    # Normalize metrics
+                    price_score = normalize_metric(flight['price'], min_price, max_price, lower_is_better=True)
+                    duration_score = normalize_metric(flight['duration_min'], min_duration, max_duration, lower_is_better=True)
+                    stops_score = normalize_metric(flight['stops'], min_stops, max_stops, lower_is_better=True)
+
+                    # Calculate utility = sum(weight_i * score_i)
+                    utility = (
+                        weights.get('price', 0) * price_score +
+                        weights.get('duration_min', 0) * duration_score +
+                        weights.get('stops', 0) * stops_score
+                    )
+
+                    flight_utilities.append((i, utility, flight))
+
+                # Sort by utility (highest first = best)
+                flight_utilities.sort(key=lambda x: x[1], reverse=True)
+
+                # Extract sorted flights
+                ranked_flights = [f[2] for f in flight_utilities]
+
+                print(f"  ✓ Ranked {len(ranked_flights)} flights by LISTEN utility")
+                print(f"  ✓ Top 3 utilities: {[f[1] for f in flight_utilities[:3]]}")
+                print(f"  ✓ Top 3 prices: {[f[2]['price'] for f in flight_utilities[:3]]}")
+
+                return ranked_flights
 
             except Exception as e:
-                print(f"  ⚠️ Error parsing LISTEN output: {str(e)}")
+                import traceback
+                print(f"  ⚠️ Error parsing LISTEN JSON output: {str(e)}")
+                print(f"  ⚠️ Traceback: {traceback.format_exc()}")
 
-    # Fallback: Parse stdout for best solution
-    # LISTEN prints the best solution, we can extract the flight index from that
-    if "Best solution" in result.stdout or "best" in result.stdout.lower():
-        # Try to extract flight info from output
-        # This is a simplified parser - adjust based on actual LISTEN output format
-        lines = result.stdout.split('\n')
-        best_indices = []
-
-        for line in lines:
-            if 'unique_id' in line or 'best' in line.lower():
-                # Try to extract unique_id and map back to flight
-                # This is a placeholder - actual parsing depends on LISTEN output format
-                pass
-
-    # TEMPORARY FIX: Since LISTEN output parsing isn't working, sort by user preferences
-    print(f"  ⚠️ Could not parse LISTEN ranking from output files")
-    print(f"  ⚠️ Applying preference-based sorting as fallback...")
-
-    # Extract preference from user_preferences
-    prefer_cheap = user_preferences.get('preferences', {}).get('prefer_cheap', True) if user_preferences else True
-    prefer_nonstop = user_preferences.get('preferences', {}).get('prefer_nonstop', False) if user_preferences else False
-
-    # Sort flights based on preferences
-    sorted_flights = sorted(flights, key=lambda f: (
-        # Primary: price (ascending if cheap, descending if expensive)
-        f['price'] if prefer_cheap else -f['price'],
-        # Secondary: nonstop preference
-        f['stops'] if not prefer_nonstop else -f['stops'],
-        # Tertiary: duration
-        f['duration_min']
-    ))
-
-    print(f"  ✓ Sorted by preferences: prefer_cheap={prefer_cheap}, prefer_nonstop={prefer_nonstop}")
-    print(f"  ✓ First 3 flight prices (sorted): {[f['price'] for f in sorted_flights[:3]]}")
-
-    return sorted_flights
+    # Fallback: return original flights if parsing failed
+    print(f"  ⚠️ Could not find or parse LISTEN output, returning original order")
+    print(f"  ⚠️ Output directory checked: {output_dir}")
+    return flights
 
 
 def cleanup_listen_files(tag: str):
