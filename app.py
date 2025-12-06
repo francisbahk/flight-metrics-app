@@ -472,134 +472,144 @@ st.markdown("""
 # Header with animated title flip
 st.markdown('''
 <style>
-    @keyframes flipWord {
-        0%, 45% {
+    .main-title {
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    @keyframes flipRanker {
+        0%, 30% {
+            content: "Ranker";
             transform: rotateY(0deg);
             opacity: 1;
         }
-        48% {
+        32% {
             transform: rotateY(90deg);
             opacity: 0;
         }
-        52% {
+        34% {
+            content: "Recommendations";
             transform: rotateY(-90deg);
             opacity: 0;
         }
-        55%, 95% {
+        36%, 84% {
+            content: "Recommendations";
             transform: rotateY(0deg);
             opacity: 1;
         }
-        98% {
+        86% {
             transform: rotateY(90deg);
             opacity: 0;
         }
-        100% {
+        88% {
+            content: "Ranker";
+            transform: rotateY(-90deg);
+            opacity: 0;
+        }
+        90%, 100% {
+            content: "Ranker";
             transform: rotateY(0deg);
             opacity: 1;
         }
     }
 
-    @keyframes slideExpand {
-        0%, 45% {
+    @keyframes slideLeft {
+        0%, 30% {
             transform: translateX(0);
         }
-        55%, 95% {
-            transform: translateX(80px);
+        40%, 80% {
+            transform: translateX(-80px);
         }
-        100% {
+        90%, 100% {
             transform: translateX(0);
         }
     }
 
-    @keyframes fadeInOut {
-        0%, 45% {
+    @keyframes fadeInPrefix {
+        0%, 36% {
             opacity: 0;
-            transform: translateX(-20px);
+            transform: translateX(20px);
         }
-        55%, 95% {
+        40%, 80% {
             opacity: 1;
             transform: translateX(0);
         }
-        100% {
+        86%, 100% {
             opacity: 0;
-            transform: translateX(-20px);
+            transform: translateX(20px);
         }
     }
 
-    .animated-title-container {
-        position: relative;
+    .title-container {
         display: inline-block;
-        min-height: 50px;
-    }
-
-    .title-part {
-        display: inline-block;
-        animation: slideExpand 20s ease-in-out infinite;
+        animation: slideLeft 20s ease-in-out infinite;
     }
 
     .flip-word {
         display: inline-block;
-        animation: flipWord 20s ease-in-out infinite;
+        animation: flipRanker 20s ease-in-out infinite;
         transform-style: preserve-3d;
         perspective: 1000px;
     }
 
+    .flip-word::before {
+        content: "Ranker";
+        animation: flipRanker 20s ease-in-out infinite;
+    }
+
     .ai-prefix {
         display: inline-block;
-        animation: fadeInOut 20s ease-in-out infinite;
+        animation: fadeInPrefix 20s ease-in-out infinite;
         margin-right: 8px;
+    }
+
+    .subtitle {
+        text-align: center;
     }
 </style>
 
 <div class="main-title">
     <span class="ai-prefix">AI-Selected</span>
-    <span class="animated-title-container">
-        <span>✈️ </span>
-        <span class="title-part">Flight </span>
-        <span class="flip-word">Ranker</span>
+    <span class="title-container">
+        ✈️ Flight <span class="flip-word"></span>
     </span>
 </div>
 
-<style>
-    @keyframes morphSubtitle {
-        0%, 45% {
-            opacity: 1;
-        }
-        48%, 52% {
-            opacity: 0;
-        }
-        55%, 95% {
-            opacity: 1;
-        }
-        98%, 100% {
-            opacity: 1;
-        }
-    }
-
-    .subtitle-morph {
-        animation: morphSubtitle 20s ease-in-out infinite;
-    }
-</style>
-
-<div class="subtitle subtitle-morph" id="morphing-subtitle"></div>
+<div class="subtitle" id="morphing-subtitle">Share your flight preferences to help build better personalized ranking systems</div>
 
 <script>
     const subtitle = document.getElementById('morphing-subtitle');
-    const text1 = 'Share your flight preferences to help build better personalized ranking systems';
-    const text2 = 'Receive smart, personalized flight results';
+
+    // Word pairs to flip: [word1, word2]
+    const wordFlips = [
+        ['help', 'receive'],
+        ['build', 'smart'],
+        ['better', 'fast'],
+        ['ranking', 'flight'],
+        ['systems', 'results']
+    ];
 
     function updateSubtitle() {
         const cycle = (Date.now() % 20000) / 20000; // 20 second cycle
 
-        if (cycle < 0.45 || cycle >= 0.98) {
-            subtitle.textContent = text1;
-        } else if (cycle >= 0.55 && cycle < 0.95) {
-            subtitle.textContent = text2;
+        let baseText = 'Share your flight preferences to help build better personalized ranking systems';
+
+        // During the transition phase (30-90%), swap words one by one
+        if (cycle >= 0.30 && cycle < 0.90) {
+            // Replace words to create: "Share your flight preferences to receive smart fast personalized flight results"
+            baseText = baseText
+                .replace('help', 'receive')
+                .replace('build', 'smart')
+                .replace('better', 'fast')
+                .replace('ranking', 'flight')
+                .replace('systems', 'results');
         }
+
+        subtitle.textContent = baseText;
     }
 
     updateSubtitle();
-    setInterval(updateSubtitle, 100);
+    setInterval(updateSubtitle, 50);
 </script>
 ''', unsafe_allow_html=True)
 
