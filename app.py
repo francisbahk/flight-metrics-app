@@ -1311,10 +1311,10 @@ if st.session_state.all_flights:
             <style>
                 @keyframes progressPulse {{
                     0%, 83.33% {{
-                        opacity: 0.7;
+                        opacity: 1;
                     }}
                     83.34%, 100% {{
-                        opacity: 0.95;
+                        opacity: 1;
                     }}
                 }}
                 .persistent-progress-container {{
@@ -1324,7 +1324,7 @@ if st.session_state.all_flights:
                     transform: translateX(-50%);
                     width: 50%;
                     z-index: 999;
-                    background-color: rgba(255, 255, 255, 0.6);
+                    background-color: rgba(255, 255, 255, 1);
                     padding: 8px 16px;
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
                     border-radius: 8px;
@@ -1339,7 +1339,7 @@ if st.session_state.all_flights:
                 }}
                 .persistent-progress-fill {{
                     height: 100%;
-                    background-color: #90ee90;
+                    background-color: #4CAF50;
                     width: {progress_percent * 100}%;
                     transition: width 0.3s ease;
                 }}
@@ -1377,28 +1377,23 @@ if st.session_state.all_flights:
                     @keyframes filterHeadingNeon {
                         0% {
                             box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
-                            border: 1.5px solid #ff4444;
-                            opacity: 1;
+                            border-color: #ff4444;
                         }
                         25% {
                             box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
-                            border: 1.5px solid #ff4444;
-                            opacity: 1;
+                            border-color: #ff4444;
                         }
                         50% {
                             box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
-                            border: 1.5px solid #ff4444;
-                            opacity: 1;
+                            border-color: #ff4444;
                         }
                         75% {
                             box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
-                            border: 1.5px solid #ff4444;
-                            opacity: 1;
+                            border-color: #ff4444;
                         }
                         100% {
-                            box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
-                            border: 1.5px solid #ff4444;
-                            opacity: 0;
+                            box-shadow: none;
+                            border-color: transparent;
                         }
                     }
                     .filter-heading-neon {
@@ -1406,6 +1401,7 @@ if st.session_state.all_flights:
                         animation: filterHeadingNeon 10s ease-in-out forwards;
                         padding: 4px 12px;
                         border-radius: 6px;
+                        border: 1.5px solid #ff4444;
                     }
                 </style>
                 <h2><span class="filter-heading-neon">🔍 Filters</span></h2>
@@ -1678,28 +1674,23 @@ if st.session_state.all_flights:
                         @keyframes redNeonTrace {
                             0% {
                                 box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
-                                border: 1.5px solid #ff4444;
-                                opacity: 1;
+                                border-color: #ff4444;
                             }
                             25% {
                                 box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
-                                border: 1.5px solid #ff4444;
-                                opacity: 1;
+                                border-color: #ff4444;
                             }
                             50% {
                                 box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
-                                border: 1.5px solid #ff4444;
-                                opacity: 1;
+                                border-color: #ff4444;
                             }
                             75% {
                                 box-shadow: 0 0 4px #ff4444, 0 0 8px #ff4444;
-                                border: 1.5px solid #ff4444;
-                                opacity: 1;
+                                border-color: #ff4444;
                             }
                             100% {
-                                box-shadow: 0 0 2px #ff4444, 0 0 4px #ff4444;
-                                border: 1.5px solid #ff4444;
-                                opacity: 0;
+                                box-shadow: none;
+                                border-color: transparent;
                             }
                         }
                         .neon-metric-box {
@@ -1708,6 +1699,7 @@ if st.session_state.all_flights:
                             padding: 2px 6px;
                             border-radius: 4px;
                             margin: 0 2px;
+                            border: 1.5px solid #ff4444;
                         }
                     </style>
                 """, unsafe_allow_html=True)
@@ -1885,30 +1877,39 @@ if st.session_state.all_flights:
                         margin-top: -2px;
                     }
                 </style>
-                <a href="#return-flights" class="jump-to-return"></a>
+                <a href="#return-flights" class="jump-to-return" onclick="setTimeout(updateArrows, 500)"></a>
                 <script>
-                    // Show/hide down arrow based on scroll position
-                    function updateDownArrow() {
+                    // Update both arrows based on scroll position
+                    function updateArrows() {
                         const downArrow = document.querySelector('.jump-to-return');
+                        const upArrow = document.querySelector('.jump-to-departure');
                         const returnSection = document.getElementById('return-flights');
+                        const outboundSection = document.getElementById('outbound-flights');
 
-                        if (!downArrow || !returnSection) return;
+                        if (!returnSection) return;
 
                         const returnRect = returnSection.getBoundingClientRect();
-                        // Hide down arrow when return section header is visible in viewport (within 100px from top)
-                        if (returnRect.top <= 100) {
-                            downArrow.style.display = 'none';
-                        } else {
-                            downArrow.style.display = 'flex';
+                        const viewportHeight = window.innerHeight;
+
+                        // Return section is visible/scrolled to
+                        const inReturnSection = returnRect.top < viewportHeight / 2;
+
+                        // Update down arrow
+                        if (downArrow) {
+                            downArrow.style.display = inReturnSection ? 'none' : 'flex';
+                        }
+
+                        // Update up arrow
+                        if (upArrow) {
+                            upArrow.style.display = inReturnSection ? 'flex' : 'none';
                         }
                     }
 
-                    // Update on scroll and hash change
-                    window.addEventListener('scroll', updateDownArrow);
-                    window.addEventListener('hashchange', () => setTimeout(updateDownArrow, 100));
+                    // Listen to scroll events
+                    window.addEventListener('scroll', updateArrows);
 
                     // Initial check
-                    setTimeout(updateDownArrow, 100);
+                    setTimeout(updateArrows, 200);
                 </script>
             """, unsafe_allow_html=True)
 
@@ -1962,30 +1963,14 @@ if st.session_state.all_flights:
                         margin-bottom: -2px;
                     }
                 </style>
-                <a href="#outbound-flights" class="jump-to-departure"></a>
+                <a href="#outbound-flights" class="jump-to-departure" onclick="setTimeout(updateArrows, 500)"></a>
                 <script>
-                    // Show/hide up arrow based on scroll position
-                    function updateUpArrow() {
-                        const upArrow = document.querySelector('.jump-to-departure');
-                        const returnSection = document.getElementById('return-flights');
-
-                        if (!upArrow || !returnSection) return;
-
-                        const returnRect = returnSection.getBoundingClientRect();
-                        // Show up arrow when return section header is visible in viewport (within 100px from top)
-                        if (returnRect.top <= 100) {
-                            upArrow.style.display = 'flex';
-                        } else {
-                            upArrow.style.display = 'none';
+                    // Update arrows on click - uses the updateArrows function from down arrow script
+                    setTimeout(() => {
+                        if (typeof updateArrows === 'function') {
+                            updateArrows();
                         }
-                    }
-
-                    // Update on scroll and hash change
-                    window.addEventListener('scroll', updateUpArrow);
-                    window.addEventListener('hashchange', () => setTimeout(updateUpArrow, 100));
-
-                    // Initial check
-                    setTimeout(updateUpArrow, 100);
+                    }, 300);
                 </script>
             """, unsafe_allow_html=True)
 
