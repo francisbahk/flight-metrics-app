@@ -588,21 +588,25 @@ components.html("""
         else if (cyclePosition >= 0.25 && cyclePosition < 0.32) {
             if (!titleAnimating && changingWord.textContent === 'Ranker') {
                 titleAnimating = true;
-                // Slide "Recommendations" in from the right
-                changingWord.style.transform = 'translateX(20px)';
+                // First, slide out "Ranker" to the left
+                changingWord.style.transform = 'translateX(-30px)';
                 changingWord.style.opacity = '0';
                 setTimeout(function() {
+                    // Change text and slide in "Recommendations" from the right
                     changingWord.textContent = 'Recommendations';
-                    changingWord.style.transform = 'translateX(0)';
-                    changingWord.style.opacity = '1';
-                }, 300);
+                    changingWord.style.transform = 'translateX(30px)';
+                    setTimeout(function() {
+                        changingWord.style.transform = 'translateX(0)';
+                        changingWord.style.opacity = '1';
+                    }, 50);
+                }, 600);
                 // Then slide in "AI-Driven" from the left
                 setTimeout(function() {
                     aiPrefix.textContent = 'AI-Driven';
                     aiPrefix.style.opacity = '1';
                     aiPrefix.style.transform = 'translateX(0)';
                     titleAnimating = false;
-                }, 1200);
+                }, 1800);
             }
         }
         // Phase 3 (32-80%): Hold "AI-Driven Flight Recommendations"
@@ -747,6 +751,8 @@ with st.expander("💡 Tips for Writing a Good Prompt"):
 
 st.markdown("""
 2. **Review results** - Browse all available flights using Standard Search or AI Search. After you submit your prompt, use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports.
+
+   *Note: AI Search results may be less accurate while we continue to improve the system.*
 3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
 4. **Drag to rank** - Reorder your selections by dragging them in the right panel
 5. **Submit** - Click submit to save your rankings (download as CSV optional)
@@ -973,15 +979,22 @@ col_btn1, col_btn2 = st.columns(2)
 # Custom CSS for black AI button
 st.markdown("""
 <style>
-/* Make AI button black with white text */
-div[data-testid="column"]:nth-child(2) button[kind="secondary"] {
+/* Make AI button black with white text - use multiple selectors for reliability */
+button[kind="secondary"] {
     background-color: #000000 !important;
     color: white !important;
     border: 1px solid #333333 !important;
 }
-div[data-testid="column"]:nth-child(2) button[kind="secondary"]:hover {
+button[kind="secondary"]:hover {
     background-color: #1a1a1a !important;
     border: 1px solid #4a4a4a !important;
+}
+/* More specific selectors */
+div[data-testid="column"] button[kind="secondary"],
+.stButton > button[kind="secondary"] {
+    background-color: #000000 !important;
+    color: white !important;
+    border: 1px solid #333333 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -2731,7 +2744,7 @@ if st.session_state.all_flights:
                     # Submit button
                     if len(st.session_state.selected_flights) == 5 and not st.session_state.outbound_submitted:
                         if st.button("✅ Submit Rankings", key="submit_single", type="primary", use_container_width=True):
-                            print(f"[DEBUG] Submit button clicked - Starting save process")
+                            print(f"[DEBUG] Submit button clicked - Preparing for review")
                             print(f"[DEBUG] Session ID: {st.session_state.session_id}")
                             print(f"[DEBUG] Selected flights: {len(st.session_state.selected_flights)}")
 
@@ -2743,50 +2756,12 @@ if st.session_state.all_flights:
                             )
                             print(f"[DEBUG] CSV generated: {len(csv_data)} bytes")
 
-                            # Save to database
-                            try:
-                                from backend.db import save_search_and_csv
-                                import traceback
-
-                                print(f"[DEBUG] Calling save_search_and_csv...")
-                                search_id = save_search_and_csv(
-                                    session_id=st.session_state.session_id,
-                                    user_prompt=st.session_state.get('original_prompt', ''),
-                                    parsed_params=st.session_state.parsed_params or {},
-                                    all_flights=st.session_state.all_flights,
-                                    selected_flights=st.session_state.selected_flights,
-                                    csv_data=csv_data,
-                                    token=st.session_state.token
-                                )
-
-                                # Note: Token will be marked as used AFTER the 15-second countdown
-                                # (see countdown logic below where search_id is displayed)
-
-                                print(f"[DEBUG] Save successful! Search ID: {search_id}")
-                                st.session_state.csv_data_outbound = csv_data
-                                st.session_state.outbound_submitted = True
-                                st.session_state.csv_generated = True
-                                st.session_state.search_id = search_id
-                                st.session_state.countdown_started = True  # Start countdown phase
-                                print(f"[DEBUG] Session state updated with search_id: {st.session_state.search_id}")
-                                st.success(f"✅ Rankings saved to database! Search ID: {search_id}")
-                                st.balloons()
-                                print(f"[DEBUG] About to rerun...")
-                                st.rerun()
-
-                            except Exception as e:
-                                print(f"[DEBUG] Save FAILED: {str(e)}")
-                                print(f"[DEBUG] Full traceback:")
-                                import traceback as tb
-                                print(tb.format_exc())
-                                st.error(f"⚠️ Failed to save rankings to database: {str(e)}")
-                                st.code(traceback.format_exc())
-                                # Still allow CSV download even if DB save fails
-                                st.session_state.csv_data_outbound = csv_data
-                                st.session_state.outbound_submitted = True
-                                st.session_state.csv_generated = True
-                                st.session_state.db_save_error = str(e)
-                                st.rerun()
+                            # Set flags to trigger review section (don't save to DB yet)
+                            st.session_state.csv_data_outbound = csv_data
+                            st.session_state.outbound_submitted = True
+                            st.session_state.csv_generated = True
+                            print(f"[DEBUG] Flags set - will show review section")
+                            st.rerun()
                     elif st.session_state.outbound_submitted:
                         st.success("✅ Rankings submitted")
                     else:
