@@ -1324,16 +1324,19 @@ if st.session_state.all_flights:
                 .persistent-progress-container {{
                     position: fixed;
                     top: 60px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    width: 90%;
-                    max-width: 1200px;
+                    left: calc(var(--sidebar-width, 21rem) + 20px);
+                    right: 20px;
                     z-index: 999;
                     background-color: rgba(255, 255, 255, 1);
                     padding: 8px 16px;
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
                     border-radius: 8px;
                     animation: progressPulse 60s ease-in-out infinite;
+                    transition: left 0.3s ease;
+                }}
+                /* Adjust when sidebar is collapsed */
+                [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stAppViewContainer"] .persistent-progress-container {{
+                    left: 20px;
                 }}
                 .persistent-progress-bar {{
                     width: 100%;
@@ -1877,11 +1880,16 @@ if st.session_state.all_flights:
                 <style>
                     .subway-nav {{
                         position: fixed;
-                        left: 20px;
+                        left: calc(var(--sidebar-width, 21rem) + 20px);
                         top: 50%;
                         transform: translateY(-50%);
                         z-index: 1000;
                         padding: 0;
+                        transition: left 0.3s ease;
+                    }}
+                    /* Adjust position when sidebar is collapsed */
+                    [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stAppViewContainer"] .subway-nav {{
+                        left: 20px;
                     }}
                     .subway-nav ul {{
                         list-style: none;
@@ -1896,8 +1904,8 @@ if st.session_state.all_flights:
                         left: 12px;
                         top: 20px;
                         bottom: 20px;
-                        width: 4px;
-                        background-color: #FF6B35;
+                        width: 2px;
+                        background-color: rgba(150, 150, 150, 0.3);
                         z-index: 0;
                     }}
                     .subway-nav li {{
