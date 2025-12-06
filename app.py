@@ -1307,24 +1307,33 @@ if st.session_state.all_flights:
         # Clamp to valid range [0.0, 1.0]
         progress_percent = max(0.0, min(1.0, progress_percent))
 
-        # Custom persistent progress bar with pulsing animation (60s cycle: transparent, then 5s to opaque, then 5s back)
+        # Custom persistent progress bar with pulsing animation (60s cycle: transparent, then gradual 5s to opaque, then gradual 5s back)
         st.markdown(f"""
             <style>
                 @keyframes progressPulse {{
                     0%, 83.33% {{
                         opacity: 0.4;
                     }}
-                    83.34%, 91.67% {{
+                    83.34% {{
+                        opacity: 0.4;
+                    }}
+                    87.5% {{
                         opacity: 1;
                     }}
-                    91.68%, 100% {{
+                    91.67% {{
+                        opacity: 1;
+                    }}
+                    95.84% {{
+                        opacity: 0.4;
+                    }}
+                    100% {{
                         opacity: 0.4;
                     }}
                 }}
                 .persistent-progress-container {{
                     position: fixed;
                     top: 60px;
-                    left: calc(var(--sidebar-width, 21rem) + 20px);
+                    left: calc(var(--sidebar-width, 21rem) + 60px);
                     right: 20px;
                     z-index: 999;
                     background-color: rgba(255, 255, 255, 1);
@@ -1336,7 +1345,7 @@ if st.session_state.all_flights:
                 }}
                 /* Adjust when sidebar is collapsed */
                 [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stAppViewContainer"] .persistent-progress-container {{
-                    left: 20px;
+                    left: 60px;
                 }}
                 .persistent-progress-bar {{
                     width: 100%;
@@ -1880,7 +1889,7 @@ if st.session_state.all_flights:
                 <style>
                     .subway-nav {{
                         position: fixed;
-                        left: calc(var(--sidebar-width, 21rem) + 20px);
+                        left: calc(var(--sidebar-width, 21rem) + 60px);
                         top: 50%;
                         transform: translateY(-50%);
                         z-index: 1000;
@@ -1889,7 +1898,7 @@ if st.session_state.all_flights:
                     }}
                     /* Adjust position when sidebar is collapsed */
                     [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stAppViewContainer"] .subway-nav {{
-                        left: 20px;
+                        left: 60px;
                     }}
                     .subway-nav ul {{
                         list-style: none;
@@ -1930,11 +1939,11 @@ if st.session_state.all_flights:
                         width: 20px;
                         height: 20px;
                         border-radius: 50%;
-                        background-color: white;
+                        background-color: rgba(255, 255, 255, 0.7);
                         border: 4px solid #FF6B35;
                         position: relative;
                         transition: all 0.3s ease;
-                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
                     }}
                     .subway-nav a:hover .station-circle {{
                         transform: scale(1.3);
