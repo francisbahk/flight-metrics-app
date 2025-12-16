@@ -565,8 +565,8 @@ class IterativeUtilityOptimizer:
         print(f"\nFINAL BEST SOLUTION:")
         print(
             f"Solution Index: {convergence.get('final_best_solution_idx', 'N/A')}")
-        print(f"Key Metrics:")
-        for metric in ['conflicts', 'quints', 'quads', 'avg_max', 'lateness']:
+        print(f"All Metrics:")
+        for metric in self.metric_columns:
             if metric in final_solution:
                 print(f"  {metric}: {final_solution[metric]}")
 
