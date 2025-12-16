@@ -379,6 +379,9 @@ if 'outbound_submitted' not in st.session_state:
     st.session_state.outbound_submitted = False
 if 'return_submitted' not in st.session_state:
     st.session_state.return_submitted = False
+# Checkbox version counter (incremented when X button removes a flight)
+if 'checkbox_version' not in st.session_state:
+    st.session_state.checkbox_version = 0
 if 'csv_data_outbound' not in st.session_state:
     st.session_state.csv_data_outbound = None
 if 'csv_data_return' not in st.session_state:
@@ -2189,7 +2192,7 @@ if st.session_state.all_flights:
 
                     with col1:
                         # Use flight unique key for checkbox (sanitized for Streamlit)
-                        checkbox_key = f"chk_out_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
+                        checkbox_key = f"chk_out_{flight_unique_key}_v{st.session_state.checkbox_version}".replace(':', '').replace('-', '').replace('+', '')
                         selected = st.checkbox(
                             "Select flight",
                             value=is_selected,
@@ -2318,6 +2321,9 @@ if st.session_state.all_flights:
                                     f for f in st.session_state.selected_flights
                                     if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                                 ]
+
+                                # Increment version to force checkbox recreation
+                                st.session_state.checkbox_version += 1
 
                                 # Clear the checkbox widget state
                                 checkbox_key = f"chk_out_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
@@ -2520,7 +2526,7 @@ if st.session_state.all_flights:
 
                     with col1:
                         # Use flight unique key for checkbox (sanitized for Streamlit)
-                        checkbox_key = f"chk_ret_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
+                        checkbox_key = f"chk_ret_{flight_unique_key}_v{st.session_state.checkbox_version}".replace(':', '').replace('-', '').replace('+', '')
                         selected = st.checkbox(
                             "Select flight",
                             value=is_selected,
@@ -2648,6 +2654,9 @@ if st.session_state.all_flights:
                                     if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                                 ]
 
+                                # Increment version to force checkbox recreation
+                                st.session_state.checkbox_version += 1
+
                                 # Clear the checkbox widget state
                                 checkbox_key = f"chk_ret_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
                                 if checkbox_key in st.session_state:
@@ -2774,7 +2783,7 @@ if st.session_state.all_flights:
 
                     with col1:
                         # Use flight unique key for checkbox (sanitized for Streamlit)
-                        checkbox_key = f"chk_single_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
+                        checkbox_key = f"chk_single_{flight_unique_key}_v{st.session_state.checkbox_version}".replace(':', '').replace('-', '').replace('+', '')
                         selected = st.checkbox(
                             "Select flight",
                             value=is_selected,
@@ -2906,6 +2915,9 @@ if st.session_state.all_flights:
                                     f for f in st.session_state.selected_flights
                                     if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                                 ]
+
+                                # Increment version to force checkbox recreation
+                                st.session_state.checkbox_version += 1
 
                                 # Clear the checkbox widget state
                                 checkbox_key = f"chk_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
