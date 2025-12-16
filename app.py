@@ -2312,10 +2312,16 @@ if st.session_state.all_flights:
                         with cols[i]:
                             if st.button("✖", key=f"remove_outbound_{i}_{flight['id']}", help=f"Remove #{i+1}"):
                                 flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                                print(f"[DEBUG] X button clicked for flight: {flight_unique_key}")
+                                print(f"[DEBUG] Before removal: {len(st.session_state.selected_flights)} flights")
+
+                                # Remove the flight
                                 st.session_state.selected_flights = [
                                     f for f in st.session_state.selected_flights
                                     if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                                 ]
+
+                                print(f"[DEBUG] After removal: {len(st.session_state.selected_flights)} flights")
                                 st.rerun()
 
                     # Submit button for outbound
@@ -2633,10 +2639,16 @@ if st.session_state.all_flights:
                         with cols[i]:
                             if st.button("✖", key=f"remove_return_{i}_{flight['id']}", help=f"Remove #{i+1}"):
                                 flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                                print(f"[DEBUG] X button clicked for return flight: {flight_unique_key}")
+                                print(f"[DEBUG] Before removal: {len(st.session_state.selected_return_flights)} flights")
+
+                                # Remove the flight
                                 st.session_state.selected_return_flights = [
                                     f for f in st.session_state.selected_return_flights
                                     if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                                 ]
+
+                                print(f"[DEBUG] After removal: {len(st.session_state.selected_return_flights)} flights")
                                 st.rerun()
 
                     # Submit button for return
@@ -2884,10 +2896,16 @@ if st.session_state.all_flights:
                         with cols[i]:
                             if st.button("✖", key=f"remove_single_{i}_{flight['id']}", help=f"Remove #{i+1}"):
                                 flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                                print(f"[DEBUG] X button clicked for single flight: {flight_unique_key}")
+                                print(f"[DEBUG] Before removal: {len(st.session_state.selected_flights)} flights")
+
+                                # Remove the flight
                                 st.session_state.selected_flights = [
                                     f for f in st.session_state.selected_flights
                                     if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                                 ]
+
+                                print(f"[DEBUG] After removal: {len(st.session_state.selected_flights)} flights")
                                 st.rerun()
 
                     # Submit button
