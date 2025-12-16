@@ -1387,7 +1387,7 @@ if ai_search or regular_search:
                     st.success(f"✅ Found {len(all_flights)} outbound flights and {len(all_return_flights)} return flights!")
                 else:
                     st.success(f"✅ Found {len(all_flights)} flights!")
-                st.rerun()
+                # Don't rerun here - it causes infinite loop
 
                 # TEMPORARY COMMENT: Algorithm-based ranking code (old version)
                 # preferences = parsed.get('preferences', {})
