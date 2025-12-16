@@ -2258,33 +2258,49 @@ if st.session_state.all_flights:
                         st.session_state.selected_flights = st.session_state.selected_flights[:5]
                         st.rerun()
 
-                    # Create flight labels WITH RANK NUMBERS
-                    flight_labels = []
+                    # Display full flight cards with X button
                     for i, flight in enumerate(st.session_state.selected_flights):
                         airline_name = get_airline_name(flight['airline'])
-                        label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
-                        flight_labels.append(label)
 
-                    # Sortable list with version AND length in key to refresh on both drag and addition
-                    sorted_labels = sort_items(
-                        flight_labels,
-                        multi_containers=False,
-                        direction='vertical',
-                        key=f'outbound_sort_v{st.session_state.outbound_sort_version}_n{len(st.session_state.selected_flights)}'
-                    )
+                        # Format flight data
+                        duration_mins = flight.get('duration', 0)
+                        duration_hrs = duration_mins // 60
+                        duration_rem = duration_mins % 60
+                        duration_display = f"{duration_hrs}h {duration_rem}m" if duration_rem > 0 else f"{duration_hrs}h"
 
-                    # Update order ONLY if user dragged (same length, different order)
-                    if sorted_labels != flight_labels and len(sorted_labels) == len(flight_labels):
-                        new_order = []
-                        for sorted_label in sorted_labels:
-                            # Extract original rank from label
-                            rank = int(sorted_label.split(':')[0].replace('#', '')) - 1
-                            if rank < len(st.session_state.selected_flights):
-                                new_order.append(st.session_state.selected_flights[rank])
-                        if len(new_order) == len(st.session_state.selected_flights):
-                            st.session_state.selected_flights = new_order
-                            st.session_state.outbound_sort_version += 1
-                            st.rerun()
+                        stops = flight.get('stops', 0)
+                        stops_text = "Nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
+
+                        dept_time_display = flight.get('departure_time', '').replace('T', ' ')
+                        arr_time_display = flight.get('arrival_time', '').replace('T', ' ')
+                        dept_date_display = flight.get('departure_date', '')
+
+                        # Create container with X button
+                        col_x, col_content = st.columns([0.5, 9.5])
+
+                        with col_x:
+                            if st.button("✖", key=f"remove_outbound_{i}_{flight['id']}", help="Remove from selection"):
+                                # Remove from selected flights
+                                flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                                st.session_state.selected_flights = [
+                                    f for f in st.session_state.selected_flights
+                                    if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                                ]
+                                st.rerun()
+
+                        with col_content:
+                            # Full flight card display
+                            st.markdown(f"""
+                            <div style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 0.5rem; background: #f9f9f9;">
+                                <div style="font-weight: 700; color: #333; margin-bottom: 0.3rem;">#{i+1}</div>
+                                <div style="font-size: 0.95em; line-height: 1.4;">
+                                    <div><strong>${flight['price']:.0f}</strong> • <strong>{duration_display}</strong> • {stops_text}</div>
+                                    <div style="color: #666;">{dept_time_display} - {arr_time_display}</div>
+                                    <div style="color: #666; font-size: 0.9em;">{airline_name} {flight['flight_number']}</div>
+                                    <div style="color: #666; font-size: 0.9em;">{flight['origin']} → {flight['destination']} | {dept_date_display}</div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                     # Submit button for outbound
                     if len(st.session_state.selected_flights) == 5 and not st.session_state.outbound_submitted:
@@ -2547,33 +2563,49 @@ if st.session_state.all_flights:
                         st.session_state.selected_return_flights = st.session_state.selected_return_flights[:5]
                         st.rerun()
 
-                    # Create flight labels WITH RANK NUMBERS
-                    flight_labels = []
+                    # Display full flight cards with X button
                     for i, flight in enumerate(st.session_state.selected_return_flights):
                         airline_name = get_airline_name(flight['airline'])
-                        label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
-                        flight_labels.append(label)
 
-                    # Sortable list with version AND length in key to refresh on both drag and addition
-                    sorted_labels = sort_items(
-                        flight_labels,
-                        multi_containers=False,
-                        direction='vertical',
-                        key=f'return_sort_v{st.session_state.return_sort_version}_n{len(st.session_state.selected_return_flights)}'
-                    )
+                        # Format flight data
+                        duration_mins = flight.get('duration', 0)
+                        duration_hrs = duration_mins // 60
+                        duration_rem = duration_mins % 60
+                        duration_display = f"{duration_hrs}h {duration_rem}m" if duration_rem > 0 else f"{duration_hrs}h"
 
-                    # Update order ONLY if user dragged (same length, different order)
-                    if sorted_labels != flight_labels and len(sorted_labels) == len(flight_labels):
-                        new_order = []
-                        for sorted_label in sorted_labels:
-                            # Extract original rank from label
-                            rank = int(sorted_label.split(':')[0].replace('#', '')) - 1
-                            if rank < len(st.session_state.selected_return_flights):
-                                new_order.append(st.session_state.selected_return_flights[rank])
-                        if len(new_order) == len(st.session_state.selected_return_flights):
-                            st.session_state.selected_return_flights = new_order
-                            st.session_state.return_sort_version += 1
-                            st.rerun()
+                        stops = flight.get('stops', 0)
+                        stops_text = "Nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
+
+                        dept_time_display = flight.get('departure_time', '').replace('T', ' ')
+                        arr_time_display = flight.get('arrival_time', '').replace('T', ' ')
+                        dept_date_display = flight.get('departure_date', '')
+
+                        # Create container with X button
+                        col_x, col_content = st.columns([0.5, 9.5])
+
+                        with col_x:
+                            if st.button("✖", key=f"remove_return_{i}_{flight['id']}", help="Remove from selection"):
+                                # Remove from selected flights
+                                flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                                st.session_state.selected_return_flights = [
+                                    f for f in st.session_state.selected_return_flights
+                                    if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                                ]
+                                st.rerun()
+
+                        with col_content:
+                            # Full flight card display
+                            st.markdown(f"""
+                            <div style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 0.5rem; background: #f9f9f9;">
+                                <div style="font-weight: 700; color: #333; margin-bottom: 0.3rem;">#{i+1}</div>
+                                <div style="font-size: 0.95em; line-height: 1.4;">
+                                    <div><strong>${flight['price']:.0f}</strong> • <strong>{duration_display}</strong> • {stops_text}</div>
+                                    <div style="color: #666;">{dept_time_display} - {arr_time_display}</div>
+                                    <div style="color: #666; font-size: 0.9em;">{airline_name} {flight['flight_number']}</div>
+                                    <div style="color: #666; font-size: 0.9em;">{flight['origin']} → {flight['destination']} | {dept_date_display}</div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                     # Submit button for return
                     if len(st.session_state.selected_return_flights) == 5 and not st.session_state.return_submitted:
@@ -2766,33 +2798,49 @@ if st.session_state.all_flights:
                         st.session_state.selected_flights = st.session_state.selected_flights[:5]
                         st.rerun()
 
-                    # Create flight labels WITH RANK NUMBERS
-                    flight_labels = []
+                    # Display full flight cards with X button
                     for i, flight in enumerate(st.session_state.selected_flights):
                         airline_name = get_airline_name(flight['airline'])
-                        label = f"#{i+1}: {airline_name} {flight['flight_number']} - ${flight['price']:.0f}"
-                        flight_labels.append(label)
 
-                    # Sortable list with version AND length in key to refresh on both drag and addition
-                    sorted_labels = sort_items(
-                        flight_labels,
-                        multi_containers=False,
-                        direction='vertical',
-                        key=f'single_sort_v{st.session_state.single_sort_version}_n{len(st.session_state.selected_flights)}'
-                    )
+                        # Format flight data
+                        duration_mins = flight.get('duration', 0)
+                        duration_hrs = duration_mins // 60
+                        duration_rem = duration_mins % 60
+                        duration_display = f"{duration_hrs}h {duration_rem}m" if duration_rem > 0 else f"{duration_hrs}h"
 
-                    # Update order ONLY if user dragged (same length, different order)
-                    if sorted_labels and sorted_labels != flight_labels and len(sorted_labels) == len(flight_labels):
-                        new_order = []
-                        for sorted_label in sorted_labels:
-                            # Extract rank number from label (e.g., "#1: ..." -> 0)
-                            rank = int(sorted_label.split(':')[0].replace('#', '')) - 1
-                            if rank < len(st.session_state.selected_flights):
-                                new_order.append(st.session_state.selected_flights[rank])
-                        if len(new_order) == len(st.session_state.selected_flights):
-                            st.session_state.selected_flights = new_order
-                            st.session_state.single_sort_version += 1
-                            st.rerun()
+                        stops = flight.get('stops', 0)
+                        stops_text = "Nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
+
+                        dept_time_display = flight.get('departure_time', '').replace('T', ' ')
+                        arr_time_display = flight.get('arrival_time', '').replace('T', ' ')
+                        dept_date_display = flight.get('departure_date', '')
+
+                        # Create container with X button
+                        col_x, col_content = st.columns([0.5, 9.5])
+
+                        with col_x:
+                            if st.button("✖", key=f"remove_single_{i}_{flight['id']}", help="Remove from selection"):
+                                # Remove from selected flights
+                                flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                                st.session_state.selected_flights = [
+                                    f for f in st.session_state.selected_flights
+                                    if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                                ]
+                                st.rerun()
+
+                        with col_content:
+                            # Full flight card display
+                            st.markdown(f"""
+                            <div style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 0.5rem; background: #f9f9f9;">
+                                <div style="font-weight: 700; color: #333; margin-bottom: 0.3rem;">#{i+1}</div>
+                                <div style="font-size: 0.95em; line-height: 1.4;">
+                                    <div><strong>${flight['price']:.0f}</strong> • <strong>{duration_display}</strong> • {stops_text}</div>
+                                    <div style="color: #666;">{dept_time_display} - {arr_time_display}</div>
+                                    <div style="color: #666; font-size: 0.9em;">{airline_name} {flight['flight_number']}</div>
+                                    <div style="color: #666; font-size: 0.9em;">{flight['origin']} → {flight['destination']} | {dept_date_display}</div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                     # Submit button
                     if len(st.session_state.selected_flights) == 5 and not st.session_state.outbound_submitted:
