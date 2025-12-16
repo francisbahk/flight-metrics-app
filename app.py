@@ -2313,17 +2313,29 @@ if st.session_state.all_flights:
                             if st.button("✖", key=f"remove_outbound_{i}_{flight['id']}", help=f"Remove #{i+1}"):
                                 flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
 
+                                print(f"\n🔴 DEBUG: X button clicked!")
+                                print(f"🔴 Flight ID: {flight['id']}")
+                                print(f"🔴 Flight unique key: {flight_unique_key}")
+                                print(f"🔴 Selected flights before removal: {len(st.session_state.selected_flights)}")
+
                                 # Remove the flight from selected list
                                 st.session_state.selected_flights = [
                                     f for f in st.session_state.selected_flights
                                     if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                                 ]
 
+                                print(f"🔴 Selected flights after removal: {len(st.session_state.selected_flights)}")
+
                                 # Clear the checkbox widget state
                                 checkbox_key = f"chk_out_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
+                                print(f"🔴 Checkbox key: {checkbox_key}")
+                                print(f"🔴 Key exists in session_state: {checkbox_key in st.session_state}")
+
                                 if checkbox_key in st.session_state:
+                                    print(f"🔴 Deleting checkbox key from session_state")
                                     del st.session_state[checkbox_key]
 
+                                print(f"🔴 About to rerun...")
                                 st.rerun()
 
                     # Submit button for outbound
@@ -2642,17 +2654,29 @@ if st.session_state.all_flights:
                             if st.button("✖", key=f"remove_return_{i}_{flight['id']}", help=f"Remove #{i+1}"):
                                 flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
 
+                                print(f"\n🔵 DEBUG RETURN: X button clicked!")
+                                print(f"🔵 Flight ID: {flight['id']}")
+                                print(f"🔵 Flight unique key: {flight_unique_key}")
+                                print(f"🔵 Selected flights before removal: {len(st.session_state.selected_return_flights)}")
+
                                 # Remove the flight from selected list
                                 st.session_state.selected_return_flights = [
                                     f for f in st.session_state.selected_return_flights
                                     if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                                 ]
 
+                                print(f"🔵 Selected flights after removal: {len(st.session_state.selected_return_flights)}")
+
                                 # Clear the checkbox widget state
                                 checkbox_key = f"chk_ret_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
+                                print(f"🔵 Checkbox key: {checkbox_key}")
+                                print(f"🔵 Key exists in session_state: {checkbox_key in st.session_state}")
+
                                 if checkbox_key in st.session_state:
+                                    print(f"🔵 Deleting checkbox key from session_state")
                                     del st.session_state[checkbox_key]
 
+                                print(f"🔵 About to rerun...")
                                 st.rerun()
 
                     # Submit button for return
@@ -2901,17 +2925,29 @@ if st.session_state.all_flights:
                             if st.button("✖", key=f"remove_single_{i}_{flight['id']}", help=f"Remove #{i+1}"):
                                 flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
 
+                                print(f"\n🟢 DEBUG SINGLE: X button clicked!")
+                                print(f"🟢 Flight ID: {flight['id']}")
+                                print(f"🟢 Flight unique key: {flight_unique_key}")
+                                print(f"🟢 Selected flights before removal: {len(st.session_state.selected_flights)}")
+
                                 # Remove the flight from selected list
                                 st.session_state.selected_flights = [
                                     f for f in st.session_state.selected_flights
                                     if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                                 ]
 
+                                print(f"🟢 Selected flights after removal: {len(st.session_state.selected_flights)}")
+
                                 # Clear the checkbox widget state
                                 checkbox_key = f"chk_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '')
+                                print(f"🟢 Checkbox key: {checkbox_key}")
+                                print(f"🟢 Key exists in session_state: {checkbox_key in st.session_state}")
+
                                 if checkbox_key in st.session_state:
+                                    print(f"🟢 Deleting checkbox key from session_state")
                                     del st.session_state[checkbox_key]
 
+                                print(f"🟢 About to rerun...")
                                 st.rerun()
 
                     # Submit button
