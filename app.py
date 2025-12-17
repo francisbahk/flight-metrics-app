@@ -1636,7 +1636,8 @@ if st.session_state.all_flights:
                     format_func=lambda x: ["Very Dissatisfied", "Dissatisfied", "Neutral", "Satisfied", "Very Satisfied"][x-1],
                     key="q1_satisfaction",
                     label_visibility="collapsed",
-                    horizontal=True
+                    horizontal=True,
+                    index=None
                 )
 
                 # Q2: Ease of use
@@ -1647,7 +1648,8 @@ if st.session_state.all_flights:
                     format_func=lambda x: ["Very Difficult", "Difficult", "Neutral", "Easy", "Very Easy"][x-1],
                     key="q2_ease",
                     label_visibility="collapsed",
-                    horizontal=True
+                    horizontal=True,
+                    index=None
                 )
 
                 # Q3: Technical issues
@@ -1657,7 +1659,8 @@ if st.session_state.all_flights:
                     options=["No", "Yes"],
                     key="q3_issues",
                     label_visibility="collapsed",
-                    horizontal=True
+                    horizontal=True,
+                    index=None
                 )
                 issues_description = None
                 if encountered_issues == "Yes":
@@ -1673,7 +1676,8 @@ if st.session_state.all_flights:
                     "Search method",
                     options=["Regular Search", "AI Search with LISTEN", "Both"],
                     key="q4_method",
-                    label_visibility="collapsed"
+                    label_visibility="collapsed",
+                    index=None
                 )
 
                 # Q5: Understanding AI ranking
@@ -1684,7 +1688,8 @@ if st.session_state.all_flights:
                     format_func=lambda x: ["Not at all", "Slightly", "Somewhat", "Mostly", "Completely"][x-1],
                     key="q5_understood",
                     label_visibility="collapsed",
-                    horizontal=True
+                    horizontal=True,
+                    index=None
                 )
 
                 # Q6: Helpful features
@@ -1709,7 +1714,8 @@ if st.session_state.all_flights:
                     format_func=lambda x: ["Not at all", "Slightly", "Somewhat", "Mostly", "Perfectly"][x-1],
                     key="q7_matched",
                     label_visibility="collapsed",
-                    horizontal=True
+                    horizontal=True,
+                    index=None
                 )
 
                 # Q8: Confusion/frustration
@@ -1737,7 +1743,8 @@ if st.session_state.all_flights:
                     options=["Yes", "Maybe", "No"],
                     key="q10_again",
                     label_visibility="collapsed",
-                    horizontal=True
+                    horizontal=True,
+                    index=None
                 )
                 would_use_again_reason = st.text_input(
                     "Why or why not? (optional)",
@@ -1753,7 +1760,8 @@ if st.session_state.all_flights:
                     format_func=lambda x: ["Much Worse", "Worse", "About the Same", "Better", "Much Better"][x-1],
                     key="q11_compared",
                     label_visibility="collapsed",
-                    horizontal=True
+                    horizontal=True,
+                    index=None
                 )
 
                 # Q12: Additional comments
@@ -1767,38 +1775,60 @@ if st.session_state.all_flights:
 
                 # Submit survey button
                 if st.button("📨 Submit Survey", type="primary", use_container_width=True):
-                    # Collect all survey data
-                    survey_data = {
-                        'satisfaction': satisfaction,
-                        'ease_of_use': ease_of_use,
-                        'encountered_issues': encountered_issues,
-                        'issues_description': issues_description if encountered_issues == "Yes" else None,
-                        'search_method': search_method,
-                        'understood_ranking': understood_ranking,
-                        'helpful_features': helpful_features if helpful_features else None,
-                        'flights_matched': flights_matched,
-                        'confusing_frustrating': confusing_frustrating if confusing_frustrating else None,
-                        'missing_features': missing_features if missing_features else None,
-                        'would_use_again': would_use_again,
-                        'would_use_again_reason': would_use_again_reason if would_use_again_reason else None,
-                        'compared_to_others': compared_to_others,
-                        'additional_comments': additional_comments if additional_comments else None
-                    }
+                    # Validate required fields
+                    missing_fields = []
+                    if satisfaction is None:
+                        missing_fields.append("Question 1 (Satisfaction)")
+                    if ease_of_use is None:
+                        missing_fields.append("Question 2 (Ease of use)")
+                    if encountered_issues is None:
+                        missing_fields.append("Question 3 (Technical issues)")
+                    if search_method is None:
+                        missing_fields.append("Question 4 (Search method)")
+                    if understood_ranking is None:
+                        missing_fields.append("Question 5 (Understanding AI ranking)")
+                    if flights_matched is None:
+                        missing_fields.append("Question 7 (Flights matched expectations)")
+                    if would_use_again is None:
+                        missing_fields.append("Question 10 (Would use again)")
+                    if compared_to_others is None:
+                        missing_fields.append("Question 11 (Comparison to others)")
 
-                    # Save to database
-                    from backend.db import save_survey_response
-                    success = save_survey_response(
-                        session_id=st.session_state.session_id,
-                        survey_data=survey_data,
-                        token=st.session_state.token
-                    )
-
-                    if success:
-                        st.session_state.survey_completed = True
-                        st.success("✅ Thank you for your feedback!")
-                        st.rerun()
+                    if missing_fields:
+                        st.error(f"⚠️ Please answer all required questions: {', '.join(missing_fields)}")
                     else:
-                        st.error("⚠️ Failed to save survey response. Please try again.")
+                        # Collect all survey data
+                        survey_data = {
+                            'satisfaction': satisfaction,
+                            'ease_of_use': ease_of_use,
+                            'encountered_issues': encountered_issues,
+                            'issues_description': issues_description if encountered_issues == "Yes" else None,
+                            'search_method': search_method,
+                            'understood_ranking': understood_ranking,
+                            'helpful_features': helpful_features if helpful_features else None,
+                            'flights_matched': flights_matched,
+                            'confusing_frustrating': confusing_frustrating if confusing_frustrating else None,
+                            'missing_features': missing_features if missing_features else None,
+                            'would_use_again': would_use_again,
+                            'would_use_again_reason': would_use_again_reason if would_use_again_reason else None,
+                            'compared_to_others': compared_to_others,
+                            'additional_comments': additional_comments if additional_comments else None
+                        }
+
+                        # Save to database
+                        from backend.db import save_survey_response
+                        success = save_survey_response(
+                            session_id=st.session_state.session_id,
+                            survey_data=survey_data,
+                            token=st.session_state.token
+                        )
+
+                        if success:
+                            st.session_state.survey_completed = True
+                            st.success("✅ Thank you for your feedback!")
+                            st.rerun()
+                        else:
+                            st.error("⚠️ Failed to save survey response. Please try again.")
 
             # Show countdown if survey completed and not already timed out
             if st.session_state.get('survey_completed') and st.session_state.get('countdown_started') and not st.session_state.get('countdown_completed'):
