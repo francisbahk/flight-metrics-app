@@ -257,6 +257,39 @@ class FlightCSV(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
+class SurveyResponse(Base):
+    """Stores post-completion survey responses."""
+    __tablename__ = 'survey_responses'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(255), nullable=False, index=True)
+    token = Column(String(255), nullable=True, index=True)
+
+    # Satisfaction & Usability (Q1-Q3)
+    satisfaction = Column(Integer, nullable=True)  # 1-5
+    ease_of_use = Column(Integer, nullable=True)  # 1-5
+    encountered_issues = Column(String(10), nullable=True)  # Yes/No
+    issues_description = Column(Text, nullable=True)  # Optional open-ended
+
+    # Feature Value (Q4-Q7)
+    search_method = Column(String(50), nullable=True)  # Regular/AI/Both
+    understood_ranking = Column(Integer, nullable=True)  # 1-5
+    helpful_features = Column(JSON, nullable=True)  # List of selected features
+    flights_matched = Column(Integer, nullable=True)  # 1-5
+
+    # Friction & Missing (Q8-Q10)
+    confusing_frustrating = Column(Text, nullable=True)  # Open-ended
+    missing_features = Column(Text, nullable=True)  # Open-ended
+    would_use_again = Column(String(10), nullable=True)  # Yes/No/Maybe
+    would_use_again_reason = Column(Text, nullable=True)  # Optional open-ended
+
+    # Comparison & Final (Q11-Q12)
+    compared_to_others = Column(Integer, nullable=True)  # 1-5
+    additional_comments = Column(Text, nullable=True)  # Optional open-ended
+
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 # Database functions
 def init_db():
     """
@@ -520,6 +553,53 @@ def mark_token_used(token: str) -> bool:
     except Exception as e:
         db.rollback()
         print(f"✗ Error marking token as used: {str(e)}")
+        return False
+
+    finally:
+        db.close()
+
+
+def save_survey_response(session_id: str, survey_data: Dict, token: Optional[str] = None) -> bool:
+    """
+    Save a survey response to the database.
+
+    Args:
+        session_id: Unique session identifier
+        survey_data: Dictionary containing all survey responses
+        token: Participant token (optional)
+
+    Returns:
+        True if successful, False otherwise
+    """
+    db = SessionLocal()
+
+    try:
+        survey = SurveyResponse(
+            session_id=session_id,
+            token=token,
+            satisfaction=survey_data.get('satisfaction'),
+            ease_of_use=survey_data.get('ease_of_use'),
+            encountered_issues=survey_data.get('encountered_issues'),
+            issues_description=survey_data.get('issues_description'),
+            search_method=survey_data.get('search_method'),
+            understood_ranking=survey_data.get('understood_ranking'),
+            helpful_features=survey_data.get('helpful_features'),
+            flights_matched=survey_data.get('flights_matched'),
+            confusing_frustrating=survey_data.get('confusing_frustrating'),
+            missing_features=survey_data.get('missing_features'),
+            would_use_again=survey_data.get('would_use_again'),
+            would_use_again_reason=survey_data.get('would_use_again_reason'),
+            compared_to_others=survey_data.get('compared_to_others'),
+            additional_comments=survey_data.get('additional_comments')
+        )
+        db.add(survey)
+        db.commit()
+        print(f"✓ Saved survey response for session {session_id}")
+        return True
+
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Error saving survey response: {str(e)}")
         return False
 
     finally:

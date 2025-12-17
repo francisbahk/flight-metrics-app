@@ -388,6 +388,8 @@ if 'csv_data_return' not in st.session_state:
     st.session_state.csv_data_return = None
 if 'review_confirmed' not in st.session_state:
     st.session_state.review_confirmed = False
+if 'survey_completed' not in st.session_state:
+    st.session_state.survey_completed = False
 # Filter state
 if 'filter_airlines' not in st.session_state:
     st.session_state.filter_airlines = []
@@ -1616,8 +1618,190 @@ if st.session_state.all_flights:
                         use_container_width=True
                     )
 
-            # Show countdown if not already completed
-            if st.session_state.get('countdown_started') and not st.session_state.get('countdown_completed'):
+            # Survey section (before countdown)
+            if not st.session_state.get('survey_completed'):
+                st.markdown("---")
+                st.markdown("### 📋 Quick Feedback Survey")
+                st.markdown("*Please take 2-3 minutes to help us improve the tool*")
+
+                # Initialize survey responses in session state
+                if 'survey_data' not in st.session_state:
+                    st.session_state.survey_data = {}
+
+                # Q1: Satisfaction
+                st.markdown("**1. How satisfied are you with the flight recommendations you received?**")
+                satisfaction = st.radio(
+                    "Satisfaction",
+                    options=[1, 2, 3, 4, 5],
+                    format_func=lambda x: ["Very Dissatisfied", "Dissatisfied", "Neutral", "Satisfied", "Very Satisfied"][x-1],
+                    key="q1_satisfaction",
+                    label_visibility="collapsed",
+                    horizontal=True
+                )
+
+                # Q2: Ease of use
+                st.markdown("**2. How easy was it to use the flight search and ranking system?**")
+                ease_of_use = st.radio(
+                    "Ease of use",
+                    options=[1, 2, 3, 4, 5],
+                    format_func=lambda x: ["Very Difficult", "Difficult", "Neutral", "Easy", "Very Easy"][x-1],
+                    key="q2_ease",
+                    label_visibility="collapsed",
+                    horizontal=True
+                )
+
+                # Q3: Technical issues
+                st.markdown("**3. Did you encounter any technical issues or errors during your session?**")
+                encountered_issues = st.radio(
+                    "Issues",
+                    options=["No", "Yes"],
+                    key="q3_issues",
+                    label_visibility="collapsed",
+                    horizontal=True
+                )
+                issues_description = None
+                if encountered_issues == "Yes":
+                    issues_description = st.text_area(
+                        "Please describe the issues:",
+                        key="q3_issues_desc",
+                        placeholder="e.g., The page froze when I clicked submit..."
+                    )
+
+                # Q4: Search method
+                st.markdown("**4. Which search method did you use?**")
+                search_method = st.radio(
+                    "Search method",
+                    options=["Regular Search", "AI Search with LISTEN", "Both"],
+                    key="q4_method",
+                    label_visibility="collapsed"
+                )
+
+                # Q5: Understanding AI ranking
+                st.markdown("**5. Did you understand how the AI ranked your flights?**")
+                understood_ranking = st.radio(
+                    "Understanding",
+                    options=[1, 2, 3, 4, 5],
+                    format_func=lambda x: ["Not at all", "Slightly", "Somewhat", "Mostly", "Completely"][x-1],
+                    key="q5_understood",
+                    label_visibility="collapsed",
+                    horizontal=True
+                )
+
+                # Q6: Helpful features
+                st.markdown("**6. Which features were most helpful in making your decision?** *(Select all that apply)*")
+                helpful_features = []
+                if st.checkbox("Top 5 ranked flights sidebar", key="q6_sidebar"):
+                    helpful_features.append("Top 5 sidebar")
+                if st.checkbox("Drag-to-rerank functionality", key="q6_drag"):
+                    helpful_features.append("Drag-to-rerank")
+                if st.checkbox("Flight filtering (price, airline, stops, etc.)", key="q6_filter"):
+                    helpful_features.append("Filtering")
+                if st.checkbox("AI-generated rankings", key="q6_ai"):
+                    helpful_features.append("AI rankings")
+                if st.checkbox("Detailed flight metrics (duration, stops, times, etc.)", key="q6_metrics"):
+                    helpful_features.append("Flight metrics")
+
+                # Q7: Flights matched expectations
+                st.markdown("**7. Did the top-ranked flights match what you were looking for?**")
+                flights_matched = st.radio(
+                    "Match",
+                    options=[1, 2, 3, 4, 5],
+                    format_func=lambda x: ["Not at all", "Slightly", "Somewhat", "Mostly", "Perfectly"][x-1],
+                    key="q7_matched",
+                    label_visibility="collapsed",
+                    horizontal=True
+                )
+
+                # Q8: Confusion/frustration
+                st.markdown("**8. Was there anything confusing or frustrating about the experience?**")
+                confusing_frustrating = st.text_area(
+                    "Your feedback:",
+                    key="q8_confusing",
+                    placeholder="e.g., I didn't understand why flight X was ranked higher than Y...",
+                    label_visibility="collapsed"
+                )
+
+                # Q9: Missing features
+                st.markdown("**9. Was there any information or feature missing that would have helped you make a better decision?**")
+                missing_features = st.text_area(
+                    "Your feedback:",
+                    key="q9_missing",
+                    placeholder="e.g., I wanted to see baggage fees, seat availability...",
+                    label_visibility="collapsed"
+                )
+
+                # Q10: Would use again
+                st.markdown("**10. Would you use this tool again for future flight searches?**")
+                would_use_again = st.radio(
+                    "Use again",
+                    options=["Yes", "Maybe", "No"],
+                    key="q10_again",
+                    label_visibility="collapsed",
+                    horizontal=True
+                )
+                would_use_again_reason = st.text_input(
+                    "Why or why not? (optional)",
+                    key="q10_reason",
+                    placeholder="e.g., It saved me time compared to other sites..."
+                )
+
+                # Q11: Comparison to others
+                st.markdown("**11. Compared to other flight search tools (Google Flights, Kayak, etc.), how would you rate this experience?**")
+                compared_to_others = st.radio(
+                    "Comparison",
+                    options=[1, 2, 3, 4, 5],
+                    format_func=lambda x: ["Much Worse", "Worse", "About the Same", "Better", "Much Better"][x-1],
+                    key="q11_compared",
+                    label_visibility="collapsed",
+                    horizontal=True
+                )
+
+                # Q12: Additional comments
+                st.markdown("**12. Any other comments or suggestions?** *(optional)*")
+                additional_comments = st.text_area(
+                    "Your feedback:",
+                    key="q12_comments",
+                    placeholder="Any other thoughts you'd like to share...",
+                    label_visibility="collapsed"
+                )
+
+                # Submit survey button
+                if st.button("📨 Submit Survey", type="primary", use_container_width=True):
+                    # Collect all survey data
+                    survey_data = {
+                        'satisfaction': satisfaction,
+                        'ease_of_use': ease_of_use,
+                        'encountered_issues': encountered_issues,
+                        'issues_description': issues_description if encountered_issues == "Yes" else None,
+                        'search_method': search_method,
+                        'understood_ranking': understood_ranking,
+                        'helpful_features': helpful_features if helpful_features else None,
+                        'flights_matched': flights_matched,
+                        'confusing_frustrating': confusing_frustrating if confusing_frustrating else None,
+                        'missing_features': missing_features if missing_features else None,
+                        'would_use_again': would_use_again,
+                        'would_use_again_reason': would_use_again_reason if would_use_again_reason else None,
+                        'compared_to_others': compared_to_others,
+                        'additional_comments': additional_comments if additional_comments else None
+                    }
+
+                    # Save to database
+                    from backend.db import save_survey_response
+                    success = save_survey_response(
+                        session_id=st.session_state.session_id,
+                        survey_data=survey_data,
+                        token=st.session_state.token
+                    )
+
+                    if success:
+                        st.session_state.survey_completed = True
+                        st.success("✅ Thank you for your feedback!")
+                        st.rerun()
+                    else:
+                        st.error("⚠️ Failed to save survey response. Please try again.")
+
+            # Show countdown if survey completed and not already timed out
+            if st.session_state.get('survey_completed') and st.session_state.get('countdown_started') and not st.session_state.get('countdown_completed'):
                 import time
                 st.info("📋 Please note your Search ID above. This session will end in:")
 
@@ -1703,6 +1887,7 @@ if st.session_state.all_flights:
             st.session_state.review_confirmed = False
             st.session_state.search_id = None
             st.session_state.db_save_error = None
+            st.session_state.survey_completed = False
             # Delete the prompt key to reset it (can't set widget values directly)
             if 'flight_prompt_input' in st.session_state:
                 del st.session_state.flight_prompt_input
