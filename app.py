@@ -743,9 +743,14 @@ st.markdown("""
 """)
 
 # Tutorial video
-video_file = open('/Users/francisbahk/flight_app/How to Use the Flight Recommendation Website Effectively.mp4', 'rb')
-video_bytes = video_file.read()
-st.video(video_bytes)
+video_path = 'How to Use the Flight Recommendation Website Effectively.mp4'
+if os.path.exists(video_path):
+    video_file = open(video_path, 'rb')
+    video_bytes = video_file.read()
+    st.video(video_bytes)
+    video_file.close()
+else:
+    st.warning("Tutorial video not found. Please contact support.")
 
 st.markdown("""
 2. **Describe your flight** - Enter your travel details in natural language, as if you are telling a flight itinerary manager how to book your ideal trip. What would you want them to know?
