@@ -1806,7 +1806,7 @@ if st.session_state.all_flights:
                                 col1, col2 = st.columns([1, 5])
 
                                 with col1:
-                                    checkbox_key = f"cv_chk_{flight_unique_key}_v{st.session_state.cv_checkbox_version}".replace(':', '').replace('-', '').replace('+', '')
+                                    checkbox_key = f"cv_chk_{idx}_{flight_unique_key}_v{st.session_state.cv_checkbox_version}".replace(':', '').replace('-', '').replace('+', '').replace(' ', '')
                                     selected = st.checkbox(
                                         "Select flight",
                                         value=is_selected,
@@ -2745,7 +2745,7 @@ if st.session_state.all_flights:
 
                     with col1:
                         # Use flight unique key for checkbox (sanitized for Streamlit)
-                        checkbox_key = f"chk_out_{flight_unique_key}_v{st.session_state.checkbox_version}".replace(':', '').replace('-', '').replace('+', '')
+                        checkbox_key = f"chk_out_{idx}_{flight_unique_key}_v{st.session_state.checkbox_version}".replace(':', '').replace('-', '').replace('+', '').replace(' ', '')
                         selected = st.checkbox(
                             "Select flight",
                             value=is_selected,
@@ -3079,7 +3079,7 @@ if st.session_state.all_flights:
 
                     with col1:
                         # Use flight unique key for checkbox (sanitized for Streamlit)
-                        checkbox_key = f"chk_ret_{flight_unique_key}_v{st.session_state.checkbox_version}".replace(':', '').replace('-', '').replace('+', '')
+                        checkbox_key = f"chk_ret_{idx}_{flight_unique_key}_v{st.session_state.checkbox_version}".replace(':', '').replace('-', '').replace('+', '').replace(' ', '')
                         selected = st.checkbox(
                             "Select flight",
                             value=is_selected,
@@ -3336,7 +3336,8 @@ if st.session_state.all_flights:
 
                     with col1:
                         # Use flight unique key for checkbox (sanitized for Streamlit)
-                        checkbox_key = f"chk_single_{flight_unique_key}_v{st.session_state.checkbox_version}".replace(':', '').replace('-', '').replace('+', '')
+                        # Include idx to ensure uniqueness even if flights have same ID/time after sanitization
+                        checkbox_key = f"chk_single_{idx}_{flight_unique_key}_v{st.session_state.checkbox_version}".replace(':', '').replace('-', '').replace('+', '').replace(' ', '')
                         selected = st.checkbox(
                             "Select flight",
                             value=is_selected,
