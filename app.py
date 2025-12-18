@@ -1200,7 +1200,7 @@ if ai_search or regular_search:
                                     st.write(f"Number of flights: {len(results)}")
                                 st.json(results if isinstance(results, (dict, list)) else str(results))
 
-                            # Parse results
+                            # Parse results using unified client
                             if isinstance(results, list):
                                 flight_offers = results
                             elif isinstance(results, dict) and 'data' in results:
@@ -1209,23 +1209,10 @@ if ai_search or regular_search:
                                 flight_offers = []
 
                             for offer in flight_offers:
-                                itinerary = offer['itineraries'][0]
-                                segments = itinerary['segments']
-
-                                flight_info = {
-                                    'id': offer['id'],
-                                    'price': float(offer['price']['total']),
-                                    'currency': offer['price']['currency'],
-                                    'duration_min': parse_duration_to_minutes(itinerary['duration']),
-                                    'stops': len(segments) - 1,
-                                    'departure_time': segments[0]['departure']['at'],
-                                    'arrival_time': segments[-1]['arrival']['at'],
-                                    'airline': segments[0]['carrierCode'],
-                                    'flight_number': segments[0]['number'],
-                                    'origin': segments[0]['departure']['iataCode'],
-                                    'destination': segments[-1]['arrival']['iataCode']
-                                }
-                                all_flights.append(flight_info)
+                                # Use unified client's parse method
+                                flight_info = flight_client.parse_flight_offer(offer)
+                                if flight_info:
+                                    all_flights.append(flight_info)
 
                         # If return flight requested, search return flights for ALL return dates
                         if has_return:
@@ -1265,23 +1252,10 @@ if ai_search or regular_search:
                                     return_flight_offers = []
 
                                 for offer in return_flight_offers:
-                                    itinerary = offer['itineraries'][0]
-                                    segments = itinerary['segments']
-
-                                    flight_info = {
-                                        'id': offer['id'],
-                                        'price': float(offer['price']['total']),
-                                        'currency': offer['price']['currency'],
-                                        'duration_min': parse_duration_to_minutes(itinerary['duration']),
-                                        'stops': len(segments) - 1,
-                                        'departure_time': segments[0]['departure']['at'],
-                                        'arrival_time': segments[-1]['arrival']['at'],
-                                        'airline': segments[0]['carrierCode'],
-                                        'flight_number': segments[0]['number'],
-                                        'origin': segments[0]['departure']['iataCode'],
-                                        'destination': segments[-1]['arrival']['iataCode']
-                                    }
-                                    all_return_flights.append(flight_info)
+                                    # Use unified client's parse method
+                                    flight_info = flight_client.parse_flight_offer(offer)
+                                    if flight_info:
+                                        all_return_flights.append(flight_info)
 
                 if not all_flights:
                     st.error("No outbound flights found. Try different dates or airports.")
