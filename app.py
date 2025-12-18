@@ -1662,53 +1662,50 @@ if st.session_state.all_flights:
 
                         # Display the user's original prompt
                         st.info(f"**Another user's search prompt:**\n\n> {cross_val['prompt']}")
-                        st.markdown("**Task:** Review their flights and select your top 5 that best match their needs.")
+                        st.markdown("**Task:** Review their flights and select your top 5 that best match their needs, then drag to rank them.")
                         st.markdown("---")
 
-                        # Set up temporary session state for cross-validation flights
-                        # Use the other user's LISTEN-ranked flights
+                        # Set up cross-validation session state (mirror main interface)
                         cv_flights = cross_val['flights']
 
-                        # Initialize cross-validation specific session state
                         if 'cross_val_selected_flights' not in st.session_state:
                             st.session_state.cross_val_selected_flights = []
-
-                        # Initialize filter state for cross-validation (reuse existing filter vars)
                         if 'cv_filter_reset_counter' not in st.session_state:
                             st.session_state.cv_filter_reset_counter = 0
+                        if 'cv_sort_version' not in st.session_state:
+                            st.session_state.cv_sort_version = 0
+                        if 'cv_checkbox_version' not in st.session_state:
+                            st.session_state.cv_checkbox_version = 0
+                        if 'cv_sort_price_dir' not in st.session_state:
+                            st.session_state.cv_sort_price_dir = 'asc'
+                        if 'cv_sort_duration_dir' not in st.session_state:
+                            st.session_state.cv_sort_duration_dir = 'asc'
 
                         # Display flight count
                         st.markdown(f"### ✈️ Found {len(cv_flights)} Flights")
-                        st.markdown("**Select your top 5 flights that best match this user's needs →**")
+                        st.markdown("**Select your top 5 flights and drag to rank them →**")
 
-                        # SIDEBAR FILTERS for cross-validation
+                        # SIDEBAR FILTERS (EXACT copy from main interface)
                         with st.sidebar:
                             st.markdown("---")
-                            st.markdown("### 🔍 Cross-Validation Filters")
+                            st.markdown('<h2><span class="filter-heading-neon">🔍 CV Filters</span></h2>', unsafe_allow_html=True)
 
-                            # Get unique airlines
+                            # Get unique values
                             unique_airlines_cv = sorted(set([f['airline'] for f in cv_flights]))
                             airline_names_map_cv = {code: get_airline_name(code) for code in unique_airlines_cv}
-
-                            # Get unique connection counts
                             unique_connections_cv = sorted(set([f['stops'] for f in cv_flights]))
-
-                            # Get price range
                             prices_cv = [f['price'] for f in cv_flights]
                             min_price_cv, max_price_cv = (min(prices_cv), max(prices_cv)) if prices_cv else (0, 1000)
-
-                            # Get duration range
                             durations_cv = [f['duration_min'] for f in cv_flights]
                             min_duration_cv, max_duration_cv = (min(durations_cv), max(durations_cv)) if durations_cv else (0, 1440)
 
-                            # Airline filter
+                            # Filters (exact copy)
                             with st.expander("✈️ Airlines", expanded=False):
                                 selected_airlines_cv = []
                                 for airline_code in unique_airlines_cv:
                                     if st.checkbox(airline_names_map_cv[airline_code], key=f"cv_airline_{airline_code}_{st.session_state.cv_filter_reset_counter}"):
                                         selected_airlines_cv.append(airline_code)
 
-                            # Connections filter
                             with st.expander("🔄 Connections", expanded=False):
                                 selected_connections_cv = []
                                 for conn_count in unique_connections_cv:
@@ -1716,7 +1713,6 @@ if st.session_state.all_flights:
                                     if st.checkbox(conn_label, key=f"cv_conn_{conn_count}_{st.session_state.cv_filter_reset_counter}"):
                                         selected_connections_cv.append(conn_count)
 
-                            # Price filter
                             with st.expander("💰 Price Range", expanded=False):
                                 price_range_cv = st.slider(
                                     "Select price range",
@@ -1725,10 +1721,9 @@ if st.session_state.all_flights:
                                     value=(float(min_price_cv), float(max_price_cv)),
                                     step=10.0,
                                     format="$%.0f",
-                                    key=f"cv_filter_price_slider_{st.session_state.cv_filter_reset_counter}"
+                                    key=f"cv_price_{st.session_state.cv_filter_reset_counter}"
                                 )
 
-                            # Duration filter
                             with st.expander("⏱️ Flight Duration", expanded=False):
                                 duration_range_cv = st.slider(
                                     "Select duration range",
@@ -1737,165 +1732,228 @@ if st.session_state.all_flights:
                                     value=(int(min_duration_cv), int(max_duration_cv)),
                                     step=30,
                                     format="%d min",
-                                    key=f"cv_filter_duration_slider_{st.session_state.cv_filter_reset_counter}"
+                                    key=f"cv_duration_{st.session_state.cv_filter_reset_counter}"
                                 )
                                 min_h, min_m = divmod(duration_range_cv[0], 60)
                                 max_h, max_m = divmod(duration_range_cv[1], 60)
                                 st.caption(f"{min_h}h {min_m}m - {max_h}h {max_m}m")
 
-                            # Clear filters button
-                            if st.button("Clear All CV Filters", use_container_width=True, key="clear_cv_filters"):
+                            with st.expander("🛫 Departure Time", expanded=False):
+                                dept_range_cv = st.slider(
+                                    "Select departure time range",
+                                    min_value=0.0,
+                                    max_value=24.0,
+                                    value=(0.0, 24.0),
+                                    step=0.5,
+                                    format="%.1f",
+                                    key=f"cv_dept_{st.session_state.cv_filter_reset_counter}"
+                                )
+                                def hours_to_time(h):
+                                    hours = int(h)
+                                    mins = int((h - hours) * 60)
+                                    return f"{hours:02d}:{mins:02d}"
+                                st.caption(f"{hours_to_time(dept_range_cv[0])} - {hours_to_time(dept_range_cv[1])}")
+
+                            with st.expander("🛬 Arrival Time", expanded=False):
+                                arr_range_cv = st.slider(
+                                    "Select arrival time range",
+                                    min_value=0.0,
+                                    max_value=24.0,
+                                    value=(0.0, 24.0),
+                                    step=0.5,
+                                    format="%.1f",
+                                    key=f"cv_arr_{st.session_state.cv_filter_reset_counter}"
+                                )
+                                st.caption(f"{hours_to_time(arr_range_cv[0])} - {hours_to_time(arr_range_cv[1])}")
+
+                            if st.button("Clear All Filters", use_container_width=True, key="clear_cv"):
                                 st.session_state.cv_filter_reset_counter += 1
                                 st.rerun()
 
-                        # Apply filters
-                        filtered_cv_flights = cv_flights
+                        # Apply filters (exact copy from apply_filters)
+                        filtered_cv = apply_filters(
+                            cv_flights,
+                            airlines=selected_airlines_cv if selected_airlines_cv else None,
+                            connections=selected_connections_cv if selected_connections_cv else None,
+                            price_range=price_range_cv if price_range_cv != (float(min_price_cv), float(max_price_cv)) else None,
+                            duration_range=duration_range_cv if duration_range_cv != (int(min_duration_cv), int(max_duration_cv)) else None,
+                            departure_range=dept_range_cv if dept_range_cv != (0.0, 24.0) else None,
+                            arrival_range=arr_range_cv if arr_range_cv != (0.0, 24.0) else None,
+                            origins=None,
+                            destinations=None
+                        )
 
-                        # Filter by airlines
-                        if selected_airlines_cv:
-                            filtered_cv_flights = [f for f in filtered_cv_flights if f['airline'] in selected_airlines_cv]
-
-                        # Filter by connections
-                        if selected_connections_cv:
-                            filtered_cv_flights = [f for f in filtered_cv_flights if f['stops'] in selected_connections_cv]
-
-                        # Filter by price
-                        if price_range_cv != (float(min_price_cv), float(max_price_cv)):
-                            filtered_cv_flights = [f for f in filtered_cv_flights if price_range_cv[0] <= f['price'] <= price_range_cv[1]]
-
-                        # Filter by duration
-                        if duration_range_cv != (int(min_duration_cv), int(max_duration_cv)):
-                            filtered_cv_flights = [f for f in filtered_cv_flights if duration_range_cv[0] <= f['duration_min'] <= duration_range_cv[1]]
-
-                        # Show filter status
-                        if len(filtered_cv_flights) < len(cv_flights):
-                            st.info(f"🔍 Filters applied: Showing {len(filtered_cv_flights)} of {len(cv_flights)} flights")
-
-                        # Two-column layout: Flights + Selected
-                        col_flights_cv, col_selected_cv = st.columns([2, 1])
+                        # Two-column layout (EXACT copy)
+                        col_flights_cv, col_ranking_cv = st.columns([2, 1])
 
                         with col_flights_cv:
                             st.markdown("#### All Flights")
 
-                            # Sort buttons
+                            if len(filtered_cv) < len(cv_flights):
+                                st.info(f"🔍 Filters applied: Showing {len(filtered_cv)} of {len(cv_flights)} flights")
+
+                            # Sort buttons (exact copy)
                             col_sort1, col_sort2 = st.columns(2)
                             with col_sort1:
-                                if st.button("💰 Sort by Price", key="cv_sort_price", use_container_width=True):
-                                    filtered_cv_flights = sorted(filtered_cv_flights, key=lambda x: x['price'])
+                                arrow = "↑" if st.session_state.cv_sort_price_dir == 'asc' else "↓"
+                                if st.button(f"💰 Sort by Price {arrow}", key="cv_sort_price", use_container_width=True):
+                                    reverse = st.session_state.cv_sort_price_dir == 'desc'
+                                    cv_flights[:] = sorted(cv_flights, key=lambda x: x['price'], reverse=reverse)
+                                    st.session_state.cv_sort_price_dir = 'desc' if st.session_state.cv_sort_price_dir == 'asc' else 'asc'
                                     st.rerun()
                             with col_sort2:
-                                if st.button("⏱️ Sort by Duration", key="cv_sort_duration", use_container_width=True):
-                                    filtered_cv_flights = sorted(filtered_cv_flights, key=lambda x: x['duration_min'])
+                                arrow = "↑" if st.session_state.cv_sort_duration_dir == 'asc' else "↓"
+                                if st.button(f"⏱️ Sort by Duration {arrow}", key="cv_sort_dur", use_container_width=True):
+                                    reverse = st.session_state.cv_sort_duration_dir == 'desc'
+                                    cv_flights[:] = sorted(cv_flights, key=lambda x: x['duration_min'], reverse=reverse)
+                                    st.session_state.cv_sort_duration_dir = 'desc' if st.session_state.cv_sort_duration_dir == 'asc' else 'asc'
                                     st.rerun()
 
-                            # Display flights with checkboxes
-                            for i, flight in enumerate(filtered_cv_flights):
-                                flight_unique_key = f"{flight.get('id', '')}_{flight.get('departure_time', '')}_{i}".replace(':', '').replace('-', '').replace('+', '')
+                            # Display flights (EXACT HTML copy)
+                            for idx, flight in enumerate(filtered_cv):
+                                flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                                is_selected = any(f"{f['id']}_{f['departure_time']}" == flight_unique_key for f in st.session_state.cross_val_selected_flights)
 
-                                # Create flight card
-                                with st.container():
-                                    col_check, col_info, col_x = st.columns([0.5, 9, 0.5])
+                                col1, col2 = st.columns([1, 5])
 
-                                    with col_check:
-                                        # Checkbox to select flight
-                                        is_selected = any(f.get('id') == flight.get('id') and f.get('departure_time') == flight.get('departure_time') for f in st.session_state.cross_val_selected_flights)
+                                with col1:
+                                    checkbox_key = f"cv_chk_{flight_unique_key}_v{st.session_state.cv_checkbox_version}".replace(':', '').replace('-', '').replace('+', '')
+                                    selected = st.checkbox(
+                                        "Select flight",
+                                        value=is_selected,
+                                        key=checkbox_key,
+                                        label_visibility="collapsed",
+                                        disabled=(not is_selected and len(st.session_state.cross_val_selected_flights) >= 5)
+                                    )
 
-                                        if st.checkbox(
-                                            "Select",
-                                            value=is_selected,
-                                            key=f"cv_chk_{flight_unique_key}",
-                                            label_visibility="collapsed"
-                                        ):
-                                            # Add to selected if not already there
-                                            if not is_selected:
-                                                if len(st.session_state.cross_val_selected_flights) < 5:
-                                                    st.session_state.cross_val_selected_flights.append(flight)
-                                                    st.rerun()
-                                                else:
-                                                    st.warning("⚠️ You can only select 5 flights!")
-                                        else:
-                                            # Remove from selected if unchecked
-                                            if is_selected:
-                                                st.session_state.cross_val_selected_flights = [
-                                                    f for f in st.session_state.cross_val_selected_flights
-                                                    if not (f.get('id') == flight.get('id') and f.get('departure_time') == flight.get('departure_time'))
-                                                ]
-                                                st.rerun()
+                                    if selected and not is_selected:
+                                        st.session_state.cross_val_selected_flights.append(flight)
+                                        st.rerun()
+                                    elif not selected and is_selected:
+                                        st.session_state.cross_val_selected_flights = [
+                                            f for f in st.session_state.cross_val_selected_flights
+                                            if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                                        ]
+                                        st.rerun()
 
-                                    with col_info:
-                                        # Display flight details
-                                        airline = flight.get('airline', 'Unknown')
-                                        flight_num = flight.get('flight_number', '')
-                                        origin = flight.get('origin', '')
-                                        destination = flight.get('destination', '')
-                                        price = flight.get('price', 0)
-                                        duration_min = flight.get('duration_min', 0)
-                                        stops = flight.get('stops', 0)
-                                        dept_time = flight.get('departure_time', '')
-                                        arr_time = flight.get('arrival_time', '')
+                                with col2:
+                                    dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
+                                    arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
+                                    dept_time_display = dept_dt.strftime("%I:%M %p")
+                                    arr_time_display = arr_dt.strftime("%I:%M %p")
+                                    dept_date_display = dept_dt.strftime("%a, %b %d")
 
-                                        # Format times
-                                        from datetime import datetime
-                                        try:
-                                            dept_dt = datetime.fromisoformat(dept_time.replace('Z', '+00:00'))
-                                            arr_dt = datetime.fromisoformat(arr_time.replace('Z', '+00:00'))
-                                            dept_str = dept_dt.strftime('%I:%M %p')
-                                            arr_str = arr_dt.strftime('%I:%M %p')
-                                        except:
-                                            dept_str = dept_time
-                                            arr_str = arr_time
+                                    duration_hours = flight['duration_min'] // 60
+                                    duration_mins = flight['duration_min'] % 60
+                                    duration_display = f"{duration_hours} hr {duration_mins} min" if duration_hours > 0 else f"{duration_mins} min"
 
-                                        hours = duration_min // 60
-                                        minutes = duration_min % 60
-                                        duration_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+                                    airline_name = get_airline_name(flight['airline'])
+                                    stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
 
-                                        stop_text = "nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
+                                    st.markdown(f"""
+                                    <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
+                                    <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
+                                        <span style="font-weight: 700;">${flight['price']:.0f}</span> •
+                                        <span style="font-weight: 600;">{duration_display}</span> •
+                                        <span style="font-weight: 500;">{stops_text}</span> •
+                                        <span style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
+                                    </div>
+                                    <div style="font-size: 0.9em; color: #666;">
+                                        <span>{airline_name} {flight['flight_number']}</span> |
+                                        <span>{flight['origin']} → {flight['destination']}</span> |
+                                        <span>{dept_date_display}</span>
+                                    </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
 
-                                        airline_name = get_airline_name(airline)
-
-                                        st.markdown(
-                                            f"**{airline_name} {flight_num}** | {origin} → {destination}\n\n"
-                                            f"💰 ${price:.0f} | ⏱️ {duration_str} | 🔄 {stop_text}\n\n"
-                                            f"🛫 {dept_str} → 🛬 {arr_str}"
-                                        )
-
-                        with col_selected_cv:
-                            st.markdown("#### Your Top 5 Selections")
-                            st.markdown(f"**Selected: {len(st.session_state.cross_val_selected_flights)}/5**")
+                        with col_ranking_cv:
+                            st.markdown("#### 📋 Top 5 (Drag to Rank)")
+                            st.markdown(f"**{len(st.session_state.cross_val_selected_flights)}/5 selected**")
 
                             if st.session_state.cross_val_selected_flights:
-                                for idx, flight in enumerate(st.session_state.cross_val_selected_flights, 1):
-                                    st.markdown(
-                                        f"**{idx}.** {flight.get('airline', '')} {flight.get('flight_number', '')} - "
-                                        f"${flight.get('price', 0):.0f}"
-                                    )
-                            else:
-                                st.caption("No flights selected yet")
+                                # Enforce limit
+                                if len(st.session_state.cross_val_selected_flights) > 5:
+                                    st.session_state.cross_val_selected_flights = st.session_state.cross_val_selected_flights[:5]
+                                    st.rerun()
 
-                        # Submit button
-                        st.markdown("---")
-                        if len(st.session_state.cross_val_selected_flights) == 5:
-                            if st.button("✅ Submit Cross-Validation Rankings", type="primary", use_container_width=True):
-                                from backend.db import save_cross_validation
+                                # Create draggable items (exact copy)
+                                draggable_items = []
+                                for i, flight in enumerate(st.session_state.cross_val_selected_flights):
+                                    airline_name = get_airline_name(flight['airline'])
+                                    dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
+                                    arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
+                                    dept_time_display = dept_dt.strftime("%I:%M %p")
+                                    arr_time_display = arr_dt.strftime("%I:%M %p")
+                                    dept_date_display = dept_dt.strftime("%a, %b %d")
 
-                                success = save_cross_validation(
-                                    reviewer_session_id=st.session_state.session_id,
-                                    reviewed_session_id=cross_val['session_id'],
-                                    reviewed_search_id=cross_val['search_id'],
-                                    reviewed_prompt=cross_val['prompt'],
-                                    reviewed_flights=cross_val['flights'],
-                                    selected_flights=st.session_state.cross_val_selected_flights,
-                                    reviewer_token=st.session_state.get('token')
+                                    duration_hours = flight['duration_min'] // 60
+                                    duration_mins = flight['duration_min'] % 60
+                                    duration_display = f"{duration_hours}h {duration_mins}m" if duration_hours > 0 else f"{duration_mins}m"
+
+                                    stops = int(flight.get('stops', 0))
+                                    stops_text = "Nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
+
+                                    item = f"""#{i+1}: ${flight['price']:.0f} • {duration_display} • {stops_text}
+{dept_time_display} - {arr_time_display}
+{airline_name} {flight['flight_number']}
+{flight['origin']} → {flight['destination']} | {dept_date_display}"""
+                                    draggable_items.append(item)
+
+                                # Sortable list
+                                sorted_items = sort_items(
+                                    draggable_items,
+                                    multi_containers=False,
+                                    direction='vertical',
+                                    key=f'cv_sort_v{st.session_state.cv_sort_version}_n{len(st.session_state.cross_val_selected_flights)}'
                                 )
 
-                                if success:
-                                    st.session_state.cross_validation_completed = True
-                                    st.success("✅ Thank you for helping validate!")
-                                    st.rerun()
-                                else:
-                                    st.error("⚠️ Failed to save cross-validation. Please try again.")
-                        else:
-                            st.warning(f"⚠️ Please select exactly 5 flights to continue (currently selected: {len(st.session_state.cross_val_selected_flights)})")
+                                # Update order if dragged
+                                if sorted_items != draggable_items and len(sorted_items) == len(draggable_items):
+                                    new_order = []
+                                    for sorted_item in sorted_items:
+                                        rank = int(sorted_item.split(':')[0].replace('#', '')) - 1
+                                        if rank < len(st.session_state.cross_val_selected_flights):
+                                            new_order.append(st.session_state.cross_val_selected_flights[rank])
+                                    if len(new_order) == len(st.session_state.cross_val_selected_flights):
+                                        st.session_state.cross_val_selected_flights = new_order
+                                        st.session_state.cv_sort_version += 1
+                                        st.rerun()
+
+                                # X buttons
+                                st.markdown("---")
+                                cols = st.columns(5)
+                                for i, flight in enumerate(st.session_state.cross_val_selected_flights):
+                                    with cols[i]:
+                                        if st.button("✖", key=f"cv_remove_{i}_{flight['id']}", help=f"Remove #{i+1}"):
+                                            flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+                                            st.session_state.cross_val_selected_flights = [
+                                                f for f in st.session_state.cross_val_selected_flights
+                                                if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                                            ]
+                                            st.session_state.cv_checkbox_version += 1
+                                            st.rerun()
+
+                                # Submit button
+                                if len(st.session_state.cross_val_selected_flights) == 5:
+                                    if st.button("✅ Submit Cross-Validation Rankings", key="cv_submit", type="primary", use_container_width=True):
+                                        from backend.db import save_cross_validation
+                                        success = save_cross_validation(
+                                            reviewer_session_id=st.session_state.session_id,
+                                            reviewed_session_id=cross_val['session_id'],
+                                            reviewed_search_id=cross_val['search_id'],
+                                            reviewed_prompt=cross_val['prompt'],
+                                            reviewed_flights=cross_val['flights'],
+                                            selected_flights=st.session_state.cross_val_selected_flights,
+                                            reviewer_token=st.session_state.get('token')
+                                        )
+                                        if success:
+                                            st.session_state.cross_validation_completed = True
+                                            st.success("✅ Thank you for helping validate!")
+                                            st.rerun()
+                                        else:
+                                            st.error("⚠️ Failed to save. Please try again.")
+                            else:
+                                st.caption("No flights selected yet")
 
             # Survey section (after cross-validation)
             if st.session_state.get('cross_validation_completed') and not st.session_state.get('survey_completed'):
@@ -2204,6 +2262,11 @@ if st.session_state.all_flights:
             st.session_state.cross_validation_completed = False
             st.session_state.cross_val_data = None
             st.session_state.cross_val_selected_flights = []
+            st.session_state.cv_filter_reset_counter = 0
+            st.session_state.cv_sort_version = 0
+            st.session_state.cv_checkbox_version = 0
+            st.session_state.cv_sort_price_dir = 'asc'
+            st.session_state.cv_sort_duration_dir = 'asc'
             # Delete the prompt key to reset it (can't set widget values directly)
             if 'flight_prompt_input' in st.session_state:
                 del st.session_state.flight_prompt_input
