@@ -90,6 +90,10 @@ class Search(Base):
     departure_date = Column(String(50))
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
+    # Flight results for cross-validation
+    amadeus_flights_json = Column(JSON, nullable=True)  # Raw Amadeus API results
+    listen_ranked_flights_json = Column(JSON, nullable=True)  # LISTEN-ranked flights shown to user
+
     # Relationships
     flights_shown = relationship("FlightShown", back_populates="search", cascade="all, delete-orphan")
     rankings = relationship("UserRanking", back_populates="search", cascade="all, delete-orphan")
@@ -286,6 +290,27 @@ class SurveyResponse(Base):
     # Comparison & Final (Q11-Q12)
     compared_to_others = Column(Integer, nullable=True)  # 1-5
     additional_comments = Column(Text, nullable=True)  # Optional open-ended
+
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class CrossValidation(Base):
+    """Stores cross-validation rankings: User A ranks User B's flights."""
+    __tablename__ = 'cross_validations'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    reviewer_session_id = Column(String(255), nullable=False, index=True)  # User A (reviewer)
+    reviewer_token = Column(String(255), nullable=True, index=True)
+    reviewed_session_id = Column(String(255), nullable=False, index=True)  # User B (being reviewed)
+    reviewed_search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=True)
+
+    # Copy of reviewed user's data (for display to reviewer)
+    reviewed_prompt = Column(Text, nullable=False)  # User B's original prompt
+    reviewed_flights_json = Column(JSON, nullable=False)  # User B's LISTEN-ranked flights
+
+    # Reviewer's selections
+    selected_flight_ids = Column(JSON, nullable=False)  # User A's top 5 picks (list of flight IDs)
+    selected_flights_data = Column(JSON, nullable=True)  # Full flight data for selected flights
 
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
@@ -600,6 +625,145 @@ def save_survey_response(session_id: str, survey_data: Dict, token: Optional[str
     except Exception as e:
         db.rollback()
         print(f"✗ Error saving survey response: {str(e)}")
+        return False
+
+    finally:
+        db.close()
+
+
+def get_previous_search_for_validation(current_session_id: str) -> Optional[Dict]:
+    """
+    Get the most recent search (excluding current session) for cross-validation.
+
+    Args:
+        current_session_id: Current user's session ID to exclude
+
+    Returns:
+        Dictionary with search data or None if no previous search found
+    """
+    db = SessionLocal()
+
+    try:
+        # Find most recent search that has flight data saved
+        search = db.query(Search).filter(
+            Search.session_id != current_session_id,
+            Search.listen_ranked_flights_json.isnot(None)
+        ).order_by(Search.created_at.desc()).first()
+
+        if not search:
+            print(f"✗ No previous search found for cross-validation")
+            return None
+
+        result = {
+            'search_id': search.search_id,
+            'session_id': search.session_id,
+            'prompt': search.user_prompt,
+            'flights': search.listen_ranked_flights_json
+        }
+
+        print(f"✓ Found previous search for validation: session {search.session_id}")
+        return result
+
+    except Exception as e:
+        print(f"✗ Error fetching previous search: {str(e)}")
+        return None
+
+    finally:
+        db.close()
+
+
+def save_cross_validation(
+    reviewer_session_id: str,
+    reviewed_session_id: str,
+    reviewed_search_id: int,
+    reviewed_prompt: str,
+    reviewed_flights: List[Dict],
+    selected_flights: List[Dict],
+    reviewer_token: Optional[str] = None
+) -> bool:
+    """
+    Save cross-validation rankings.
+
+    Args:
+        reviewer_session_id: Session ID of the user doing the review
+        reviewed_session_id: Session ID of the user being reviewed
+        reviewed_search_id: Search ID being reviewed
+        reviewed_prompt: Original prompt from reviewed user
+        reviewed_flights: All flights shown to reviewed user
+        selected_flights: Top 5 flights selected by reviewer
+        reviewer_token: Optional token of reviewer
+
+    Returns:
+        True if successful, False otherwise
+    """
+    db = SessionLocal()
+
+    try:
+        # Extract flight IDs from selected flights
+        selected_flight_ids = [f.get('id') for f in selected_flights]
+
+        cross_val = CrossValidation(
+            reviewer_session_id=reviewer_session_id,
+            reviewer_token=reviewer_token,
+            reviewed_session_id=reviewed_session_id,
+            reviewed_search_id=reviewed_search_id,
+            reviewed_prompt=reviewed_prompt,
+            reviewed_flights_json=reviewed_flights,
+            selected_flight_ids=selected_flight_ids,
+            selected_flights_data=selected_flights
+        )
+
+        db.add(cross_val)
+        db.commit()
+        print(f"✓ Saved cross-validation: {reviewer_session_id} reviewed {reviewed_session_id}")
+        return True
+
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Error saving cross-validation: {str(e)}")
+        return False
+
+    finally:
+        db.close()
+
+
+def update_search_flight_results(
+    session_id: str,
+    amadeus_flights: Optional[List[Dict]] = None,
+    listen_ranked_flights: Optional[List[Dict]] = None
+) -> bool:
+    """
+    Update a search record with flight results.
+
+    Args:
+        session_id: Session ID to update
+        amadeus_flights: Raw Amadeus API results
+        listen_ranked_flights: LISTEN-ranked flights
+
+    Returns:
+        True if successful, False otherwise
+    """
+    db = SessionLocal()
+
+    try:
+        search = db.query(Search).filter(Search.session_id == session_id).order_by(Search.created_at.desc()).first()
+
+        if not search:
+            print(f"✗ No search found for session {session_id}")
+            return False
+
+        if amadeus_flights is not None:
+            search.amadeus_flights_json = amadeus_flights
+        if listen_ranked_flights is not None:
+            search.listen_ranked_flights_json = listen_ranked_flights
+
+        db.commit()
+        print(f"✓ Updated flight results for session {session_id}")
+        return True
+
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Error updating flight results: {str(e)}")
         return False
 
     finally:
