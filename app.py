@@ -1172,8 +1172,8 @@ if ai_search or regular_search:
                     st.error("No departure dates found. Please specify when you want to fly.")
                     st.stop()
 
-                for origin_code in parsed['origins'][:1]:  # Limit to first origin for speed
-                    for dest_code in parsed['destinations'][:1]:  # Limit to first dest
+                for origin_code in parsed['origins']:  # Search all origins (e.g., JFK, EWR, LGA for NYC)
+                    for dest_code in parsed['destinations']:  # Search all destinations
                         # Check test API compatibility
                         origin, origin_warning = get_test_api_fallback(origin_code)
                         dest, dest_warning = get_test_api_fallback(dest_code)
