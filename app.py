@@ -388,6 +388,8 @@ if 'csv_data_return' not in st.session_state:
     st.session_state.csv_data_return = None
 if 'review_confirmed' not in st.session_state:
     st.session_state.review_confirmed = False
+if 'cross_validation_completed' not in st.session_state:
+    st.session_state.cross_validation_completed = False
 if 'survey_completed' not in st.session_state:
     st.session_state.survey_completed = False
 # Filter state
@@ -1553,6 +1555,16 @@ if st.session_state.all_flights:
                     # Note: Token will be marked as used AFTER the 15-second countdown
                     # (see countdown logic below where search_id is displayed)
 
+                    # Save flight results for cross-validation
+                    from backend.db import update_search_flight_results
+                    if st.session_state.all_flights:
+                        # Save LISTEN-ranked flights (the order shown to user)
+                        update_search_flight_results(
+                            session_id=st.session_state.session_id,
+                            listen_ranked_flights=st.session_state.all_flights
+                        )
+                        print(f"[DEBUG] Saved flight results for cross-validation")
+
                     # Also save return flight CSV if it exists
                     if st.session_state.get('csv_data_return'):
                         from backend.db import SessionLocal, FlightCSV
@@ -1618,8 +1630,111 @@ if st.session_state.all_flights:
                         use_container_width=True
                     )
 
-            # Survey section (before countdown)
-            if not st.session_state.get('survey_completed'):
+            # Cross-validation section (before survey)
+            if not st.session_state.get('cross_validation_completed'):
+                st.markdown("---")
+                st.markdown("### 🤝 Help Validate Another Search")
+                st.markdown("*Before completing your session, please help us by ranking flights for another user's search*")
+
+                # Fetch previous search for cross-validation
+                if 'cross_val_data' not in st.session_state:
+                    from backend.db import get_previous_search_for_validation
+                    st.session_state.cross_val_data = get_previous_search_for_validation(st.session_state.session_id)
+
+                if not st.session_state.cross_val_data:
+                    # No previous search available - skip cross-validation
+                    st.info("ℹ️ No previous searches available for validation. You're one of the first users!")
+                    st.session_state.cross_validation_completed = True
+                    st.rerun()
+                else:
+                    cross_val = st.session_state.cross_val_data
+
+                    st.info(f"**Another user's search prompt:**\n\n> {cross_val['prompt']}")
+                    st.markdown("**Task:** Select the top 5 flights that best match this user's needs.")
+
+                    # Display flights in a selectable list
+                    flights_to_review = cross_val['flights']
+
+                    # Initialize selected flights for cross-validation
+                    if 'cross_val_selected' not in st.session_state:
+                        st.session_state.cross_val_selected = []
+
+                    st.markdown(f"**{len(flights_to_review)} flights found** - Select your top 5:")
+
+                    # Display each flight with checkbox
+                    for i, flight in enumerate(flights_to_review):
+                        col1, col2 = st.columns([1, 20])
+
+                        with col1:
+                            flight_key = f"{flight.get('id', i)}_{flight.get('departure_time', '')}"
+                            is_selected = flight in st.session_state.cross_val_selected
+
+                            if st.checkbox(
+                                "Select",
+                                value=is_selected,
+                                key=f"cross_val_chk_{i}_{flight_key}",
+                                label_visibility="collapsed"
+                            ):
+                                if flight not in st.session_state.cross_val_selected:
+                                    if len(st.session_state.cross_val_selected) < 5:
+                                        st.session_state.cross_val_selected.append(flight)
+                                    else:
+                                        st.warning("You can only select 5 flights!")
+                            else:
+                                if flight in st.session_state.cross_val_selected:
+                                    st.session_state.cross_val_selected.remove(flight)
+
+                        with col2:
+                            # Flight display (similar to main flight display)
+                            airline = flight.get('airline', 'Unknown')
+                            flight_num = flight.get('flight_number', '')
+                            origin = flight.get('origin', '')
+                            destination = flight.get('destination', '')
+                            price = flight.get('price', 0)
+                            duration_min = flight.get('duration_min', 0)
+                            stops = flight.get('stops', 0)
+
+                            hours = duration_min // 60
+                            minutes = duration_min % 60
+                            duration_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+
+                            stop_text = "nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
+
+                            st.markdown(
+                                f"**{airline} {flight_num}** | {origin} → {destination} | "
+                                f"${price:.0f} | {duration_str} | {stop_text}"
+                            )
+
+                    # Show selection count
+                    st.markdown(f"**Selected: {len(st.session_state.cross_val_selected)}/5 flights**")
+
+                    # Submit button
+                    if len(st.session_state.cross_val_selected) == 5:
+                        if st.button("✅ Submit Cross-Validation Rankings", type="primary", use_container_width=True):
+                            # Save cross-validation results
+                            from backend.db import save_cross_validation
+
+                            success = save_cross_validation(
+                                reviewer_session_id=st.session_state.session_id,
+                                reviewed_session_id=cross_val['session_id'],
+                                reviewed_search_id=cross_val['search_id'],
+                                reviewed_prompt=cross_val['prompt'],
+                                reviewed_flights=cross_val['flights'],
+                                selected_flights=st.session_state.cross_val_selected,
+                                reviewer_token=st.session_state.get('token')
+                            )
+
+                            if success:
+                                st.session_state.cross_validation_completed = True
+                                st.success("✅ Thank you for helping validate!")
+                                st.rerun()
+                            else:
+                                st.error("⚠️ Failed to save cross-validation. Please try again.")
+                    else:
+                        st.warning(f"⚠️ Please select exactly 5 flights (currently selected: {len(st.session_state.cross_val_selected)})")
+
+            # Survey section (after cross-validation)
+            if st.session_state.get('cross_validation_completed') and not st.session_state.get('survey_completed'):
                 st.markdown("---")
                 st.markdown("### 📋 Quick Feedback Survey")
                 st.markdown("*Please take 2-3 minutes to help us improve the tool*")
@@ -1830,8 +1945,8 @@ if st.session_state.all_flights:
                         else:
                             st.error("⚠️ Failed to save survey response. Please try again.")
 
-            # Show countdown if survey completed and not already timed out
-            if st.session_state.get('survey_completed') and st.session_state.get('countdown_started') and not st.session_state.get('countdown_completed'):
+            # Show countdown if both cross-validation and survey completed
+            if st.session_state.get('cross_validation_completed') and st.session_state.get('survey_completed') and st.session_state.get('countdown_started') and not st.session_state.get('countdown_completed'):
                 import time
                 st.info("📋 Please note your Search ID above. This session will end in:")
 
@@ -1877,6 +1992,10 @@ if st.session_state.all_flights:
                     st.session_state.all_flights = []
                     st.session_state.all_return_flights = []
                     st.session_state.review_confirmed = False
+                    st.session_state.cross_validation_completed = False
+                    st.session_state.cross_val_data = None
+                    st.session_state.cross_val_selected = []
+                    st.session_state.survey_completed = False
 
                     st.info("🔄 Refresh the page to start a new search!")
                     st.stop()
