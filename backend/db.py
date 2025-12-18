@@ -64,14 +64,31 @@ Base = declarative_base()
 
 
 # Models
-class Token(Base):
-    """Stores participant tokens for anonymous study access."""
-    __tablename__ = 'tokens'
+class AccessToken(Base):
+    """
+    Stores one-time access tokens for study entry.
+    These tokens control access but are NOT linked to research data.
+    """
+    __tablename__ = 'access_tokens'
 
-    token = Column(String(255), primary_key=True)  # Unique token (e.g., 6-10 char hex)
+    token = Column(String(255), primary_key=True)  # Unique access token
     created_at = Column(DateTime, default=datetime.utcnow)
-    used_at = Column(DateTime, nullable=True)  # When the token was used (null = unused)
+    used_at = Column(DateTime, nullable=True)  # When token was used to enter study
     is_used = Column(Integer, default=0)  # 0 = unused, 1 = used
+    completion_token = Column(String(255), nullable=True)  # Generated upon study completion
+
+
+class CompletionToken(Base):
+    """
+    Stores completion tokens generated when participants finish the study.
+    Research data is stored ONLY under completion tokens (no PII).
+    These tokens are used for payment verification.
+    """
+    __tablename__ = 'completion_tokens'
+
+    token = Column(String(255), primary_key=True)  # Unique completion token
+    created_at = Column(DateTime, default=datetime.utcnow)  # When study was completed
+    session_id = Column(String(255), nullable=False, index=True)  # Anonymous session ID
 
 
 class Search(Base):
@@ -80,7 +97,7 @@ class Search(Base):
 
     search_id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(String(255), nullable=False, index=True)
-    token = Column(String(255), nullable=True, index=True)  # Participant token
+    completion_token = Column(String(255), nullable=True, index=True)  # Completion token (NOT access token)
     # user_name = Column(String(255), nullable=True)  # COMMENTED OUT - No longer collecting
     # user_email = Column(String(255), nullable=True)  # COMMENTED OUT - No longer collecting
     user_prompt = Column(Text, nullable=False)
@@ -267,7 +284,7 @@ class SurveyResponse(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(String(255), nullable=False, index=True)
-    token = Column(String(255), nullable=True, index=True)
+    completion_token = Column(String(255), nullable=True, index=True)  # Completion token (NOT access token)
 
     # Satisfaction & Usability (Q1-Q3)
     satisfaction = Column(Integer, nullable=True)  # 1-5
@@ -511,12 +528,12 @@ def save_search_and_csv(
         db.close()
 
 
-def validate_token(token: str) -> Dict:
+def validate_access_token(token: str) -> Dict:
     """
-    Validate a token and return its status.
+    Validate an access token for study entry.
 
     Args:
-        token: The token to validate
+        token: The access token to validate
 
     Returns:
         Dict with 'valid' (bool), 'is_used' (bool), 'message' (str)
@@ -524,7 +541,7 @@ def validate_token(token: str) -> Dict:
     db = SessionLocal()
 
     try:
-        token_record = db.query(Token).filter(Token.token == token).first()
+        token_record = db.query(AccessToken).filter(AccessToken.token == token).first()
 
         if not token_record:
             return {
@@ -550,12 +567,18 @@ def validate_token(token: str) -> Dict:
         db.close()
 
 
-def mark_token_used(token: str) -> bool:
+# Legacy function for backwards compatibility
+def validate_token(token: str) -> Dict:
+    """Legacy function - redirects to validate_access_token."""
+    return validate_access_token(token)
+
+
+def mark_access_token_used(access_token: str) -> bool:
     """
-    Mark a token as used.
+    Mark an access token as used when participant enters the study.
 
     Args:
-        token: The token to mark as used
+        access_token: The access token to mark as used
 
     Returns:
         True if successful, False otherwise
@@ -563,10 +586,10 @@ def mark_token_used(token: str) -> bool:
     db = SessionLocal()
 
     try:
-        token_record = db.query(Token).filter(Token.token == token).first()
+        token_record = db.query(AccessToken).filter(AccessToken.token == access_token).first()
 
         if not token_record:
-            print(f"✗ Token not found: {token}")
+            print(f"✗ Access token not found: {access_token}")
             return False
 
         token_record.is_used = 1
@@ -584,14 +607,68 @@ def mark_token_used(token: str) -> bool:
         db.close()
 
 
-def save_survey_response(session_id: str, survey_data: Dict, token: Optional[str] = None) -> bool:
+# Legacy function for backwards compatibility
+def mark_token_used(token: str) -> bool:
+    """Legacy function - redirects to mark_access_token_used."""
+    return mark_access_token_used(token)
+
+
+def generate_completion_token(session_id: str, access_token: Optional[str] = None) -> Optional[str]:
+    """
+    Generate a completion token when participant finishes the study.
+    This token is used for payment verification and links to research data.
+
+    Args:
+        session_id: The anonymous session ID
+        access_token: Optional access token to link (for tracking purposes only)
+
+    Returns:
+        The generated completion token, or None if failed
+    """
+    import secrets
+
+    db = SessionLocal()
+
+    try:
+        # Generate a random completion token (8 characters, alphanumeric)
+        completion_token = secrets.token_urlsafe(6).upper()  # ~8 chars
+
+        # Create completion token record
+        token_record = CompletionToken(
+            token=completion_token,
+            session_id=session_id,
+            created_at=datetime.utcnow()
+        )
+
+        db.add(token_record)
+
+        # If access token provided, link it to completion token
+        if access_token:
+            access_record = db.query(AccessToken).filter(AccessToken.token == access_token).first()
+            if access_record:
+                access_record.completion_token = completion_token
+
+        db.commit()
+        print(f"✓ Generated completion token: {completion_token} for session {session_id}")
+        return completion_token
+
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Error generating completion token: {str(e)}")
+        return None
+
+    finally:
+        db.close()
+
+
+def save_survey_response(session_id: str, survey_data: Dict, completion_token: Optional[str] = None) -> bool:
     """
     Save a survey response to the database.
 
     Args:
         session_id: Unique session identifier
         survey_data: Dictionary containing all survey responses
-        token: Participant token (optional)
+        completion_token: Completion token (optional)
 
     Returns:
         True if successful, False otherwise
@@ -601,7 +678,7 @@ def save_survey_response(session_id: str, survey_data: Dict, token: Optional[str
     try:
         survey = SurveyResponse(
             session_id=session_id,
-            token=token,
+            completion_token=completion_token,
             satisfaction=survey_data.get('satisfaction'),
             ease_of_use=survey_data.get('ease_of_use'),
             encountered_issues=survey_data.get('encountered_issues'),
