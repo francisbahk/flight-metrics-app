@@ -24,6 +24,13 @@ from backend.utils.parse_duration import parse_duration_to_minutes
 
 load_dotenv()
 
+# Helper function to format price display
+def format_price(price):
+    """Format price for display, showing 'N/A' for 0 or None."""
+    if price is None or price == 0:
+        return "N/A"
+    return f"${price:.0f}"
+
 # Initialize database (create tables if they don't exist)
 try:
     from backend.db import init_db
@@ -1345,7 +1352,7 @@ if ai_search or regular_search:
                         st.success(f"✅ **LISTEN-U completed in {elapsed:.1f} seconds!**")
                         st.write(f"**Results:**")
                         st.write(f"- Ranked {len(all_flights)} flights by learned utility function")
-                        st.write(f"- Top flight price: ${all_flights[0]['price']:.2f}")
+                        st.write(f"- Top flight price: {format_price(all_flights[0]['price'])}")
 
                         # Rank return flights if present
                         if has_return and all_return_flights:
@@ -1363,7 +1370,7 @@ if ai_search or regular_search:
                             return_progress.empty()
 
                             st.success(f"✅ **Return flights ranked in {elapsed_return:.1f} seconds!**")
-                            st.write(f"- Top return flight price: ${all_return_flights[0]['price']:.2f}")
+                            st.write(f"- Top return flight price: {format_price(all_return_flights[0]['price'])}")
 
                         st.write("---")
                     except Exception as e:
@@ -1842,7 +1849,7 @@ if st.session_state.all_flights:
                                     st.markdown(f"""
                                     <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
                                     <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
-                                        <span style="font-weight: 700;">${flight['price']:.0f}</span> •
+                                        <span style="font-weight: 700;">{format_price(flight['price'])}</span> •
                                         <span style="font-weight: 600;">{duration_display}</span> •
                                         <span style="font-weight: 500;">{stops_text}</span> •
                                         <span style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
@@ -1882,7 +1889,7 @@ if st.session_state.all_flights:
                                     stops = int(flight.get('stops', 0))
                                     stops_text = "Nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
 
-                                    item = f"""#{i+1}: ${flight['price']:.0f} • {duration_display} • {stops_text}
+                                    item = f"""#{i+1}: {format_price(flight['price'])} • {duration_display} • {stops_text}
 {dept_time_display} - {arr_time_display}
 {airline_name} {flight['flight_number']}
 {flight['origin']} → {flight['destination']} | {dept_date_display}"""
@@ -2791,7 +2798,7 @@ if st.session_state.all_flights:
                         st.markdown(f"""
                         <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
                         <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
-                            <span {neon_class} style="font-weight: 700;">${flight['price']:.0f}</span> •
+                            <span {neon_class} style="font-weight: 700;">{format_price(flight['price'])}</span> •
                             <span {neon_class} style="font-weight: 600;">{duration_display}</span> •
                             <span {neon_class} style="font-weight: 500;">{stops_text}</span> •
                             <span {neon_class} style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
@@ -2835,7 +2842,7 @@ if st.session_state.all_flights:
                         stops_text = "Nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
 
                         # Create draggable item string
-                        item = f"""#{i+1}: ${flight['price']:.0f} • {duration_display} • {stops_text}
+                        item = f"""#{i+1}: {format_price(flight['price'])} • {duration_display} • {stops_text}
 {dept_time_display} - {arr_time_display}
 {airline_name} {flight['flight_number']}
 {flight['origin']} → {flight['destination']} | {dept_date_display}"""
@@ -3125,7 +3132,7 @@ if st.session_state.all_flights:
                         st.markdown(f"""
                         <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
                         <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
-                            <span class="{neon_class}" style="font-weight: 700;">${flight['price']:.0f}</span> •
+                            <span class="{neon_class}" style="font-weight: 700;">{format_price(flight['price'])}</span> •
                             <span class="{neon_class}" style="font-weight: 600;">{duration_display}</span> •
                             <span class="{neon_class}" style="font-weight: 500;">{stops_text}</span> •
                             <span class="{neon_class}" style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
@@ -3167,7 +3174,7 @@ if st.session_state.all_flights:
                         stops_text = "Nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
 
                         # Create draggable item string
-                        item = f"""#{i+1}: ${flight['price']:.0f} • {duration_display} • {stops_text}
+                        item = f"""#{i+1}: {format_price(flight['price'])} • {duration_display} • {stops_text}
 {dept_time_display} - {arr_time_display}
 {airline_name} {flight['flight_number']}
 {flight['origin']} → {flight['destination']} | {dept_date_display}"""
@@ -3388,7 +3395,7 @@ if st.session_state.all_flights:
                         st.markdown(f"""
                         <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
                         <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
-                            <span class="{neon_class}" style="font-weight: 700;">${flight['price']:.0f}</span> •
+                            <span class="{neon_class}" style="font-weight: 700;">{format_price(flight['price'])}</span> •
                             <span class="{neon_class}" style="font-weight: 600;">{duration_display}</span> •
                             <span class="{neon_class}" style="font-weight: 500;">{stops_text}</span> •
                             <span class="{neon_class}" style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
@@ -3430,7 +3437,7 @@ if st.session_state.all_flights:
                         stops_text = "Nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
 
                         # Create draggable item string
-                        item = f"""#{i+1}: ${flight['price']:.0f} • {duration_display} • {stops_text}
+                        item = f"""#{i+1}: {format_price(flight['price'])} • {duration_display} • {stops_text}
 {dept_time_display} - {arr_time_display}
 {airline_name} {flight['flight_number']}
 {flight['origin']} → {flight['destination']} | {dept_date_display}"""
