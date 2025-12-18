@@ -287,9 +287,10 @@ class SurveyResponse(Base):
     would_use_again = Column(String(10), nullable=True)  # Yes/No/Maybe
     would_use_again_reason = Column(Text, nullable=True)  # Optional open-ended
 
-    # Comparison & Final (Q11-Q12)
+    # Comparison & Final (Q11-Q13)
     compared_to_others = Column(Integer, nullable=True)  # 1-5
     additional_comments = Column(Text, nullable=True)  # Optional open-ended
+    payment_preference = Column(String(50), nullable=True)  # Payment method preference
 
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
@@ -615,7 +616,8 @@ def save_survey_response(session_id: str, survey_data: Dict, token: Optional[str
             would_use_again=survey_data.get('would_use_again'),
             would_use_again_reason=survey_data.get('would_use_again_reason'),
             compared_to_others=survey_data.get('compared_to_others'),
-            additional_comments=survey_data.get('additional_comments')
+            additional_comments=survey_data.get('additional_comments'),
+            payment_preference=survey_data.get('payment_preference')
         )
         db.add(survey)
         db.commit()

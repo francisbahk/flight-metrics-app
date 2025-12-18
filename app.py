@@ -743,7 +743,7 @@ st.markdown("""
 """)
 
 # Tutorial video
-video_path = 'How to Use the Flight Recommendation Website Effectively.mp4'
+video_path = 'Flights Tool Instructions.mp4'
 if os.path.exists(video_path):
     video_file = open(video_path, 'rb')
     video_bytes = video_file.read()
@@ -2124,6 +2124,16 @@ if st.session_state.all_flights:
                     label_visibility="collapsed"
                 )
 
+                # Q13: Payment preference
+                st.markdown("**13. How would you like to be paid for your participation?**")
+                payment_preference = st.radio(
+                    "Payment preference",
+                    options=["Venmo", "PayPal", "Zelle", "Cash App", "Other"],
+                    key="q13_payment",
+                    label_visibility="collapsed",
+                    index=None
+                )
+
                 # Submit survey button
                 if st.button("📨 Submit Survey", type="primary", use_container_width=True):
                     # Validate required fields
@@ -2144,6 +2154,8 @@ if st.session_state.all_flights:
                         missing_fields.append("Question 10 (Would use again)")
                     if compared_to_others is None:
                         missing_fields.append("Question 11 (Comparison to others)")
+                    if payment_preference is None:
+                        missing_fields.append("Question 13 (Payment preference)")
 
                     if missing_fields:
                         st.error(f"⚠️ Please answer all required questions: {', '.join(missing_fields)}")
@@ -2163,7 +2175,8 @@ if st.session_state.all_flights:
                             'would_use_again': would_use_again,
                             'would_use_again_reason': would_use_again_reason if would_use_again_reason else None,
                             'compared_to_others': compared_to_others,
-                            'additional_comments': additional_comments if additional_comments else None
+                            'additional_comments': additional_comments if additional_comments else None,
+                            'payment_preference': payment_preference
                         }
 
                         # Save to database

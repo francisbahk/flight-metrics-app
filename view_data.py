@@ -1,7 +1,7 @@
 """
 Simple script to view saved flight ranking data with CSV exports.
 """
-from backend.db import SessionLocal, Search, FlightCSV, SurveyResponse
+from backend.db import SessionLocal, Search, FlightCSV, SurveyResponse, CrossValidation
 import pandas as pd
 import io
 
@@ -228,6 +228,9 @@ def view_survey_responses():
                 print(f"\n💬 Additional Comments:")
                 print(f"  {survey.additional_comments}")
 
+            print(f"\n💰 Payment Preference:")
+            print(f"  Q13. Payment method: {survey.payment_preference}" if survey.payment_preference else "  Q13. Payment method: (not answered)")
+
             print()
 
     finally:
@@ -301,6 +304,99 @@ def view_survey_summary():
             for feature, count in feature_counts.most_common():
                 print(f"  {feature}: {count} ({100*count/len(surveys):.1f}%)")
 
+        # Payment preference breakdown
+        payment_prefs = Counter([s.payment_preference for s in surveys if s.payment_preference])
+        if payment_prefs:
+            print(f"\n💰 Payment Preference:")
+            for pref, count in payment_prefs.items():
+                print(f"  {pref}: {count} ({100*count/len(surveys):.1f}%)")
+
+        print()
+
+    finally:
+        db.close()
+
+
+def view_cross_validations():
+    """Display all cross-validation responses."""
+    db = SessionLocal()
+
+    try:
+        print("=" * 80)
+        print("CROSS-VALIDATION DATA")
+        print("=" * 80)
+
+        # Get all cross-validations (oldest first, so newest appears at bottom)
+        cross_vals = db.query(CrossValidation).order_by(CrossValidation.created_at.asc()).all()
+
+        if not cross_vals:
+            print("\nNo cross-validations yet. Users need to complete searches first!")
+            return
+
+        print(f"\nTotal cross-validations: {len(cross_vals)}\n")
+
+        for cv in cross_vals:
+            print("-" * 80)
+            print(f"Cross-Validation ID: {cv.id}")
+            print(f"Date: {cv.created_at}")
+            print(f"\nReviewer: {cv.reviewer_session_id}")
+            print(f"Reviewer Token: {cv.reviewer_token or '(not provided)'}")
+            print(f"\nReviewed User: {cv.reviewed_session_id}")
+            print(f"Reviewed Search ID: {cv.reviewed_search_id}")
+
+            print(f"\n📝 Original User's Prompt:")
+            print(f"  {cv.reviewed_prompt}")
+
+            print(f"\n✈️ Total Flights Shown: {len(cv.reviewed_flights_json)}")
+            print(f"✅ Reviewer Selected: {len(cv.selected_flight_ids)} flights")
+
+            if cv.selected_flights_data:
+                print(f"\n🏆 Reviewer's Top 5 Selections:")
+                for idx, flight in enumerate(cv.selected_flights_data, 1):
+                    airline = flight.get('airline', 'Unknown')
+                    flight_num = flight.get('flight_number', '')
+                    origin = flight.get('origin', '')
+                    destination = flight.get('destination', '')
+                    price = flight.get('price', 0)
+                    print(f"  {idx}. {airline} {flight_num} | {origin} → {destination} | ${price:.0f}")
+
+            print()
+
+    finally:
+        db.close()
+
+
+def view_cross_validation_summary():
+    """Display summary statistics of cross-validations."""
+    db = SessionLocal()
+
+    try:
+        cross_vals = db.query(CrossValidation).all()
+
+        if not cross_vals:
+            print("No cross-validations yet.")
+            return
+
+        print("=" * 80)
+        print("CROSS-VALIDATION SUMMARY")
+        print("=" * 80)
+        print(f"\nTotal Cross-Validations: {len(cross_vals)}\n")
+
+        # Count unique reviewers and reviewed users
+        unique_reviewers = len(set(cv.reviewer_session_id for cv in cross_vals))
+        unique_reviewed = len(set(cv.reviewed_session_id for cv in cross_vals))
+
+        print(f"📊 Participation:")
+        print(f"  Unique reviewers: {unique_reviewers}")
+        print(f"  Unique users reviewed: {unique_reviewed}")
+        print(f"  Avg validations per reviewer: {len(cross_vals) / unique_reviewers:.2f}")
+
+        # Calculate average number of flights shown
+        avg_flights_shown = sum(len(cv.reviewed_flights_json) for cv in cross_vals) / len(cross_vals)
+        print(f"\n✈️ Flight Data:")
+        print(f"  Avg flights shown per validation: {avg_flights_shown:.1f}")
+        print(f"  Total validation selections: {len(cross_vals) * 5}")
+
         print()
 
     finally:
@@ -317,6 +413,10 @@ if __name__ == "__main__":
             view_survey_responses()
         elif sys.argv[1] == "survey-summary":
             view_survey_summary()
+        elif sys.argv[1] == "cross-validation":
+            view_cross_validations()
+        elif sys.argv[1] == "cross-validation-summary":
+            view_cross_validation_summary()
         elif sys.argv[1] == "export" and len(sys.argv) > 2:
             search_id = int(sys.argv[2])
             output_dir = sys.argv[3] if len(sys.argv) > 3 else "."
@@ -327,11 +427,13 @@ if __name__ == "__main__":
             open_csv(search_id, output_dir)
         else:
             print("Usage:")
-            print("  python view_data.py                 # View all searches")
-            print("  python view_data.py latest          # View latest search")
-            print("  python view_data.py survey          # View all survey responses")
-            print("  python view_data.py survey-summary  # View survey statistics")
-            print("  python view_data.py export <id>     # Export CSV for search ID")
-            print("  python view_data.py open <id>       # Export and open CSV for search ID")
+            print("  python view_data.py                       # View all searches")
+            print("  python view_data.py latest                # View latest search")
+            print("  python view_data.py survey                # View all survey responses")
+            print("  python view_data.py survey-summary        # View survey statistics")
+            print("  python view_data.py cross-validation      # View all cross-validations")
+            print("  python view_data.py cross-validation-summary  # View CV statistics")
+            print("  python view_data.py export <id>           # Export CSV for search ID")
+            print("  python view_data.py open <id>             # Export and open CSV for search ID")
     else:
         view_all_data()
