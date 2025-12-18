@@ -81,6 +81,7 @@ class SerpAPIFlightClient:
             "currency": currency,
             "hl": "en",
             "api_key": self.api_key,
+            "deep_search": "true",  # Enable deep search for more accurate results matching Google Flights browser
         }
 
         # Add number of adults if > 1
