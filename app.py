@@ -739,10 +739,19 @@ st.success(f"✅ Access granted! Token: {st.session_state.token}")
 st.markdown('<div id="how-to-use"></div>', unsafe_allow_html=True)
 st.markdown("### 📖 How to Use")
 st.markdown("""
-1. **Describe your flight** - Enter your travel details in natural language, as if you are telling a flight itinerary manager how to book your ideal trip. What would you want them to know?
+1. **Watch tutorial video** - Learn how to use the flight recommendation website effectively
 """)
 
-# Tips for writing a good prompt (placed between steps 1 and 2)
+# Tutorial video
+video_file = open('/Users/francisbahk/flight_app/How to Use the Flight Recommendation Website Effectively.mp4', 'rb')
+video_bytes = video_file.read()
+st.video(video_bytes)
+
+st.markdown("""
+2. **Describe your flight** - Enter your travel details in natural language, as if you are telling a flight itinerary manager how to book your ideal trip. What would you want them to know?
+""")
+
+# Tips for writing a good prompt (placed between steps 2 and 3)
 with st.expander("💡 Tips for Writing a Good Prompt"):
     st.markdown("""
     💡 **Take some time to write your preferences** — imagine that the results will be reordered based on what you write. The preferences you write will be used in future research to evaluate how well algorithms return flights that align with your preferences, requirements, and persona.
@@ -765,10 +774,10 @@ with st.expander("💡 Tips for Writing a Good Prompt"):
     """)
 
 st.markdown("""
-2. **Review results** - Browse all available flights using Standard Search or AI Search. After you submit your prompt, use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports. *Note: AI Search results may be less accurate while we continue to improve the system.*
-3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
-4. **Drag to rank** - Reorder your selections by dragging them in the right panel
-5. **Submit** - Click submit to save your rankings (download as CSV optional)
+3. **Review results** - Browse all available flights using Standard Search or AI Search. After you submit your prompt, use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports. *Note: AI Search results may be less accurate while we continue to improve the system.*
+4. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
+5. **Drag to rank** - Reorder your selections by dragging them in the right panel
+6. **Submit** - Click submit to save your rankings (download as CSV optional)
 
 **Note:** If your search includes a return flight, scroll down after the outbound flights to see the return flights section and submit those rankings separately.
 """)
