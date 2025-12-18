@@ -17,7 +17,8 @@ from streamlit_sortables import sort_items
 sys.path.insert(0, os.path.dirname(__file__))
 
 # Import modules
-from backend.amadeus_client import AmadeusClient
+# from backend.amadeus_client import AmadeusClient  # Legacy - replaced with unified client
+from backend.flight_search import FlightSearchClient
 from backend.prompt_parser import parse_flight_prompt_with_llm, get_test_api_fallback
 from backend.utils.parse_duration import parse_duration_to_minutes
 
@@ -419,14 +420,14 @@ if 'filter_reset_counter' not in st.session_state:
 # if 'shortlist' not in st.session_state:
 #     st.session_state.shortlist = []
 
-# Initialize Amadeus (force fresh instance, don't cache with wrong credentials)
-def get_amadeus():
+# Initialize Flight Search Client (supports SerpAPI and Amadeus)
+def get_flight_client():
     # Ensure .env is loaded fresh
     load_dotenv(override=True)
-    return AmadeusClient()
+    return FlightSearchClient()
 
 # Don't cache initially to avoid credential issues
-amadeus = get_amadeus()
+flight_client = get_flight_client()
 
 # Custom CSS for Suno-like clean design
 st.markdown("""
@@ -1180,7 +1181,7 @@ if ai_search or regular_search:
                             st.info(f"Searching: {origin} → {dest} on {departure_date}")
 
                             # Search outbound flights
-                            results = amadeus.search_flights(
+                            results = flight_client.search_flights(
                                 origin=origin,
                                 destination=dest,
                                 departure_date=departure_date,
@@ -1236,7 +1237,7 @@ if ai_search or regular_search:
                             for return_date in return_dates:
                                 st.info(f"✈️ Searching return flights: {dest} → {origin} on {return_date}")
 
-                                return_results = amadeus.search_flights(
+                                return_results = flight_client.search_flights(
                                     origin=dest,  # Swap: destination becomes origin
                                     destination=origin,  # Swap: origin becomes destination
                                     departure_date=return_date,
@@ -1292,7 +1293,7 @@ if ai_search or regular_search:
                     all_airline_codes.extend([f['airline'] for f in all_return_flights])
 
                 unique_airlines = list(set(all_airline_codes))
-                airline_name_map = amadeus.get_airline_names(unique_airlines)
+                airline_name_map = flight_client.get_airline_names(unique_airlines)
                 st.session_state.airline_names = airline_name_map
 
                 # Apply AI ranking if AI search button was pressed
