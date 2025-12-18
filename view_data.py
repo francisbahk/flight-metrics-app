@@ -228,9 +228,6 @@ def view_survey_responses():
                 print(f"\n💬 Additional Comments:")
                 print(f"  {survey.additional_comments}")
 
-            print(f"\n💰 Payment Preference:")
-            print(f"  Q13. Payment method: {survey.payment_preference}" if survey.payment_preference else "  Q13. Payment method: (not answered)")
-
             print()
 
     finally:
@@ -303,13 +300,6 @@ def view_survey_summary():
             print(f"\n⭐ Most Helpful Features:")
             for feature, count in feature_counts.most_common():
                 print(f"  {feature}: {count} ({100*count/len(surveys):.1f}%)")
-
-        # Payment preference breakdown
-        payment_prefs = Counter([s.payment_preference for s in surveys if s.payment_preference])
-        if payment_prefs:
-            print(f"\n💰 Payment Preference:")
-            for pref, count in payment_prefs.items():
-                print(f"  {pref}: {count} ({100*count/len(surveys):.1f}%)")
 
         print()
 

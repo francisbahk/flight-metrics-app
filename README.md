@@ -116,18 +116,34 @@ python backend/db.py
 
 ### Running Locally
 
+**Option 1: Streamlit (Original UI)**
 ```bash
 streamlit run app.py
 ```
-
 Access at http://localhost:8501
+
+**Option 2: FastAPI + uvicorn (REST API)**
+```bash
+# Using the startup script
+python run_api.py
+
+# Or directly with uvicorn
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+```
+Access API at http://localhost:8000
+API docs at http://localhost:8000/docs
 
 ### Deployment
 
-Deployed on Streamlit Cloud with:
+**Streamlit Cloud:**
 - Python 3.11 runtime (`.python-version`)
 - Railway MySQL for persistence
 - Environment variables configured in Streamlit Cloud settings
+
+**FastAPI/uvicorn (Alternative):**
+- Can deploy to Railway, Fly.io, or any platform supporting Python ASGI
+- Set `PORT` environment variable for custom port
+- Use `uvicorn api.main:app --host 0.0.0.0 --port $PORT` for production
 
 ## Data Collection
 
