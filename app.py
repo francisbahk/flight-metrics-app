@@ -747,21 +747,7 @@ st.success(f"✅ Access granted! Token: {st.session_state.token}")
 st.markdown('<div id="how-to-use"></div>', unsafe_allow_html=True)
 st.markdown("### 📖 How to Use")
 st.markdown("""
-1. **Watch tutorial video** - Learn how to use the flight recommendation website effectively
-""")
-
-# Tutorial video
-video_path = 'Flights Tool Instructions.mp4'
-if os.path.exists(video_path):
-    video_file = open(video_path, 'rb')
-    video_bytes = video_file.read()
-    st.video(video_bytes)
-    video_file.close()
-else:
-    st.warning("Tutorial video not found. Please contact support.")
-
-st.markdown("""
-2. **Describe your flight** - Enter your travel details in natural language, as if you are telling a flight itinerary manager how to book your ideal trip. What would you want them to know?
+1. **Describe your flight** - Enter your travel details in natural language, as if you are telling a flight itinerary manager how to book your ideal trip. What would you want them to know?
 """)
 
 # Tips for writing a good prompt (placed between steps 2 and 3)
@@ -787,10 +773,10 @@ with st.expander("💡 Tips for Writing a Good Prompt"):
     """)
 
 st.markdown("""
-3. **Review results** - Browse all available flights using Standard Search or AI Search. After you submit your prompt, use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports. *Note: AI Search results may be less accurate while we continue to improve the system.*
-4. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
-5. **Drag to rank** - Reorder your selections by dragging them in the right panel
-6. **Submit** - Click submit to save your rankings (download as CSV optional)
+2. **Review results** - Browse all available flights using Standard Search or AI Search. After you submit your prompt, use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports. *Note: AI Search results may be less accurate while we continue to improve the system.*
+3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
+4. **Drag to rank** - Reorder your selections by dragging them in the right panel
+5. **Submit** - Click submit to save your rankings (download as CSV optional)
 
 **Note:** If your search includes a return flight, scroll down after the outbound flights to see the return flights section and submit those rankings separately.
 """)
@@ -862,6 +848,19 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+# Add instructions for what to include in prompt
+st.markdown("""
+**How to write your flight prompt:**
+
+Include details like:
+- **Route**: Origin and destination cities or airports (e.g., "NYC to LAX" or "JFK to Boston")
+- **Dates**: Departure date and optional return date (e.g., "December 25th" or "weekend of Jan 5-7")
+- **Preferences**: Nonstop flights, cheapest options, specific airlines, time constraints
+- **Special needs**: Minimum layover time, avoid early departures, Fly America Act compliance
+
+The more specific you are, the better we can match flights to your needs!
+""")
 
 # Always show example prompts header
 st.markdown("**Example prompts:**")
@@ -1090,8 +1089,6 @@ if ai_search or regular_search:
 
     if not prompt or not prompt.strip():
         validation_errors.append("Please describe your flight needs")
-    elif len(prompt.strip()) < 200:
-        validation_errors.append(f"Please provide more detail in your flight description (minimum 200 characters, current: {len(prompt.strip())})")
 
     if validation_errors:
         for error in validation_errors:
@@ -1823,14 +1820,13 @@ if st.session_state.all_flights:
                                     )
 
                                     if selected and not is_selected:
-                                        st.session_state.cross_val_selected_flights.append(flight)
-                                        st.rerun()
+                                        if len(st.session_state.cross_val_selected_flights) < 5:
+                                            st.session_state.cross_val_selected_flights.append(flight)
                                     elif not selected and is_selected:
                                         st.session_state.cross_val_selected_flights = [
                                             f for f in st.session_state.cross_val_selected_flights
                                             if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                                         ]
-                                        st.rerun()
 
                                 with col2:
                                     dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
@@ -2762,14 +2758,13 @@ if st.session_state.all_flights:
                         )
 
                         if selected and not is_selected:
-                            st.session_state.selected_flights.append(flight)
-                            st.rerun()
+                            if len(st.session_state.selected_flights) < 5:
+                                st.session_state.selected_flights.append(flight)
                         elif not selected and is_selected:
                             st.session_state.selected_flights = [
                                 f for f in st.session_state.selected_flights
                                 if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                             ]
-                            st.rerun()
 
                     with col2:
                         dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
@@ -2918,11 +2913,16 @@ if st.session_state.all_flights:
                 <style>
                     .subway-nav {{
                         position: fixed;
-                        left: 280px;
+                        left: 30px;
                         top: 50%;
                         transform: translateY(-50%);
                         z-index: 1000;
                         padding: 0;
+                        transition: left 0.3s ease;
+                    }}
+                    /* Adjust position when sidebar is open */
+                    [data-testid="stSidebar"]:not([aria-hidden="true"]) ~ div .subway-nav {{
+                        left: 310px;
                     }}
                     .subway-nav ul {{
                         list-style: none;
@@ -3096,14 +3096,13 @@ if st.session_state.all_flights:
                         )
 
                         if selected and not is_selected:
-                            st.session_state.selected_return_flights.append(flight)
-                            st.rerun()
+                            if len(st.session_state.selected_return_flights) < 5:
+                                st.session_state.selected_return_flights.append(flight)
                         elif not selected and is_selected:
                             st.session_state.selected_return_flights = [
                                 f for f in st.session_state.selected_return_flights
                                 if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                             ]
-                            st.rerun()
 
                     with col2:
                         dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
@@ -3355,15 +3354,14 @@ if st.session_state.all_flights:
 
                         if selected and not is_selected:
                             # Add to selected flights
-                            st.session_state.selected_flights.append(flight)
-                            st.rerun()
+                            if len(st.session_state.selected_flights) < 5:
+                                st.session_state.selected_flights.append(flight)
                         elif not selected and is_selected:
                             # Remove from selected flights
                             st.session_state.selected_flights = [
                                 f for f in st.session_state.selected_flights
                                 if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                             ]
-                            st.rerun()
 
                     with col2:
                         # Show flight metrics as requested
@@ -3523,11 +3521,16 @@ if st.session_state.all_flights:
                 <style>
                     .subway-nav {{
                         position: fixed;
-                        left: 280px;
+                        left: 30px;
                         top: 50%;
                         transform: translateY(-50%);
                         z-index: 1000;
                         padding: 0;
+                        transition: left 0.3s ease;
+                    }}
+                    /* Adjust position when sidebar is open */
+                    [data-testid="stSidebar"]:not([aria-hidden="true"]) ~ div .subway-nav {{
+                        left: 310px;
                     }}
                     .subway-nav ul {{
                         list-style: none;
