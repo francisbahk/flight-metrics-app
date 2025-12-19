@@ -25,17 +25,22 @@ class SerpAPIFlightClient:
     def __init__(self):
         """Initialize SerpAPI client with API key from environment or Streamlit secrets."""
         # Try Streamlit secrets first (for Streamlit Cloud), then fall back to .env
+        self.api_key = None
         try:
             import streamlit as st
-            self.api_key = st.secrets.get("SERPAPI_API_KEY", os.getenv("SERPAPI_API_KEY"))
-        except (ImportError, FileNotFoundError, AttributeError):
-            # Not running in Streamlit or secrets not configured, use environment variables
+            if "SERPAPI_API_KEY" in st.secrets:
+                self.api_key = st.secrets["SERPAPI_API_KEY"]
+        except (ImportError, FileNotFoundError, AttributeError, KeyError):
+            pass
+
+        # Fall back to environment variable
+        if not self.api_key:
             self.api_key = os.getenv("SERPAPI_API_KEY")
 
         if not self.api_key:
             raise ValueError(
                 "SerpAPI API key not found. "
-                "Please set SERPAPI_API_KEY in .env file. "
+                "Please set SERPAPI_API_KEY in Streamlit secrets or .env file. "
                 "Get your API key from https://serpapi.com/manage-api-key"
             )
 
