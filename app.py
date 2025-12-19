@@ -952,19 +952,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Add instructions for what to include in prompt
-st.markdown("""
-**How to write your flight prompt:**
-
-Include details like:
-- **Route**: Origin and destination cities or airports (e.g., "NYC to LAX" or "JFK to Boston")
-- **Dates**: Departure date and optional return date (e.g., "December 25th" or "weekend of Jan 5-7")
-- **Preferences**: Nonstop flights, cheapest options, specific airlines, time constraints
-- **Special needs**: Minimum layover time, avoid early departures, Fly America Act compliance
-
-The more specific you are, the better we can match flights to your needs!
-""")
-
 # Always show example prompts header
 st.markdown("**Example prompts:**")
 
