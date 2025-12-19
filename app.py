@@ -1047,7 +1047,6 @@ placeholder_html = r"""
         <div class="carousel-indicator">
             <span class="indicator-dot active" onclick="goToPrompt(0)"></span>
             <span class="indicator-dot" onclick="goToPrompt(1)"></span>
-            <span class="indicator-dot" onclick="goToPrompt(2)"></span>
         </div>
     </div>
 </div>
@@ -1067,25 +1066,7 @@ I don't like JFK because the food choices are poor (except for Shake Shack). Whe
 I prefer to fly United because I'm a frequent flyer with them. When I fly for work, my travel is usually reimbursed from federal grants. Because of this, I must comply with the Fly America Act. This requires me to fly on a US carrier unless there are no other options. Even if I'm allowed to reimburse a trip on a non-US carrier, I don't want to because it creates extra paperwork.
 For longer trips, I am happy to return to an airport that is different from the one I left from because I probably wouldn't drive my car in any case. When I do this, I'll take an Uber, rent a car, or get a ride. For shorter trips, however, I do prefer to return to the airport I left from so that I can drive to the airport, unless it saves me a lot of trouble.
 I am not very price sensitive. It is ok to pay 20% more than the cheapest fare if the itinerary is more convenient. But if the fare is outrageous then that's problematic.
-I usually don't check bags except on very long trips.`,
-        `📋 TEMPLATE - Fill in the blanks:
-
-Flying from [YOUR ORIGIN] to [YOUR DESTINATION] on [DATE].
-
-My priorities (in order):
-1. [PRIORITY 1 - e.g., Price, Time, Comfort, Directness]
-2. [PRIORITY 2]
-3. [PRIORITY 3]
-
-Requirements:
-- Price range: [e.g., under $400, flexible, cheapest option]
-- Flight type: [e.g., prefer nonstop, 1 stop max okay]
-- Departure time: [e.g., after 9am, no early morning]
-- Arrival time: [e.g., by 5pm, flexible]
-- Airlines: [e.g., prefer United, any carrier okay, Fly America Act compliant]
-
-Additional preferences:
-[Any other details like layover preferences, airport preferences, etc.]`
+I usually don't check bags except on very long trips.`
     ];
 
     let idx = 0, charIdx = 0, typing = true, displayText = '';
