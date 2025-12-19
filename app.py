@@ -987,8 +987,8 @@ placeholder_html = r"""
         position: absolute;
         top: 50%;
         transform: translateY(-50%);
-        background: rgba(0, 0, 0, 0.5);
-        color: white;
+        background: rgba(0, 0, 0, 0.15);
+        color: rgba(255, 255, 255, 0.4);
         border: none;
         border-radius: 50%;
         width: 35px;
@@ -998,12 +998,13 @@ placeholder_html = r"""
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: background 0.2s;
+        transition: all 0.2s;
         z-index: 10;
         pointer-events: auto;
     }
     .carousel-nav:hover {
-        background: rgba(0, 0, 0, 0.7);
+        background: rgba(0, 0, 0, 0.3);
+        color: rgba(255, 255, 255, 0.7);
     }
     .carousel-prev {
         left: 10px;
@@ -1025,15 +1026,15 @@ placeholder_html = r"""
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        background: rgba(0, 0, 0, 0.3);
+        background: rgba(0, 0, 0, 0.15);
         cursor: pointer;
         transition: background 0.2s;
     }
     .indicator-dot.active {
-        background: rgba(0, 0, 0, 0.7);
+        background: rgba(0, 0, 0, 0.35);
     }
     .indicator-dot:hover {
-        background: rgba(0, 0, 0, 0.5);
+        background: rgba(0, 0, 0, 0.25);
     }
 </style>
 <div class="carousel-container">
