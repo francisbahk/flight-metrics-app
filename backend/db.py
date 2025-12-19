@@ -493,7 +493,7 @@ def save_search_and_csv(
         # Create search record
         search = Search(
             session_id=session_id,
-            token=token,
+            completion_token=token,
             user_prompt=user_prompt,
             parsed_origins=parsed_params.get('origins'),
             parsed_destinations=parsed_params.get('destinations'),
