@@ -1899,15 +1899,15 @@ if st.session_state.all_flights:
                                 st.markdown(f"**Stops:** {flight.get('stops', 0)}")
                                 st.markdown(f"**Price:** ${flight.get('price', 0):.0f}")
                             with col3:
-                                is_selected = flight in st.session_state.lilo_round1_selected
+                                is_selected = idx in st.session_state.lilo_round1_selected
                                 if st.button("✓ Select" if not is_selected else "✗ Remove",
                                            key=f"lilo_r1_select_{idx}",
                                            type="primary" if is_selected else "secondary"):
                                     if is_selected:
-                                        st.session_state.lilo_round1_selected.remove(flight)
+                                        st.session_state.lilo_round1_selected.remove(idx)
                                     else:
                                         if len(st.session_state.lilo_round1_selected) < 5:
-                                            st.session_state.lilo_round1_selected.append(flight)
+                                            st.session_state.lilo_round1_selected.append(idx)
                                         else:
                                             st.warning("You can only select up to 5 flights")
                                     st.rerun()
@@ -1919,9 +1919,12 @@ if st.session_state.all_flights:
                     if len(st.session_state.lilo_round1_selected) == 5:
                         st.markdown("**Step 2:** Drag to rank your selected flights (best at top)")
 
+                        # Get flight objects from indices
+                        selected_flights = [st.session_state.lilo_round1_flights[i] for i in st.session_state.lilo_round1_selected]
+
                         ranked_items = sort_items(
                             [f"{f.get('airline', 'Unknown')} - ${f.get('price', 0):.0f}"
-                             for f in st.session_state.lilo_round1_selected],
+                             for f in selected_flights],
                             key="lilo_round1_ranking"
                         )
 
@@ -1938,16 +1941,14 @@ if st.session_state.all_flights:
                             if not lilo_r1_feedback or len(lilo_r1_feedback.strip()) < 10:
                                 st.error("Please provide some feedback about your preferences (at least 10 characters)")
                             else:
-                                # Get rankings (indices in original lilo_round1_flights list)
-                                ranked_flights = []
+                                # Map ranked items back to indices
+                                user_rankings = []
                                 for item in ranked_items:
-                                    for f in st.session_state.lilo_round1_selected:
-                                        if f"{f.get('airline', 'Unknown')} - ${f.get('price', 0):.0f}" == item:
-                                            ranked_flights.append(f)
+                                    for idx in st.session_state.lilo_round1_selected:
+                                        flight = st.session_state.lilo_round1_flights[idx]
+                                        if f"{flight.get('airline', 'Unknown')} - ${flight.get('price', 0):.0f}" == item:
+                                            user_rankings.append(idx)
                                             break
-
-                                # Find indices in lilo_round1_flights
-                                user_rankings = [st.session_state.lilo_round1_flights.index(f) for f in ranked_flights]
 
                                 # Run LILO round 1
                                 result = st.session_state.lilo_optimizer.run_round(
@@ -2044,15 +2045,15 @@ if st.session_state.all_flights:
                                 st.markdown(f"**Stops:** {flight.get('stops', 0)}")
                                 st.markdown(f"**Price:** ${flight.get('price', 0):.0f}")
                             with col3:
-                                is_selected = flight in st.session_state.lilo_round2_selected
+                                is_selected = idx in st.session_state.lilo_round2_selected
                                 if st.button("✓ Select" if not is_selected else "✗ Remove",
                                            key=f"lilo_r2_select_{idx}",
                                            type="primary" if is_selected else "secondary"):
                                     if is_selected:
-                                        st.session_state.lilo_round2_selected.remove(flight)
+                                        st.session_state.lilo_round2_selected.remove(idx)
                                     else:
                                         if len(st.session_state.lilo_round2_selected) < 5:
-                                            st.session_state.lilo_round2_selected.append(flight)
+                                            st.session_state.lilo_round2_selected.append(idx)
                                         else:
                                             st.warning("You can only select up to 5 flights")
                                     st.rerun()
@@ -2064,9 +2065,12 @@ if st.session_state.all_flights:
                     if len(st.session_state.lilo_round2_selected) == 5:
                         st.markdown("**Drag to rank your selected flights (best at top):**")
 
+                        # Get flight objects from indices
+                        selected_flights = [st.session_state.lilo_round2_flights[i] for i in st.session_state.lilo_round2_selected]
+
                         ranked_items = sort_items(
                             [f"{f.get('airline', 'Unknown')} - ${f.get('price', 0):.0f}"
-                             for f in st.session_state.lilo_round2_selected],
+                             for f in selected_flights],
                             key="lilo_round2_ranking"
                         )
 
@@ -2080,15 +2084,14 @@ if st.session_state.all_flights:
                             if not all_answered:
                                 st.error("Please answer all questions before continuing")
                             else:
-                                # Get rankings
-                                ranked_flights = []
+                                # Map ranked items back to indices
+                                user_rankings = []
                                 for item in ranked_items:
-                                    for f in st.session_state.lilo_round2_selected:
-                                        if f"{f.get('airline', 'Unknown')} - ${f.get('price', 0):.0f}" == item:
-                                            ranked_flights.append(f)
+                                    for idx in st.session_state.lilo_round2_selected:
+                                        flight = st.session_state.lilo_round2_flights[idx]
+                                        if f"{flight.get('airline', 'Unknown')} - ${flight.get('price', 0):.0f}" == item:
+                                            user_rankings.append(idx)
                                             break
-
-                                user_rankings = [st.session_state.lilo_round2_flights.index(f) for f in ranked_flights]
 
                                 # Combine answers into feedback
                                 answers_text = "\n".join([
