@@ -727,21 +727,25 @@ components.html("""
 st.info("**Note:** This website is part of a pilot data-collection study. The information collected will be used to improve flight search tools.")
 
 # TOKEN VALIDATION CHECK
-if not st.session_state.token:
+# Special handling for DEMO token
+if st.session_state.token and st.session_state.token.upper() == "DEMO":
+    # Bypass validation for DEMO token
+    st.session_state.token_valid = True
+    st.info(f"🎯 **Demo Mode** - Explore the flight search tool freely!")
+elif not st.session_state.token:
     st.error("❌ **Access Denied: No Token Provided**")
-    st.warning("This study requires a unique access token. Please use the link provided to you by the researchers.")
+    st.warning("This study requires a unique access token. Please use the link provided to you by the researchers, or use `?id=DEMO` for demo mode.")
     st.stop()
-
-if not st.session_state.token_valid:
+elif not st.session_state.token_valid:
     st.error(f"❌ **Access Denied: {st.session_state.token_message}**")
     if 'already used' in st.session_state.token_message.lower():
         st.warning("This token has already been used. To request a new token for an additional session, please reach out to the research team.")
     else:
         st.warning("Please check your access link and try again, or contact the researchers if you believe this is an error.")
     st.stop()
-
-# Show success message for valid token
-st.success(f"✅ Access granted! Token: {st.session_state.token}")
+else:
+    # Show success message for valid token
+    st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
 # Interactive Demo/Tutorial Mode
 if 'demo_mode' not in st.session_state:
