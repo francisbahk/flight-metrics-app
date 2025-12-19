@@ -844,16 +844,6 @@ st.markdown("""
 # Tips for writing a good prompt (placed between steps 2 and 3)
 with st.expander("💡 Tips for Writing a Good Prompt"):
     st.markdown("""
-    **How to write your flight prompt:**
-
-    Include details like:
-    - **Route**: Origin and destination cities or airports (e.g., "NYC to LAX" or "JFK to Boston")
-    - **Dates**: Departure date and optional return date (e.g., "December 25th" or "weekend of Jan 5-7")
-    - **Preferences**: Nonstop flights, cheapest options, specific airlines, time constraints
-    - **Special needs**: Minimum layover time, avoid early departures, Fly America Act compliance
-
-    ---
-
     💡 **Take some time to write your preferences** — imagine that the results will be reordered based on what you write. The preferences you write will be used in future research to evaluate how well algorithms return flights that align with your preferences, requirements, and persona.
 
     For example, you may describe your preferences with respect to key metrics:
