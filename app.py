@@ -3360,15 +3360,17 @@ if st.session_state.all_flights:
                 for idx, flight in enumerate(filtered_outbound):
                     unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
 
-                    # Create unique key using ID + departure time to handle duplicate IDs across dates
-                    flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
-                    is_selected = any(f"{f['id']}_{f['departure_time']}" == flight_unique_key for f in st.session_state.selected_flights)
+                    # Add unique index to flight for tracking
+                    flight['_ui_index'] = idx
+
+                    # Check if selected using _ui_index
+                    is_selected = any(f.get('_ui_index') == idx for f in st.session_state.selected_flights)
 
                     col1, col2 = st.columns([1, 5])
 
                     with col1:
-                        # Use flight unique key for checkbox (sanitized for Streamlit)
-                        checkbox_key = f"chk_out_{idx}_{flight_unique_key}_v{st.session_state.checkbox_version}".replace(':', '').replace('-', '').replace('+', '').replace(' ', '')
+                        # Use flight index for checkbox key
+                        checkbox_key = f"chk_out_{idx}_v{st.session_state.checkbox_version}"
                         selected = st.checkbox(
                             "Select flight",
                             value=is_selected,
@@ -3383,7 +3385,7 @@ if st.session_state.all_flights:
                         elif not selected and is_selected:
                             st.session_state.selected_flights = [
                                 f for f in st.session_state.selected_flights
-                                if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                                if f.get('_ui_index') != idx
                             ]
 
                     with col2:
@@ -3698,15 +3700,15 @@ if st.session_state.all_flights:
                 for idx, flight in enumerate(filtered_return):
                     unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
 
-                    # Create unique key using ID + departure time to handle duplicate IDs
-                    flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
-                    is_selected = any(f"{f['id']}_{f['departure_time']}" == flight_unique_key for f in st.session_state.selected_return_flights)
+                    # Track flight by index for reliable selection
+                    flight['_ui_index'] = idx
+                    is_selected = any(f.get('_ui_index') == idx for f in st.session_state.selected_return_flights)
 
                     col1, col2 = st.columns([1, 5])
 
                     with col1:
-                        # Use flight unique key for checkbox (sanitized for Streamlit)
-                        checkbox_key = f"chk_ret_{idx}_{flight_unique_key}_v{st.session_state.checkbox_version}".replace(':', '').replace('-', '').replace('+', '').replace(' ', '')
+                        # Use simple index-based key
+                        checkbox_key = f"chk_ret_{idx}_v{st.session_state.checkbox_version}"
                         selected = st.checkbox(
                             "Select flight",
                             value=is_selected,
@@ -3721,7 +3723,7 @@ if st.session_state.all_flights:
                         elif not selected and is_selected:
                             st.session_state.selected_return_flights = [
                                 f for f in st.session_state.selected_return_flights
-                                if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                                if f.get('_ui_index') != idx
                             ]
 
                     with col2:
@@ -3954,16 +3956,17 @@ if st.session_state.all_flights:
                     # Generate unique_id for display
                     unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
 
-                    # Create unique key using ID + departure time to handle duplicate IDs across dates
-                    flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
-                    is_selected = any(f"{f['id']}_{f['departure_time']}" == flight_unique_key for f in st.session_state.selected_flights)
+                    # Add unique index to flight for tracking
+                    flight['_ui_index'] = idx
+
+                    # Check if selected using _ui_index
+                    is_selected = any(f.get('_ui_index') == idx for f in st.session_state.selected_flights)
 
                     col1, col2 = st.columns([1, 5])
 
                     with col1:
-                        # Use flight unique key for checkbox (sanitized for Streamlit)
-                        # Include idx to ensure uniqueness even if flights have same ID/time after sanitization
-                        checkbox_key = f"chk_single_{idx}_{flight_unique_key}_v{st.session_state.checkbox_version}".replace(':', '').replace('-', '').replace('+', '').replace(' ', '')
+                        # Use flight index for checkbox key
+                        checkbox_key = f"chk_single_{idx}_v{st.session_state.checkbox_version}"
                         selected = st.checkbox(
                             "Select flight",
                             value=is_selected,
@@ -3980,7 +3983,7 @@ if st.session_state.all_flights:
                             # Remove from selected flights
                             st.session_state.selected_flights = [
                                 f for f in st.session_state.selected_flights
-                                if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                                if f.get('_ui_index') != idx
                             ]
 
                     with col2:
