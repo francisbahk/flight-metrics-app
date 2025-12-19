@@ -1,0 +1,5 @@
+defaults:
+  - nl_defaults
+# ==== LLM direct ======
+feedback_type: "nl_qa"
+acquisition_method: "llm_direct"

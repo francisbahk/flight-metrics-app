@@ -1,0 +1,11 @@
+defaults:
+  - nl_defaults
+# ==== LILO (scalar) ======
+feedback_type: "nl_qa"
+uprox_prompt_type: "scalar"
+acquisition_method: "log_nei"
+# === Prior Knowledge ===
+use_prior_knowledge: False # [True, False]
+prior_knowledge_type: point # [point, area, domain]
+prior_knowledge_top_q: 0.1 # defines top k% of outcomes for point and area knowledge
+prior_knowledge_inc_method: "llm_init"

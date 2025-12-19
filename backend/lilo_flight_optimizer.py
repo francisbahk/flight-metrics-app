@@ -1,24 +1,19 @@
 """
-LILO Optimizer - Bayesian Optimization with Interactive Natural Language Feedback
-
-Implements the LILO algorithm from https://arxiv.org/pdf/2510.17671
+LILO Flight Optimizer - Adapted from language_bo_code for flight preferences
+Uses LLM-based utility approximation from the LILO paper (arxiv.org/pdf/2510.17671)
 """
-import json
 import os
+import json
+import random
 from typing import List, Dict, Optional
 import google.generativeai as genai
-from .prompts import (
-    get_question_generation_prompt,
-    get_utility_estimation_prompt,
-    get_feedback_summarization_prompt
-)
 
 
-class LILOOptimizer:
+class LILOFlightOptimizer:
     """
-    LILO (Bayesian Optimization with Interactive Natural Language Feedback) implementation.
+    LILO optimizer for flight preferences using language feedback.
 
-    Workflow:
+    Implements the LILO algorithm:
     1. Show user N candidate flights
     2. User ranks top-k and provides natural language feedback
     3. LLM extracts preferences and updates utility model
@@ -42,51 +37,64 @@ class LILOOptimizer:
 
         # LILO state
         self.all_flights = []
-        self.round_history = []  # List of dicts: {round_num, flights_shown, rankings, feedback}
+        self.round_history = []  # List of dicts: {round_num, flights_shown, rankings, feedback, answers}
         self.feedback_summary = ""
 
-    def format_flights_for_prompt(self, flights: List[Dict], indices: Optional[List[int]] = None) -> str:
+    def format_flight_for_prompt(self, flight: Dict, arm_index: str) -> str:
         """
-        Format flights as structured text for LLM prompts.
+        Format a single flight for LLM prompt.
+
+        Args:
+            flight: Flight dictionary
+            arm_index: Identifier like "arm_0", "arm_1", etc.
+
+        Returns:
+            Formatted string describing the flight
+        """
+        return f"""Outcome {arm_index}:
+  Airline: {flight.get('airline', 'Unknown')}
+  Route: {flight.get('origin', '')} → {flight.get('destination', '')}
+  Price: ${flight.get('price', 0):.0f}
+  Duration: {flight.get('duration_min', 0)//60}h {flight.get('duration_min', 0)%60}m
+  Stops: {flight.get('stops', 0)}
+  Departure: {flight.get('departure_time', 'N/A')}
+  Arrival: {flight.get('arrival_time', 'N/A')}
+"""
+
+    def format_flights_for_prompt(self, flights: List[Dict]) -> str:
+        """
+        Format multiple flights as structured text for LLM prompts.
 
         Args:
             flights: List of flight dictionaries
-            indices: Optional list of specific indices to include
 
         Returns:
-            Formatted string describing flights
+            Formatted string describing all flights
         """
-        if indices is not None:
-            flights = [flights[i] for i in indices]
-
         formatted = []
         for i, flight in enumerate(flights):
             arm_index = f"arm_{i}"
-            formatted.append(
-                f"Outcome {arm_index}:\n"
-                f"  Airline: {flight['airline']}{flight.get('flight_number', '')}\n"
-                f"  Route: {flight['origin']} → {flight['destination']}\n"
-                f"  Price: ${flight['price']:.0f}\n"
-                f"  Duration: {flight['duration_min']//60}h {flight['duration_min']%60}m\n"
-                f"  Stops: {flight['stops']}\n"
-                f"  Departure: {flight['departure_time']}\n"
-                f"  Arrival: {flight['arrival_time']}\n"
-            )
+            formatted.append(self.format_flight_for_prompt(flight, arm_index))
 
         return "\n".join(formatted)
 
-    def _call_gemini(self, prompt: str) -> str:
+    def _call_gemini(self, prompt: str, temperature: float = 0.7) -> str:
         """Call Gemini API with error handling."""
         try:
-            response = self.model.generate_content(prompt)
+            response = self.model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=temperature,
+                    max_output_tokens=2048
+                )
+            )
             return response.text
         except Exception as e:
-            print(f"Gemini API error: {e}")
+            print(f"⚠️ Gemini API error: {e}")
             return ""
 
     def _extract_json_from_response(self, text: str) -> Dict:
         """Extract JSON from LLM response (handles ```json markers)."""
-        # Remove markdown code blocks
         text = text.strip()
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0]
@@ -96,13 +104,12 @@ class LILOOptimizer:
         try:
             return json.loads(text.strip())
         except json.JSONDecodeError as e:
-            print(f"JSON parse error: {e}")
+            print(f"⚠️ JSON parse error: {e}")
             print(f"Raw text: {text[:500]}")
             return {}
 
     def _extract_jsonl_from_response(self, text: str) -> List[Dict]:
-        """Extract JSONL from LLM response (Prompt 4 returns JSONL)."""
-        # Remove markdown code blocks
+        """Extract JSONL from LLM response (utility estimation returns JSONL)."""
         text = text.strip()
         if "```jsonl" in text:
             text = text.split("```jsonl")[1].split("```")[0]
@@ -126,7 +133,7 @@ class LILOOptimizer:
     def generate_questions(self, flights_shown: List[Dict], user_rankings: List[int],
                           round_num: int, n_questions: int = 3) -> List[str]:
         """
-        Prompt 2: Generate questions to ask user after they rank flights.
+        Generate questions to ask user after they rank flights (Prompt 2 from LILO paper).
 
         Args:
             flights_shown: Flights shown this round
@@ -147,14 +154,50 @@ class LILOOptimizer:
 
         selected_indices = ", ".join([f"arm_{i}" for i in user_rankings])
 
-        prompt = get_question_generation_prompt(
-            experiment_data=experiment_data,
-            human_feedback=human_feedback or "No previous feedback yet.",
-            selected_outcome_indices=selected_indices,
-            n_questions=n_questions
-        )
+        # Prompt 2 from LILO paper (adapted for flights)
+        prompt = f"""You are an expert in determining whether a human decision maker (DM)
+is going to be satisfied with a set of flight options.
 
-        response = self._call_gemini(prompt)
+## Experimental outcomes:
+So far, we have obtained the following flight options:
+{experiment_data}
+
+## Human feedback messages:
+We have also received the following messages from the DM:
+{human_feedback if human_feedback else "No previous feedback yet."}
+
+## Your task:
+The decision maker has indicated interest in these flights: {selected_indices}.
+
+Given the above, your task is to predict preferences between flight options.
+
+In order to better understand the decision maker's utility function, you want to ask them about their optimization goals or for feedback regarding specific flight options.
+
+First, analyze the decision maker's goals and feedback messages to understand their overall preferences.
+
+Then, provide a list of {n_questions} questions you would ask the decision maker to better understand their internal utility model.
+
+Your questions can be either general or referring to specific outcomes. For instance, you may ask the decision maker:
+- questions clarifying the optimization objective (price vs time vs convenience)
+- to rank two (or more) flights
+- how to improve certain flights
+- for a rating regarding a specific flight
+- about their priorities (price, duration, stops, airlines, times)
+
+When referring to specific flights, always state the arm_index involved.
+
+Your questions should help you predict pairwise preferences between any two flight options from the set provided above.
+
+Return your final answer as a json file with the following format containing exactly {n_questions} most important questions:
+```json
+{{
+"q1" : <question1>,
+"q2" : <question2>,
+"q3" : <question3>
+}}
+```"""
+
+        response = self._call_gemini(prompt, temperature=0.7)
         questions_dict = self._extract_json_from_response(response)
 
         # Extract questions from dict {"q1": "...", "q2": "...", ...}
@@ -163,7 +206,7 @@ class LILOOptimizer:
 
     def summarize_feedback(self, flights_shown: List[Dict]) -> str:
         """
-        Prompt 5: Summarize all user feedback into optimization goals.
+        Summarize all user feedback into optimization goals (Prompt 5 from LILO paper).
 
         Args:
             flights_shown: All flights shown so far
@@ -178,24 +221,51 @@ class LILOOptimizer:
         for r in self.round_history:
             human_feedback += f"Round {r['round_num']}:\n"
             human_feedback += f"User ranked: {r['rankings']}\n"
-            human_feedback += f"Feedback: {r['feedback']}\n\n"
+            human_feedback += f"Feedback: {r['feedback']}\n"
+            if 'answers' in r and r['answers']:
+                human_feedback += f"Q&A: {r['answers']}\n"
+            human_feedback += "\n"
 
         if not human_feedback:
             return ""
 
-        prompt = get_feedback_summarization_prompt(
-            experiment_data=experiment_data,
-            human_feedback=human_feedback
-        )
+        # Prompt 5 from LILO paper
+        prompt = f"""You are an expert in determining whether a human decision maker (DM)
+is going to be satisfied with a set of flight options.
 
-        response = self._call_gemini(prompt)
+## Experimental outcomes:
+So far, we have obtained the following flight options:
+{experiment_data}
+
+## Human feedback messages:
+We have also received the following messages from the DM:
+{human_feedback}
+
+## Your task:
+Given the above your task is to summarize the human feedback messages
+into a clear description of the DM's optimization goals.
+
+Make your summary as quantitative as possible so that it can be easily
+used for utility estimation.
+
+After analyzing the human feedback messages, return your final answer
+as a json file with the following format:
+```json
+{{
+"summary": <summary>
+}}
+```
+
+Remember about the ```json header!"""
+
+        response = self._call_gemini(prompt, temperature=0.5)
         summary_dict = self._extract_json_from_response(response)
 
         return summary_dict.get("summary", "")
 
     def estimate_utilities(self, flights: List[Dict]) -> List[float]:
         """
-        Prompt 4: Estimate utility (p_accept) for each flight.
+        Estimate utility (p_accept) for each flight (Prompt 4 from LILO paper).
 
         Args:
             flights: All flights to estimate utilities for
@@ -210,7 +280,10 @@ class LILOOptimizer:
         for r in self.round_history:
             human_feedback += f"Round {r['round_num']}:\n"
             human_feedback += f"User ranked: {r['rankings']}\n"
-            human_feedback += f"Feedback: {r['feedback']}\n\n"
+            human_feedback += f"Feedback: {r['feedback']}\n"
+            if 'answers' in r and r['answers']:
+                human_feedback += f"Q&A: {r['answers']}\n"
+            human_feedback += "\n"
 
         if not human_feedback:
             human_feedback = "No feedback yet."
@@ -218,13 +291,52 @@ class LILOOptimizer:
         # Include summary if available
         summary_text = f"\n## Feedback Summary:\n{self.feedback_summary}" if self.feedback_summary else ""
 
-        prompt = get_utility_estimation_prompt(
-            experiment_data=experiment_data,
-            human_feedback=human_feedback,
-            human_feedback_summary=summary_text
-        )
+        # Prompt 4 from LILO paper
+        prompt = f"""You are an expert in determining whether a human decision maker (DM)
+is going to be satisfied with a set of flight options.
 
-        response = self._call_gemini(prompt)
+## Experimental outcomes:
+So far, we have obtained the following flight options:
+{experiment_data}
+
+## Human feedback messages:
+We have also received the following messages from the DM:
+{human_feedback}
+{summary_text}
+
+## Your task:
+Given the above your task is to predict the probability of the
+decision maker being satisfied with the flight options.
+
+First, analyze the human feedback messages to understand the DM's preferences.
+
+Then, provide your predictions for all flights in the set of all
+experimental outcomes above.
+
+Return your final answer as a jsonl file with the following format:
+```jsonl
+{{
+"arm_index": "arm_0",
+"reasoning": <reasoning>,
+"p_accept": <probability>
+}}
+{{
+"arm_index": "arm_1",
+"reasoning": <reasoning>,
+"p_accept": <probability>
+}}
+...
+```
+
+Where <reasoning> should be a short reasoning for your prediction and
+<probability> should be your best estimate for the probability between
+0 and 1 that the DM will be satisfied with the corresponding flight.
+
+Provide your predictions for ALL flights in the set of experimental outcomes above. That is, for EACH flight from arm_0 to arm_{len(flights)-1}.
+
+Do not generate any Python code. Just return your predictions as plain text."""
+
+        response = self._call_gemini(prompt, temperature=0.3)
         utility_list = self._extract_jsonl_from_response(response)
 
         # Extract p_accept scores in order
@@ -245,7 +357,7 @@ class LILOOptimizer:
         """
         Select N candidate flights to show user in this round.
 
-        Round 1: Random/diverse selection
+        Round 1: Diverse selection (cheapest, fastest, mixed)
         Round 2+: Use utility estimates to select promising candidates
 
         Args:
@@ -257,14 +369,13 @@ class LILOOptimizer:
             List of selected flight dictionaries
         """
         if round_num == 1:
-            # Round 1: Show diverse set (top by price, duration, mix)
-            cheapest = sorted(all_flights, key=lambda x: x['price'])[:5]
-            fastest = sorted(all_flights, key=lambda x: x['duration_min'])[:5]
+            # Round 1: Show diverse set
+            cheapest = sorted(all_flights, key=lambda x: x.get('price', 999999))[:5]
+            fastest = sorted(all_flights, key=lambda x: x.get('duration_min', 999999))[:5]
             # Random remaining
-            import random
             remaining = [f for f in all_flights if f not in cheapest and f not in fastest]
             random.shuffle(remaining)
-            candidates = cheapest + fastest + remaining[:n_candidates-10]
+            candidates = cheapest + fastest + remaining[:max(0, n_candidates-10)]
             return candidates[:n_candidates]
         else:
             # Round 2+: Use utility estimates
@@ -281,6 +392,7 @@ class LILOOptimizer:
 
     def run_round(self, all_flights: List[Dict], round_num: int,
                  user_rankings: List[int], user_feedback: str,
+                 user_answers: Optional[Dict] = None,
                  n_candidates: int = 15) -> Dict:
         """
         Run one LILO round.
@@ -290,6 +402,7 @@ class LILOOptimizer:
             round_num: Current round number
             user_rankings: Indices of flights user ranked (in order of preference)
             user_feedback: User's natural language feedback
+            user_answers: Optional Q&A answers from previous round
             n_candidates: Number of flights to show
 
         Returns:
@@ -303,7 +416,8 @@ class LILOOptimizer:
             'round_num': round_num,
             'flights_shown': flights_shown,
             'rankings': user_rankings,
-            'feedback': user_feedback
+            'feedback': user_feedback,
+            'answers': user_answers or {}
         }
         self.round_history.append(round_data)
 

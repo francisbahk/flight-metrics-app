@@ -1,0 +1,4 @@
+# ==== True Utility BO ======
+feedback_type: "true_utility regress"
+acquisition_method: "log_ei"
+feedback_acquisition_method: "eubo"

@@ -1,0 +1,18 @@
+# ==== Method ====
+defaults:
+  - methods/lilo # choose one of the following: lilo, lilo_scalar, true_utility_bo, preferential_bo, llm_direct, llm_2step
+# ==== Environment ====
+seed: 0
+environment:
+  seed: ${seed}
+  name: "dtlz2"
+  utility_func : "piecewise_linear"
+N_iter: 8
+bs_exp: null
+bs_exp_init: null
+bs_feedback: 2
+# === Saving Options ===
+save_outputs: False
+save_dir: "bo_saves/"
+save_name: null
+debug_mode: True

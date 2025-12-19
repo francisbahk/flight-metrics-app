@@ -1,0 +1,6 @@
+defaults:
+  - nl_defaults
+# ==== LLM 2-step ======
+feedback_type: "nl_qa"
+uprox_prompt_type: "pairwise_direct"
+acquisition_method: "llm_2step"

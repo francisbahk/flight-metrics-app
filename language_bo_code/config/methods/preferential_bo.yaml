@@ -1,0 +1,4 @@
+# ==== Preferential BO ======
+feedback_type: "pairwise_comp"
+acquisition_method: "log_ei"
+feedback_acquisition_method: "eubo"

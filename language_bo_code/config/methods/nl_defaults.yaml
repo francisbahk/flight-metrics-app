@@ -1,0 +1,12 @@
+# Defaults applied to all methods with NL feedback
+feedback_type: "nl_qa"
+summarize_feedback: True
+pairwise_pref_model_input_type: "y" # [x, y, none]
+feedback_acquisition_method: "none"
+include_goals: True
+init_method: "random" # [random, llm]
+use_prior_knowledge: False
+num_llm_samples: 5
+uprox_llm_model: "llama3.3-70b-instruct"
+hf_llm_model: "llama3.3-70b-instruct"
+api_key: ""
