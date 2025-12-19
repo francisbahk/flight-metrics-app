@@ -743,6 +743,93 @@ if not st.session_state.token_valid:
 # Show success message for valid token
 st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
+# Interactive Demo/Tutorial Mode
+if 'demo_mode' not in st.session_state:
+    st.session_state.demo_mode = False
+if 'demo_step' not in st.session_state:
+    st.session_state.demo_step = 0
+
+st.markdown("---")
+if not st.session_state.demo_mode:
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("🎓 Start Interactive Tutorial", use_container_width=True, type="secondary"):
+            st.session_state.demo_mode = True
+            st.session_state.demo_step = 0
+            st.rerun()
+else:
+    # Demo mode active - show slideshow
+    demo_steps = [
+        {
+            "title": "Step 1: Write Your Prompt",
+            "description": "Describe your ideal flight in natural language. Include your route, dates, and preferences.",
+            "example": "I need to fly from NYC to LAX on December 25th. I prefer nonstop flights and want the cheapest option under $400.",
+            "visual": "📝"
+        },
+        {
+            "title": "Step 2: Search for Flights",
+            "description": "Click 'Search Flights' to see available options. You can filter results by price, airlines, stops, and times.",
+            "example": "The system will show you all matching flights with detailed information about price, duration, and stops.",
+            "visual": "🔍"
+        },
+        {
+            "title": "Step 3: Select Top 5 Flights",
+            "description": "Check the boxes next to your 5 favorite flights that best match your needs.",
+            "example": "Review each flight's details (price, duration, stops) and select your top choices.",
+            "visual": "☑️"
+        },
+        {
+            "title": "Step 4: Rank Your Selections",
+            "description": "Drag and drop your selected flights to rank them from most to least preferred.",
+            "example": "Your #1 choice should be at the top, and your #5 choice at the bottom.",
+            "visual": "🎯"
+        },
+        {
+            "title": "Step 5: Complete Survey",
+            "description": "After submitting your rankings, complete a brief survey about your experience.",
+            "example": "Share your feedback to help us improve the flight search system.",
+            "visual": "📋"
+        }
+    ]
+
+    step = demo_steps[st.session_state.demo_step]
+
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 30px; border-radius: 10px; color: white; text-align: center;">
+        <div style="font-size: 60px; margin-bottom: 15px;">{step['visual']}</div>
+        <h2 style="color: white; margin: 0;">{step['title']}</h2>
+        <p style="font-size: 18px; margin-top: 10px; opacity: 0.9;">Tutorial Step {st.session_state.demo_step + 1} of {len(demo_steps)}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"### {step['description']}")
+    st.info(f"**Example:** {step['example']}")
+
+    # Navigation buttons
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
+        if st.session_state.demo_step > 0:
+            if st.button("⬅️ Previous", use_container_width=True):
+                st.session_state.demo_step -= 1
+                st.rerun()
+    with col2:
+        if st.button("❌ Exit Tutorial", use_container_width=True):
+            st.session_state.demo_mode = False
+            st.rerun()
+    with col3:
+        if st.session_state.demo_step < len(demo_steps) - 1:
+            if st.button("Next ➡️", use_container_width=True, type="primary"):
+                st.session_state.demo_step += 1
+                st.rerun()
+        else:
+            if st.button("✅ Finish Tutorial", use_container_width=True, type="primary"):
+                st.session_state.demo_mode = False
+                st.success("Tutorial complete! You're ready to search for flights.")
+                st.rerun()
+
+    st.markdown("---")
+
 # How to Use section
 st.markdown('<div id="how-to-use"></div>', unsafe_allow_html=True)
 st.markdown("### 📖 How to Use")
@@ -865,7 +952,92 @@ The more specific you are, the better we can match flights to your needs!
 # Always show example prompts header
 st.markdown("**Example prompts:**")
 
-# Always show animated placeholder
+# Add copy-pasteable prompt template
+prompt_template = """Flying from [ORIGIN] to [DESTINATION] on [DATE].
+
+**My priorities (in order):**
+1. [PRIORITY 1 - e.g., Price, Time, Comfort, Directness]
+2. [PRIORITY 2]
+3. [PRIORITY 3]
+
+**Requirements:**
+- Price range: [e.g., under $400, flexible, cheapest option]
+- Flight type: [e.g., prefer nonstop, 1 stop max okay]
+- Departure time: [e.g., after 9am, no early morning]
+- Arrival time: [e.g., by 5pm, flexible]
+- Airlines: [e.g., prefer United, any carrier okay, Fly America Act compliant]
+
+**Additional preferences:**
+[Any other details like layover preferences, airport preferences, etc.]"""
+
+st.markdown("""
+<style>
+    .template-box {
+        background: #f0f2f6;
+        border: 2px dashed #4CAF50;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0 15px 0;
+        font-family: 'Source Code Pro', monospace;
+        font-size: 13px;
+        position: relative;
+    }
+    .template-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .template-title {
+        font-weight: 600;
+        color: #2E7D32;
+        font-size: 14px;
+    }
+    .copy-btn {
+        background: #4CAF50;
+        color: white;
+        border: none;
+        padding: 6px 14px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+    .copy-btn:hover {
+        background: #45a049;
+    }
+    .template-content {
+        white-space: pre-wrap;
+        color: #333;
+        line-height: 1.5;
+    }
+</style>
+<div class="template-box">
+    <div class="template-header">
+        <span class="template-title">📋 Prompt Template (Fill in the blanks)</span>
+        <button class="copy-btn" onclick="copyTemplate()">Copy Template</button>
+    </div>
+    <div class="template-content" id="templateText">""" + prompt_template.replace('\n', '<br>') + """</div>
+</div>
+<script>
+    function copyTemplate() {
+        const template = `""" + prompt_template + """`;
+        navigator.clipboard.writeText(template).then(() => {
+            const btn = document.querySelector('.copy-btn');
+            const originalText = btn.textContent;
+            btn.textContent = '✓ Copied!';
+            btn.style.background = '#2E7D32';
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = '#4CAF50';
+            }, 2000);
+        });
+    }
+</script>
+""", unsafe_allow_html=True)
+
+# Always show animated placeholder with carousel controls
 placeholder_html = r"""
 <style>
     body {
@@ -873,14 +1045,17 @@ placeholder_html = r"""
         padding: 0;
         background: white;
     }
+    .carousel-container {
+        position: relative;
+    }
     #animBox {
         border: 1px solid rgb(204, 204, 204);
         border-radius: 0.5rem;
         background: white;
         height: 150px;
         padding: 0.5rem 0.75rem;
-        pointer-events: none;
         overflow: hidden;
+        position: relative;
     }
     #animPlaceholder {
         font-family: 'Source Code Pro', monospace;
@@ -889,11 +1064,72 @@ placeholder_html = r"""
         color: rgba(49, 51, 63, 0.4);
         white-space: pre-wrap;
         word-wrap: break-word;
-        transition: opacity 3s ease-out;
+        transition: opacity 0.5s ease-out;
+        pointer-events: none;
+    }
+    .carousel-nav {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 35px;
+        height: 35px;
+        cursor: pointer;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+        z-index: 10;
+        pointer-events: auto;
+    }
+    .carousel-nav:hover {
+        background: rgba(0, 0, 0, 0.7);
+    }
+    .carousel-prev {
+        left: 10px;
+    }
+    .carousel-next {
+        right: 10px;
+    }
+    .carousel-indicator {
+        position: absolute;
+        bottom: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 6px;
+        pointer-events: auto;
+        z-index: 10;
+    }
+    .indicator-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.3);
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .indicator-dot.active {
+        background: rgba(0, 0, 0, 0.7);
+    }
+    .indicator-dot:hover {
+        background: rgba(0, 0, 0, 0.5);
     }
 </style>
-<div id="animBox">
-    <div id="animPlaceholder"></div>
+<div class="carousel-container">
+    <div id="animBox">
+        <button class="carousel-nav carousel-prev" onclick="prevPrompt()">‹</button>
+        <button class="carousel-nav carousel-next" onclick="nextPrompt()">›</button>
+        <div id="animPlaceholder"></div>
+        <div class="carousel-indicator">
+            <span class="indicator-dot active" onclick="goToPrompt(0)"></span>
+            <span class="indicator-dot" onclick="goToPrompt(1)"></span>
+        </div>
+    </div>
 </div>
 <script>
     const prompts = [
@@ -915,9 +1151,65 @@ I usually don't check bags except on very long trips.`
     ];
 
     let idx = 0, charIdx = 0, typing = true, displayText = '';
-    const speed = 42, pause = 5000, fadeTime = 3000;
+    const speed = 42, pause = 5000, fadeTime = 500;
     const placeholder = document.getElementById('animPlaceholder');
     const animBox = document.getElementById('animBox');
+    let autoPlay = true;
+    let typingTimeout = null;
+
+    // Carousel navigation functions
+    function updateIndicators() {
+        const dots = document.querySelectorAll('.indicator-dot');
+        dots.forEach((dot, i) => {
+            dot.classList.toggle('active', i === idx);
+        });
+    }
+
+    function prevPrompt() {
+        autoPlay = false;
+        if (typingTimeout) clearTimeout(typingTimeout);
+        placeholder.style.opacity = '0';
+        setTimeout(() => {
+            idx = (idx - 1 + prompts.length) % prompts.length;
+            charIdx = 0;
+            displayText = '';
+            typing = true;
+            placeholder.style.opacity = '1';
+            updateIndicators();
+            type();
+        }, fadeTime);
+    }
+
+    function nextPrompt() {
+        autoPlay = false;
+        if (typingTimeout) clearTimeout(typingTimeout);
+        placeholder.style.opacity = '0';
+        setTimeout(() => {
+            idx = (idx + 1) % prompts.length;
+            charIdx = 0;
+            displayText = '';
+            typing = true;
+            placeholder.style.opacity = '1';
+            updateIndicators();
+            type();
+        }, fadeTime);
+    }
+
+    function goToPrompt(index) {
+        if (index === idx) return;
+        autoPlay = false;
+        if (typingTimeout) clearTimeout(typingTimeout);
+        placeholder.style.opacity = '0';
+        setTimeout(() => {
+            idx = index;
+            charIdx = 0;
+            displayText = '';
+            typing = true;
+            placeholder.style.opacity = '1';
+            updateIndicators();
+            type();
+        }, fadeTime);
+    }
 
     function trimToFit(text) {
         placeholder.textContent = text;
@@ -952,20 +1244,23 @@ I usually don't check bags except on very long trips.`
                 displayText = prompts[idx].substring(0, charIdx + 1);
                 displayText = trimToFit(displayText);
                 charIdx++;
-                setTimeout(type, speed);
+                typingTimeout = setTimeout(type, speed);
             } else {
                 typing = false;
-                setTimeout(() => {
-                    placeholder.style.opacity = '0';
-                    setTimeout(() => {
-                        idx = (idx + 1) % prompts.length;
-                        charIdx = 0;
-                        displayText = '';
-                        typing = true;
-                        placeholder.style.opacity = '1';
-                        type();
-                    }, fadeTime);
-                }, pause);
+                if (autoPlay) {
+                    typingTimeout = setTimeout(() => {
+                        placeholder.style.opacity = '0';
+                        setTimeout(() => {
+                            idx = (idx + 1) % prompts.length;
+                            charIdx = 0;
+                            displayText = '';
+                            typing = true;
+                            placeholder.style.opacity = '1';
+                            updateIndicators();
+                            type();
+                        }, fadeTime);
+                    }, pause);
+                }
             }
         }
     }
