@@ -1632,7 +1632,30 @@ if st.session_state.all_flights:
                 try:
                     from backend.db import get_previous_search_for_validation
 
+                    # Hide all content above cross-validation section
+                    st.markdown("""
+                    <style>
+                        /* Hide all content before cross-validation */
+                        .main > div:has(+ div .cross-validation-section) {
+                            display: none !important;
+                        }
+                        /* Alternative: Hide everything except cross-validation container */
+                        .stApp > header,
+                        [data-testid="stSidebar"],
+                        .main > div:not(:has(.cross-validation-section)) {
+                            opacity: 0.1;
+                            pointer-events: none;
+                        }
+                        .cross-validation-section {
+                            background: white;
+                            position: relative;
+                            z-index: 1000;
+                        }
+                    </style>
+                    """, unsafe_allow_html=True)
+
                     st.markdown("---")
+                    st.markdown('<div class="cross-validation-section">', unsafe_allow_html=True)
                     st.markdown("### 🤝 Help Validate Another Search")
                     st.markdown("*Before completing your session, please help us by ranking flights for another user's search*")
 
@@ -1947,9 +1970,36 @@ if st.session_state.all_flights:
                             else:
                                 st.caption("No flights selected yet")
 
+                    # Close cross-validation div
+                    st.markdown('</div>', unsafe_allow_html=True)
+
             # Survey section (after cross-validation)
             if st.session_state.get('cross_validation_completed') and not st.session_state.get('survey_completed'):
+                # Hide content above survey and auto-scroll to top
+                st.markdown("""
+                <style>
+                    /* Fade out previous content */
+                    .stApp > header,
+                    [data-testid="stSidebar"],
+                    .main > div:not(:has(.survey-section)) {
+                        opacity: 0.1;
+                        pointer-events: none;
+                    }
+                    .survey-section {
+                        background: white;
+                        position: relative;
+                        z-index: 1000;
+                        padding-top: 20px;
+                    }
+                </style>
+                <script>
+                    // Auto-scroll to top when survey loads
+                    window.scrollTo(0, 0);
+                </script>
+                """, unsafe_allow_html=True)
+
                 st.markdown("---")
+                st.markdown('<div id="survey-step-1" class="survey-section">', unsafe_allow_html=True)
                 st.markdown("### 📋 Quick Feedback Survey")
                 st.markdown("*Please take 2-3 minutes to help us improve the tool*")
 
@@ -2158,6 +2208,9 @@ if st.session_state.all_flights:
                             st.rerun()
                         else:
                             st.error("⚠️ Failed to save survey response. Please try again.")
+
+                # Close survey div
+                st.markdown('</div>', unsafe_allow_html=True)
 
             # Show countdown if both cross-validation and survey completed
             if st.session_state.get('cross_validation_completed') and st.session_state.get('survey_completed') and st.session_state.get('countdown_started') and not st.session_state.get('countdown_completed'):
