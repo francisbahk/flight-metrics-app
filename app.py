@@ -747,92 +747,92 @@ else:
     # Show success message for valid token
     st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
-# Interactive Demo/Tutorial Mode
-if 'demo_mode' not in st.session_state:
-    st.session_state.demo_mode = False
-if 'demo_step' not in st.session_state:
-    st.session_state.demo_step = 0
-
-st.markdown("---")
-if not st.session_state.demo_mode:
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🎓 Start Interactive Tutorial", use_container_width=True, type="secondary"):
-            st.session_state.demo_mode = True
-            st.session_state.demo_step = 0
-            st.rerun()
-else:
-    # Demo mode active - show slideshow
-    demo_steps = [
-        {
-            "title": "Step 1: Write Your Prompt",
-            "description": "Describe your ideal flight in natural language. Include your route, dates, and preferences.",
-            "example": "I need to fly from NYC to LAX on December 25th. I prefer nonstop flights and want the cheapest option under $400.",
-            "visual": "📝"
-        },
-        {
-            "title": "Step 2: Search for Flights",
-            "description": "Click 'Search Flights' to see available options. You can filter results by price, airlines, stops, and times.",
-            "example": "The system will show you all matching flights with detailed information about price, duration, and stops.",
-            "visual": "🔍"
-        },
-        {
-            "title": "Step 3: Select Top 5 Flights",
-            "description": "Check the boxes next to your 5 favorite flights that best match your needs.",
-            "example": "Review each flight's details (price, duration, stops) and select your top choices.",
-            "visual": "☑️"
-        },
-        {
-            "title": "Step 4: Rank Your Selections",
-            "description": "Drag and drop your selected flights to rank them from most to least preferred.",
-            "example": "Your #1 choice should be at the top, and your #5 choice at the bottom.",
-            "visual": "🎯"
-        },
-        {
-            "title": "Step 5: Complete Survey",
-            "description": "After submitting your rankings, complete a brief survey about your experience.",
-            "example": "Share your feedback to help us improve the flight search system.",
-            "visual": "📋"
-        }
-    ]
-
-    step = demo_steps[st.session_state.demo_step]
-
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                padding: 30px; border-radius: 10px; color: white; text-align: center;">
-        <div style="font-size: 60px; margin-bottom: 15px;">{step['visual']}</div>
-        <h2 style="color: white; margin: 0;">{step['title']}</h2>
-        <p style="font-size: 18px; margin-top: 10px; opacity: 0.9;">Tutorial Step {st.session_state.demo_step + 1} of {len(demo_steps)}</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown(f"### {step['description']}")
-    st.info(f"**Example:** {step['example']}")
-
-    # Navigation buttons
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col1:
-        if st.session_state.demo_step > 0:
-            if st.button("⬅️ Previous", use_container_width=True):
-                st.session_state.demo_step -= 1
-                st.rerun()
-    with col2:
-        if st.button("❌ Exit Tutorial", use_container_width=True):
-            st.session_state.demo_mode = False
-            st.rerun()
-    with col3:
-        if st.session_state.demo_step < len(demo_steps) - 1:
-            if st.button("Next ➡️", use_container_width=True, type="primary"):
-                st.session_state.demo_step += 1
-                st.rerun()
-        else:
-            if st.button("✅ Finish Tutorial", use_container_width=True, type="primary"):
-                st.session_state.demo_mode = False
-                st.success("Tutorial complete! You're ready to search for flights.")
-                st.rerun()
-
-    st.markdown("---")
+# # Interactive Demo/Tutorial Mode (COMMENTED OUT)
+# if 'demo_mode' not in st.session_state:
+#     st.session_state.demo_mode = False
+# if 'demo_step' not in st.session_state:
+#     st.session_state.demo_step = 0
+#
+# st.markdown("---")
+# if not st.session_state.demo_mode:
+#     col1, col2, col3 = st.columns([1, 2, 1])
+#     with col2:
+#         if st.button("🎓 Start Interactive Tutorial", use_container_width=True, type="secondary"):
+#             st.session_state.demo_mode = True
+#             st.session_state.demo_step = 0
+#             st.rerun()
+# else:
+#     # Demo mode active - show slideshow
+#     demo_steps = [
+#         {
+#             "title": "Step 1: Write Your Prompt",
+#             "description": "Describe your ideal flight in natural language. Include your route, dates, and preferences.",
+#             "example": "I need to fly from NYC to LAX on December 25th. I prefer nonstop flights and want the cheapest option under $400.",
+#             "visual": "📝"
+#         },
+#         {
+#             "title": "Step 2: Search for Flights",
+#             "description": "Click 'Search Flights' to see available options. You can filter results by price, airlines, stops, and times.",
+#             "example": "The system will show you all matching flights with detailed information about price, duration, and stops.",
+#             "visual": "🔍"
+#         },
+#         {
+#             "title": "Step 3: Select Top 5 Flights",
+#             "description": "Check the boxes next to your 5 favorite flights that best match your needs.",
+#             "example": "Review each flight's details (price, duration, stops) and select your top choices.",
+#             "visual": "☑️"
+#         },
+#         {
+#             "title": "Step 4: Rank Your Selections",
+#             "description": "Drag and drop your selected flights to rank them from most to least preferred.",
+#             "example": "Your #1 choice should be at the top, and your #5 choice at the bottom.",
+#             "visual": "🎯"
+#         },
+#         {
+#             "title": "Step 5: Complete Survey",
+#             "description": "After submitting your rankings, complete a brief survey about your experience.",
+#             "example": "Share your feedback to help us improve the flight search system.",
+#             "visual": "📋"
+#         }
+#     ]
+#
+#     step = demo_steps[st.session_state.demo_step]
+#
+#     st.markdown(f"""
+#     <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+#                 padding: 30px; border-radius: 10px; color: white; text-align: center;">
+#         <div style="font-size: 60px; margin-bottom: 15px;">{step['visual']}</div>
+#         <h2 style="color: white; margin: 0;">{step['title']}</h2>
+#         <p style="font-size: 18px; margin-top: 10px; opacity: 0.9;">Tutorial Step {st.session_state.demo_step + 1} of {len(demo_steps)}</p>
+#     </div>
+#     """, unsafe_allow_html=True)
+#
+#     st.markdown(f"### {step['description']}")
+#     st.info(f"**Example:** {step['example']}")
+#
+#     # Navigation buttons
+#     col1, col2, col3 = st.columns([1, 1, 1])
+#     with col1:
+#         if st.session_state.demo_step > 0:
+#             if st.button("⬅️ Previous", use_container_width=True):
+#                 st.session_state.demo_step -= 1
+#                 st.rerun()
+#     with col2:
+#         if st.button("❌ Exit Tutorial", use_container_width=True):
+#             st.session_state.demo_mode = False
+#             st.rerun()
+#     with col3:
+#         if st.session_state.demo_step < len(demo_steps) - 1:
+#             if st.button("Next ➡️", use_container_width=True, type="primary"):
+#                 st.session_state.demo_step += 1
+#                 st.rerun()
+#         else:
+#             if st.button("✅ Finish Tutorial", use_container_width=True, type="primary"):
+#                 st.session_state.demo_mode = False
+#                 st.success("Tutorial complete! You're ready to search for flights.")
+#                 st.rerun()
+#
+#     st.markdown("---")
 
 # How to Use section
 st.markdown('<div id="how-to-use"></div>', unsafe_allow_html=True)
@@ -851,7 +851,7 @@ with st.expander("💡 Tips for Writing a Good Prompt"):
     - **Duration** - Do you prefer the fastest route or are you flexible?
     - **Connections** - Direct flights only, or are layovers acceptable?
     - **Departure/Arrival Times** - Morning person or night owl? Business hours or flexible?
-    - **Airlines** - Any preferences or airlines to avoid? *(Note: Some major airlines like American Airlines, Delta and British Airways are not available through the Amadeus Flights API)*
+    - **Airlines** - Any preferences or airlines to avoid?
 
     **Examples of good preference statements:**
     - "Prioritize minimizing flight duration, but I'm flexible on price"
@@ -861,6 +861,18 @@ with st.expander("💡 Tips for Writing a Good Prompt"):
     - "Would pay up to $300 more if it means being there on time" *(expressing trade-offs helps!)*
 
     The more specific you are about your priorities and trade-offs, the better we can understand your preferences!
+
+    ---
+
+    **How to write your flight prompt:**
+
+    Include details like:
+    - **Route**: Origin and destination cities or airports (e.g., "NYC to LAX" or "JFK to Boston")
+    - **Dates**: Departure date and optional return date (e.g., "December 25th" or "weekend of Jan 5-7")
+    - **Preferences**: Nonstop flights, cheapest options, specific airlines, time constraints
+    - **Special needs**: Minimum layover time, avoid early departures, Fly America Act compliance
+
+    The more specific you are, the better we can match flights to your needs!
     """)
 
 st.markdown("""
@@ -1375,7 +1387,7 @@ if ai_search or regular_search:
                 all_flights = []
                 all_return_flights = []
 
-                st.info("✈️ Searching outbound flights from Amadeus API...")
+                st.info("✈️ Searching outbound flights from SerpAPI...")
 
                 # Get departure dates (list)
                 departure_dates = parsed.get('departure_dates', [])
@@ -1408,7 +1420,7 @@ if ai_search or regular_search:
                             )
 
                             # Debug: show raw results
-                            with st.expander(f"🔍 Debug: Amadeus API Response ({origin}→{dest} on {departure_date})"):
+                            with st.expander(f"🔍 Debug: SerpAPI Response ({origin}→{dest} on {departure_date})"):
                                 st.write(f"Type: {type(results)}")
                                 if isinstance(results, dict):
                                     st.write(f"Keys: {results.keys()}")
@@ -3189,7 +3201,7 @@ if st.session_state.all_flights:
                     }}
                     /* Adjust position when sidebar is open */
                     [data-testid="stSidebar"]:not([aria-hidden="true"]) ~ div .subway-nav {{
-                        left: 310px;
+                        left: 340px;  /* 280px sidebar + 30px margin + 30px spacing = 340px */
                     }}
                     .subway-nav ul {{
                         list-style: none;
@@ -3797,7 +3809,7 @@ if st.session_state.all_flights:
                     }}
                     /* Adjust position when sidebar is open */
                     [data-testid="stSidebar"]:not([aria-hidden="true"]) ~ div .subway-nav {{
-                        left: 310px;
+                        left: 340px;  /* 280px sidebar + 30px margin + 30px spacing = 340px */
                     }}
                     .subway-nav ul {{
                         list-style: none;
