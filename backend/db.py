@@ -515,8 +515,45 @@ def save_search_and_csv(
         )
         db.add(csv_record)
 
+        # Save FlightShown records for all flights
+        flight_id_map = {}  # Map flight index -> database ID
+        for idx, flight in enumerate(all_flights):
+            flight_shown = FlightShown(
+                search_id=search_id,
+                flight_data=flight,
+                algorithm='unranked',  # Unranked mode
+                algorithm_rank=idx + 1,
+                display_position=idx + 1
+            )
+            db.add(flight_shown)
+            db.flush()
+            flight_id_map[idx] = flight_shown.id
+
+        # Save UserRanking records for selected flights
+        # selected_flights is in ranked order (best first)
+        for user_rank, selected_flight in enumerate(selected_flights, 1):
+            # Find this flight in all_flights to get its index
+            flight_idx = None
+            for idx, flight in enumerate(all_flights):
+                # Match using same composite key as CSV generation
+                if (flight['id'] == selected_flight['id'] and
+                    flight.get('departure_time') == selected_flight.get('departure_time') and
+                    flight.get('price') == selected_flight.get('price')):
+                    flight_idx = idx
+                    break
+
+            if flight_idx is not None and flight_idx in flight_id_map:
+                ranking = UserRanking(
+                    search_id=search_id,
+                    flight_id=flight_id_map[flight_idx],
+                    user_rank=user_rank
+                )
+                db.add(ranking)
+            else:
+                print(f"Warning: Could not find flight_idx for ranked flight {user_rank}")
+
         db.commit()
-        print(f"✓ Saved search {search_id} with CSV export ({len(all_flights)} flights, {len(selected_flights)} selected)")
+        print(f"✓ Saved search {search_id} with CSV export ({len(all_flights)} flights, {len(selected_flights)} rankings)")
         return search_id
 
     except Exception as e:
