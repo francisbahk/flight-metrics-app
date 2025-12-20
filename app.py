@@ -240,13 +240,18 @@ def generate_flight_csv(all_flights, selected_flights, k=5):
 
     csv_rows = []
 
-    # Create a set of selected flight IDs for quick lookup
-    selected_ids = {f['id']: (idx + 1) for idx, f in enumerate(selected_flights)}
+    # Create a mapping using unique composite key (ID + departure time + price)
+    # This handles duplicate flight IDs (codeshares, same flight different dates)
+    def get_flight_key(f):
+        return f"{f['id']}_{f.get('departure_time', '')}_{f.get('price', 0)}"
+
+    selected_keys = {get_flight_key(f): (idx + 1) for idx, f in enumerate(selected_flights)}
 
     for idx, flight in enumerate(all_flights):
+        flight_key = get_flight_key(flight)
         # Determine if this flight was ranked
-        is_best = flight['id'] in selected_ids
-        rank = selected_ids.get(flight['id'], unranked_value)
+        is_best = flight_key in selected_keys
+        rank = selected_keys.get(flight_key, unranked_value)
 
         # Generate unique_id
         unique_id = f"{flight['origin']}_{flight['destination']}{idx + 1}"
