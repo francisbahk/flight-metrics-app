@@ -286,31 +286,47 @@ def generate_flight_csv(all_flights, selected_flights, k=5):
             dept_dt_formatted = ""
             arr_dt_formatted = ""
 
-        # Build row
+        # Build row - ensure all text fields have no tabs or newlines
+        def clean_text(text):
+            """Remove tabs and newlines from text to prevent CSV column misalignment"""
+            if isinstance(text, str):
+                return text.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
+            return text
+
         row = {
-            'unique_id': unique_id,
-            'is_best': is_best,
+            'unique_id': clean_text(unique_id),
+            'is_best': 1 if is_best else 0,  # Use 1/0 instead of True/False
             'rank': rank,
-            'name': name,
-            'origin': flight['origin'],
-            'destination': flight['destination'],
-            'departure_time': dept_time_str,
-            'arrival_time': arr_time_str,
-            'duration': f"{flight['duration_min']//60} hr {flight['duration_min']%60} min",
+            'name': clean_text(name),
+            'origin': clean_text(flight['origin']),
+            'destination': clean_text(flight['destination']),
+            'departure_time': clean_text(dept_time_str),
+            'arrival_time': clean_text(arr_time_str),
+            'duration': clean_text(f"{flight['duration_min']//60} hr {flight['duration_min']%60} min"),
             'stops': float(flight['stops']),
             'price': float(flight['price']),
             'dis_from_origin': 0.0,
             'dis_from_dest': 0.0,
-            'departure_dt': dept_dt_formatted,
+            'departure_dt': clean_text(dept_dt_formatted),
             'departure_seconds': dept_seconds,
-            'arrival_dt': arr_dt_formatted,
+            'arrival_dt': clean_text(arr_dt_formatted),
             'arrival_seconds': arr_seconds,
             'duration_min': flight['duration_min']
         }
         csv_rows.append(row)
 
-    # Convert to DataFrame and then to CSV
+    # Convert to DataFrame with explicit column order
     df = pd.DataFrame(csv_rows)
+
+    # Ensure columns are in the correct order
+    columns_order = [
+        'unique_id', 'is_best', 'rank', 'name', 'origin', 'destination',
+        'departure_time', 'arrival_time', 'duration', 'stops', 'price',
+        'dis_from_origin', 'dis_from_dest', 'departure_dt', 'departure_seconds',
+        'arrival_dt', 'arrival_seconds', 'duration_min'
+    ]
+    df = df[columns_order]
+
     csv_buffer = io.StringIO()
     df.to_csv(csv_buffer, index=False, sep='\t')  # Tab-separated as per example
     return csv_buffer.getvalue()
