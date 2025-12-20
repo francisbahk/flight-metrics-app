@@ -28,7 +28,7 @@ def view_all_data():
             print(f"Search ID: {search.search_id}")
             print(f"Session ID: {search.session_id}")
             print(f"Date: {search.created_at}")
-            print(f"Token: {search.token or '(not provided)'}")
+            print(f"Completion Token: {search.completion_token or '(not provided)'}")
             print(f"\nUser Prompt:")
             print(f"  {search.user_prompt}")
             print(f"\nParsed Parameters:")
@@ -84,7 +84,7 @@ def view_latest():
         print("LATEST SEARCH")
         print("=" * 80)
         print(f"\nSearch ID: {search.search_id}")
-        print(f"Token: {search.token or '(not provided)'}")
+        print(f"Completion Token: {search.completion_token or '(not provided)'}")
         print(f"Prompt: {search.user_prompt}")
 
         csvs = db.query(FlightCSV).filter(FlightCSV.search_id == search.search_id).all()
@@ -96,7 +96,7 @@ def view_latest():
                 # Parse and show top 5
                 try:
                     df = pd.read_csv(io.StringIO(csv.csv_data), sep='\t')
-                    selected = df[df['is_best'] == True].sort_values('rank')
+                    selected = df[df['is_best'] == 1].sort_values('rank')  # Changed to 1 (was True)
 
                     if len(selected) > 0:
                         print(f"\nTop 5 Rankings:")
@@ -189,7 +189,7 @@ def view_survey_responses():
             print("-" * 80)
             print(f"Response ID: {survey.id}")
             print(f"Session ID: {survey.session_id}")
-            print(f"Token: {survey.token or '(not provided)'}")
+            print(f"Completion Token: {survey.completion_token or '(not provided)'}")
             print(f"Date: {survey.created_at}")
 
             print(f"\n📊 Satisfaction & Usability:")
