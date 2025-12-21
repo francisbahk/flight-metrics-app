@@ -799,34 +799,31 @@ if st.sidebar.button("🎓 Start Tutorial", use_container_width=True, help="See 
 
 # Show static demo page if active (completely separate from real app)
 if st.session_state.get('demo_active', False):
-    # Render the static demo page FIRST (frozen version of app with spotlight)
-    render_static_demo_page(st.session_state.demo_step)
-
-    # Simple navigation buttons at bottom
-    st.markdown("---")
-    st.markdown("### Tutorial Controls")
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("❌ Exit Tutorial", key="demo_exit", use_container_width=True):
-            st.session_state.demo_active = False
-            st.session_state.demo_step = 0
-            st.rerun()
-    with col2:
-        if st.session_state.demo_step > 0:
-            if st.button("← Back", key="demo_back", use_container_width=True):
-                st.session_state.demo_step -= 1
-                st.rerun()
-    with col3:
-        if st.session_state.demo_step < 6:
-            if st.button("Next →", key="demo_next", type="primary", use_container_width=True):
+    # Check for tutorial navigation via query params
+    query_params = st.query_params
+    if 'tutorial_action' in query_params:
+        action = query_params['tutorial_action']
+        if action == 'next':
+            if st.session_state.demo_step < 6:
                 st.session_state.demo_step += 1
-                st.rerun()
-        else:
-            if st.button("✅ Finish!", key="demo_finish", type="primary", use_container_width=True):
+            else:
                 st.session_state.demo_active = False
                 st.session_state.demo_step = 0
-                st.rerun()
+        elif action == 'back' and st.session_state.demo_step > 0:
+            st.session_state.demo_step -= 1
+        elif action == 'exit':
+            st.session_state.demo_active = False
+            st.session_state.demo_step = 0
+        # Clear query param
+        del query_params['tutorial_action']
+        st.rerun()
+
+    # Render static demo page
+    render_static_demo_page(st.session_state.demo_step)
+
+    # Show tutorial card with buttons INSIDE
+    from components.tutorial_card import show_tutorial_card
+    show_tutorial_card(st.session_state.demo_step)
 
     # Stop here - don't render the real app
     st.stop()
