@@ -18,8 +18,8 @@ def get_fake_flight_data():
             'airline': 'B6',  # JetBlue
             'origin': 'JFK',
             'destination': 'LAX',
-            'departure_time': '08:00 AM on Wed, Dec 25',
-            'arrival_time': '11:30 AM on Wed, Dec 25',
+            'departure_time': '2024-12-25T08:00:00-05:00',  # 8 AM EST
+            'arrival_time': '2024-12-25T11:30:00-08:00',    # 11:30 AM PST
             'duration': '6 hr 30 min',
             'duration_min': 390,
             'stops': 0,
@@ -31,8 +31,8 @@ def get_fake_flight_data():
             'airline': 'DL',  # Delta
             'origin': 'JFK',
             'destination': 'LAX',
-            'departure_time': '10:15 AM on Wed, Dec 25',
-            'arrival_time': '01:45 PM on Wed, Dec 25',
+            'departure_time': '2024-12-25T10:15:00-05:00',
+            'arrival_time': '2024-12-25T13:45:00-08:00',
             'duration': '6 hr 30 min',
             'duration_min': 390,
             'stops': 0,
@@ -44,8 +44,8 @@ def get_fake_flight_data():
             'airline': 'AA',  # American
             'origin': 'JFK',
             'destination': 'LAX',
-            'departure_time': '12:30 PM on Wed, Dec 25',
-            'arrival_time': '04:00 PM on Wed, Dec 25',
+            'departure_time': '2024-12-25T12:30:00-05:00',
+            'arrival_time': '2024-12-25T16:00:00-08:00',
             'duration': '6 hr 30 min',
             'duration_min': 390,
             'stops': 0,
@@ -57,8 +57,8 @@ def get_fake_flight_data():
             'airline': 'UA',  # United
             'origin': 'JFK',
             'destination': 'LAX',
-            'departure_time': '02:45 PM on Wed, Dec 25',
-            'arrival_time': '06:15 PM on Wed, Dec 25',
+            'departure_time': '2024-12-25T14:45:00-05:00',
+            'arrival_time': '2024-12-25T18:15:00-08:00',
             'duration': '6 hr 30 min',
             'duration_min': 390,
             'stops': 0,
@@ -70,8 +70,8 @@ def get_fake_flight_data():
             'airline': 'B6',  # JetBlue
             'origin': 'JFK',
             'destination': 'LAX',
-            'departure_time': '06:00 AM on Wed, Dec 25',
-            'arrival_time': '09:30 AM on Wed, Dec 25',
+            'departure_time': '2024-12-25T06:00:00-05:00',
+            'arrival_time': '2024-12-25T09:30:00-08:00',
             'duration': '6 hr 30 min',
             'duration_min': 390,
             'stops': 0,
@@ -83,8 +83,8 @@ def get_fake_flight_data():
             'airline': 'NK',  # Spirit (budget)
             'origin': 'JFK',
             'destination': 'LAX',
-            'departure_time': '05:30 AM on Wed, Dec 25',
-            'arrival_time': '09:00 AM on Wed, Dec 25',
+            'departure_time': '2024-12-25T05:30:00-05:00',
+            'arrival_time': '2024-12-25T09:00:00-08:00',
             'duration': '6 hr 30 min',
             'duration_min': 390,
             'stops': 0,
@@ -96,8 +96,8 @@ def get_fake_flight_data():
             'airline': 'DL',  # Delta
             'origin': 'JFK',
             'destination': 'LAX',
-            'departure_time': '07:00 AM on Wed, Dec 25',
-            'arrival_time': '01:45 PM on Wed, Dec 25',
+            'departure_time': '2024-12-25T07:00:00-05:00',
+            'arrival_time': '2024-12-25T13:45:00-08:00',
             'duration': '9 hr 45 min',
             'duration_min': 585,
             'stops': 1,
@@ -109,8 +109,8 @@ def get_fake_flight_data():
             'airline': 'AA',  # American
             'origin': 'JFK',
             'destination': 'LAX',
-            'departure_time': '11:00 AM on Wed, Dec 25',
-            'arrival_time': '02:30 PM on Wed, Dec 25',
+            'departure_time': '2024-12-25T11:00:00-05:00',
+            'arrival_time': '2024-12-25T14:30:00-08:00',
             'duration': '6 hr 30 min',
             'duration_min': 390,
             'stops': 0,
@@ -122,8 +122,8 @@ def get_fake_flight_data():
             'airline': 'F9',  # Frontier (budget)
             'origin': 'JFK',
             'destination': 'LAX',
-            'departure_time': '09:15 AM on Wed, Dec 25',
-            'arrival_time': '12:45 PM on Wed, Dec 25',
+            'departure_time': '2024-12-25T09:15:00-05:00',
+            'arrival_time': '2024-12-25T12:45:00-08:00',
             'duration': '6 hr 30 min',
             'duration_min': 390,
             'stops': 0,
@@ -135,8 +135,8 @@ def get_fake_flight_data():
             'airline': 'UA',  # United
             'origin': 'JFK',
             'destination': 'LAX',
-            'departure_time': '04:30 PM on Wed, Dec 25',
-            'arrival_time': '08:00 PM on Wed, Dec 25',
+            'departure_time': '2024-12-25T16:30:00-05:00',
+            'arrival_time': '2024-12-25T20:00:00-08:00',
             'duration': '6 hr 30 min',
             'duration_min': 390,
             'stops': 0,
