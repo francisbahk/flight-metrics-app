@@ -800,23 +800,25 @@ if st.sidebar.button("🎓 Start Tutorial", use_container_width=True, help="See 
 # Show static demo page if active (completely separate from real app)
 if st.session_state.get('demo_active', False):
     # Check for tutorial navigation via query params
-    query_params = st.query_params
-    if 'tutorial_action' in query_params:
-        action = query_params['tutorial_action']
-        if action == 'next':
-            if st.session_state.demo_step < 6:
-                st.session_state.demo_step += 1
-            else:
+    try:
+        action = st.query_params.get('tutorial_action', None)
+        if action:
+            if action == 'next':
+                if st.session_state.demo_step < 6:
+                    st.session_state.demo_step += 1
+                else:
+                    st.session_state.demo_active = False
+                    st.session_state.demo_step = 0
+            elif action == 'back' and st.session_state.demo_step > 0:
+                st.session_state.demo_step -= 1
+            elif action == 'exit':
                 st.session_state.demo_active = False
                 st.session_state.demo_step = 0
-        elif action == 'back' and st.session_state.demo_step > 0:
-            st.session_state.demo_step -= 1
-        elif action == 'exit':
-            st.session_state.demo_active = False
-            st.session_state.demo_step = 0
-        # Clear query param
-        del query_params['tutorial_action']
-        st.rerun()
+            # Clear query param
+            st.query_params.clear()
+            st.rerun()
+    except:
+        pass
 
     # Render static demo page
     render_static_demo_page(st.session_state.demo_step)
