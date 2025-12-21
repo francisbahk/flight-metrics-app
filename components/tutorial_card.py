@@ -23,15 +23,16 @@ def show_tutorial_card(step_num):
 
     step = steps[step_num]
 
-    # HTML component with card and buttons
+    # HTML component with card and buttons - using components.html for proper rendering
     card_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
     <style>
-        /* Highlight current element */
-        #{step['id']} {{
-            position: relative !important;
-            z-index: 9999 !important;
-            box-shadow: 0 0 0 4px #3b82f6, 0 0 0 9999px rgba(0,0,0,0.8) !important;
-            border-radius: 8px !important;
+        body {{
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
         }}
 
         /* Tutorial card */
@@ -78,7 +79,6 @@ def show_tutorial_card(step_num):
             cursor: pointer;
             background: white;
             color: #667eea;
-            pointer-events: auto !important;
         }}
 
         .btn:hover {{
@@ -90,28 +90,55 @@ def show_tutorial_card(step_num):
             cursor: not-allowed;
         }}
     </style>
-
+    </head>
+    <body>
     <div id="tutorial-card">
         <h3>{step['title']}</h3>
         <p>{step['desc']}</p>
         <p style="font-size: 13px; opacity: 0.8; margin: 0;">Step {step_num + 1} of 7</p>
 
         <div class="btn-container">
-            <button class="btn" onclick="window.parent.location.href = window.parent.location.pathname + '?tutorial_action=exit'">Exit</button>
-            <button class="btn" onclick="window.parent.location.href = window.parent.location.pathname + '?tutorial_action=back'" {'disabled' if step_num == 0 else ''}>Back</button>
-            <button class="btn" onclick="window.parent.location.href = window.parent.location.pathname + '?tutorial_action=next'">
+            <button class="btn" onclick="navigateTo('exit')">Exit</button>
+            <button class="btn" onclick="navigateTo('back')" {'disabled' if step_num == 0 else ''}>Back</button>
+            <button class="btn" onclick="navigateTo('next')">
                 {('Finish' if step_num == 6 else 'Next')}
             </button>
         </div>
     </div>
 
     <script>
+        function navigateTo(action) {{
+            // Navigate parent window with query parameter
+            const url = window.parent.location.pathname + '?tutorial_action=' + action;
+            window.parent.location.href = url;
+        }}
+
+        // Scroll to highlighted element in parent document
         setTimeout(() => {{
-            const el = document.getElementById('{step['id']}');
-            if (el) el.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+            try {{
+                const el = window.parent.document.getElementById('{step['id']}');
+                if (el) el.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+            }} catch(e) {{
+                console.log('Could not scroll to element:', e);
+            }}
         }}, 100);
     </script>
+    </body>
+    </html>
     """
 
-    # Render HTML directly (not in iframe) so positioning and clicks work properly
-    st.markdown(card_html, unsafe_allow_html=True)
+    # Also add highlighting CSS to parent page
+    st.markdown(f"""
+    <style>
+        /* Highlight current element */
+        #{step['id']} {{
+            position: relative !important;
+            z-index: 9999 !important;
+            box-shadow: 0 0 0 4px #3b82f6, 0 0 0 9999px rgba(0,0,0,0.8) !important;
+            border-radius: 8px !important;
+        }}
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Render HTML component with proper height
+    components.html(card_html, height=600, scrolling=False)
