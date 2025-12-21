@@ -799,63 +799,69 @@ if st.sidebar.button("🎓 Start Tutorial", use_container_width=True, help="See 
 
 # Show static demo page if active (completely separate from real app)
 if st.session_state.get('demo_active', False):
-    # Add prominent navigation controls at top with high z-index
+    # CSS to make buttons clickable and properly styled
     st.markdown("""
     <style>
-        /* Make tutorial controls always visible and clickable */
-        .tutorial-controls {
-            position: sticky;
-            top: 0;
-            z-index: 10002 !important;
-            background: white;
-            padding: 16px 0;
-            border-bottom: 2px solid #667eea;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
-        }
-
-        /* Ensure buttons stay clickable */
-        button[data-testid*="demo_exit"],
-        button[data-testid*="demo_back"],
-        button[data-testid*="demo_next"],
-        button[data-testid*="demo_finish"] {
+        /* Make all tutorial buttons clickable */
+        button[data-testid*="demo_"] {
             pointer-events: auto !important;
             opacity: 1 !important;
             z-index: 10003 !important;
         }
+
+        /* Hide default Streamlit button container styling */
+        .demo-nav-buttons {
+            position: fixed !important;
+            bottom: -9999px !important;
+            left: -9999px !important;
+        }
     </style>
-    <div class="tutorial-controls">
     """, unsafe_allow_html=True)
 
-    # Demo navigation controls (ONLY buttons that work)
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
+    # Render the static demo page FIRST (frozen version of app with spotlight)
+    render_static_demo_page(st.session_state.demo_step)
+
+    # Navigation buttons - will be moved into card by JavaScript
+    st.markdown('<div class="demo-nav-buttons" id="demo-nav-source">', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("❌ Exit Tutorial", key="demo_exit", help="Exit demo and return to real app", use_container_width=True):
+        if st.button("❌ Exit", key="demo_exit", help="Exit tutorial"):
             st.session_state.demo_active = False
             st.session_state.demo_step = 0
             st.rerun()
     with col2:
-        if st.button("← Back", key="demo_back", disabled=st.session_state.demo_step == 0, use_container_width=True):
-            st.session_state.demo_step -= 1
-            st.rerun()
+        if st.session_state.demo_step > 0:
+            if st.button("← Back", key="demo_back"):
+                st.session_state.demo_step -= 1
+                st.rerun()
     with col3:
         if st.session_state.demo_step < 6:  # 7 steps total (0-6)
-            if st.button("Next →", key="demo_next", type="primary", use_container_width=True):
+            if st.button("Next →", key="demo_next", type="primary"):
                 st.session_state.demo_step += 1
                 st.rerun()
         else:
-            if st.button("✅ Finish!", key="demo_finish", type="primary", use_container_width=True):
+            if st.button("Finish!", key="demo_finish", type="primary"):
                 st.session_state.demo_active = False
                 st.session_state.demo_step = 0
-                st.success("🎉 Tutorial complete! You're ready to search for real flights.")
                 st.rerun()
-    with col4:
-        st.markdown(f"<p style='text-align: right; margin: 8px 0; color: #667eea; font-weight: 600;'>Step {st.session_state.demo_step + 1} of 7</p>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    # JavaScript to move buttons into the tutorial card
+    st.markdown(f"""
+    <script>
+        setTimeout(() => {{
+            const navSource = document.getElementById('demo-nav-source');
+            const navContainer = document.getElementById('nav-buttons-container-{st.session_state.demo_step}');
 
-    # Render the static demo page (frozen version of app with spotlight)
-    render_static_demo_page(st.session_state.demo_step)
+            if (navSource && navContainer) {{
+                // Move all button elements into the card
+                while (navSource.firstChild) {{
+                    navContainer.appendChild(navSource.firstChild);
+                }}
+            }}
+        }}, 200);
+    </script>
+    """, unsafe_allow_html=True)
 
     # Stop here - don't render the real app
     st.stop()
