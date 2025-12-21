@@ -5,14 +5,13 @@ Card positioning is dynamic based on highlighted element location.
 import streamlit as st
 
 
-def show_spotlight_step(step_num, total_steps, nav_buttons_html=""):
+def show_spotlight_step(step_num, total_steps):
     """
     Show spotlight overlay for a specific tutorial step.
 
     Args:
         step_num: Current step number (0-indexed)
         total_steps: Total number of steps
-        nav_buttons_html: HTML for navigation buttons to inject into card
     """
 
     # Define spotlight steps with element IDs and instructions
@@ -104,17 +103,12 @@ def show_spotlight_step(step_num, total_steps, nav_buttons_html=""):
             margin: 0 0 16px 0;
         }}
 
-        #tutorial-card-{step_num} .nav-container {{
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }}
     </style>
 
     <div id="tutorial-card-{step_num}">
         <h3>{current_step['title']}</h3>
         <p>{current_step['description']}</p>
-        <div class="nav-container" id="nav-buttons-container-{step_num}"></div>
+        <p style="margin: 8px 0 0 0; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.3); font-size: 13px; opacity: 0.8;">Step {step_num + 1} of {total_steps}</p>
     </div>
 
     <script>

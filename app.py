@@ -799,31 +799,61 @@ if st.sidebar.button("🎓 Start Tutorial", use_container_width=True, help="See 
 
 # Show static demo page if active (completely separate from real app)
 if st.session_state.get('demo_active', False):
-    # CSS to make buttons clickable and properly styled
+    # Render the static demo page FIRST (frozen version of app with spotlight)
+    render_static_demo_page(st.session_state.demo_step)
+
+    # FIXED BUTTON BAR AT BOTTOM - ALWAYS VISIBLE
     st.markdown("""
     <style>
-        /* Make all tutorial buttons clickable */
-        button[data-testid*="demo_"] {
-            pointer-events: auto !important;
-            opacity: 1 !important;
-            z-index: 10003 !important;
-        }
-
-        /* Hide default Streamlit button container styling */
+        /* Fixed button bar at bottom of screen */
         .demo-nav-buttons {
             position: fixed !important;
-            bottom: -9999px !important;
-            left: -9999px !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            padding: 20px !important;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3) !important;
+            z-index: 10003 !important;
+            display: flex !important;
+            justify-content: center !important;
+            gap: 12px !important;
+        }
+
+        /* Make buttons visible and styled */
+        .demo-nav-buttons button {
+            pointer-events: auto !important;
+            opacity: 1 !important;
+            background: white !important;
+            color: #667eea !important;
+            border: none !important;
+            padding: 12px 24px !important;
+            font-weight: 600 !important;
+            border-radius: 8px !important;
+            cursor: pointer !important;
+        }
+
+        .demo-nav-buttons button[data-testid*="demo_next"],
+        .demo-nav-buttons button[data-testid*="demo_finish"] {
+            background: white !important;
+            color: #667eea !important;
+        }
+
+        /* Step counter in button bar */
+        .demo-step-counter {
+            color: white !important;
+            font-weight: 600 !important;
+            font-size: 16px !important;
+            display: flex !important;
+            align-items: center !important;
+            margin-left: 20px !important;
         }
     </style>
     """, unsafe_allow_html=True)
 
-    # Render the static demo page FIRST (frozen version of app with spotlight)
-    render_static_demo_page(st.session_state.demo_step)
-
-    # Navigation buttons - will be moved into card by JavaScript
-    st.markdown('<div class="demo-nav-buttons" id="demo-nav-source">', unsafe_allow_html=True)
-    col1, col2, col3 = st.columns(3)
+    # Navigation buttons in fixed bar at bottom
+    st.markdown('<div class="demo-nav-buttons">', unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
     with col1:
         if st.button("❌ Exit", key="demo_exit", help="Exit tutorial"):
             st.session_state.demo_active = False
@@ -834,34 +864,21 @@ if st.session_state.get('demo_active', False):
             if st.button("← Back", key="demo_back"):
                 st.session_state.demo_step -= 1
                 st.rerun()
+        else:
+            st.markdown("<div></div>", unsafe_allow_html=True)
     with col3:
         if st.session_state.demo_step < 6:  # 7 steps total (0-6)
             if st.button("Next →", key="demo_next", type="primary"):
                 st.session_state.demo_step += 1
                 st.rerun()
         else:
-            if st.button("Finish!", key="demo_finish", type="primary"):
+            if st.button("✅ Finish!", key="demo_finish", type="primary"):
                 st.session_state.demo_active = False
                 st.session_state.demo_step = 0
                 st.rerun()
+    with col4:
+        st.markdown(f'<div class="demo-step-counter">Step {st.session_state.demo_step + 1} of 7</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-
-    # JavaScript to move buttons into the tutorial card
-    st.markdown(f"""
-    <script>
-        setTimeout(() => {{
-            const navSource = document.getElementById('demo-nav-source');
-            const navContainer = document.getElementById('nav-buttons-container-{st.session_state.demo_step}');
-
-            if (navSource && navContainer) {{
-                // Move all button elements into the card
-                while (navSource.firstChild) {{
-                    navContainer.appendChild(navSource.firstChild);
-                }}
-            }}
-        }}, 200);
-    </script>
-    """, unsafe_allow_html=True)
 
     # Stop here - don't render the real app
     st.stop()
