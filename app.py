@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from backend.flight_search import FlightSearchClient
 from backend.prompt_parser import parse_flight_prompt_with_llm, get_test_api_fallback
 from backend.utils.parse_duration import parse_duration_to_minutes
-from components.simple_tour import show_tour, check_auto_start, add_tour_button_to_sidebar
+from components.interactive_demo import init_demo_mode, start_demo, show_demo_overlay
 
 load_dotenv()
 
@@ -787,10 +787,43 @@ else:
     # Show success message for valid token
     st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
-# Initialize and show guided tour
-check_auto_start(skip_for_demo=True)  # Auto-start for first-time users (skip for DEMO token)
-show_tour()  # Display current tour step if active
-add_tour_button_to_sidebar()  # Add manual trigger button in sidebar
+# Initialize interactive demo/tutorial mode
+init_demo_mode()
+
+# Add "Start Tutorial" button in sidebar
+st.sidebar.markdown("---")
+if st.sidebar.button("🎓 Start Tutorial", use_container_width=True, help="See an interactive walkthrough of how to use the app"):
+    start_demo()
+    st.rerun()
+
+# Show demo overlay if active
+if st.session_state.get('demo_active', False):
+    show_demo_overlay()
+
+    # Demo navigation controls
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
+    with col1:
+        if st.button("Exit Tutorial", key="demo_exit"):
+            st.session_state.demo_active = False
+            st.session_state.all_flights = []
+            st.rerun()
+    with col2:
+        if st.button("← Back", key="demo_back", disabled=st.session_state.demo_step == 0):
+            st.session_state.demo_step -= 1
+            st.rerun()
+    with col3:
+        if st.session_state.demo_step < 6:  # 7 steps total (0-6)
+            if st.button("Next →", key="demo_next", type="primary"):
+                st.session_state.demo_step += 1
+                st.rerun()
+        else:
+            if st.button("Finish!", key="demo_finish", type="primary"):
+                st.session_state.demo_active = False
+                st.session_state.all_flights = []
+                st.success("🎉 Tutorial complete! You're ready to search for real flights.")
+                st.rerun()
+
+    st.markdown("---")
 
 # # Interactive Demo/Tutorial Mode (COMMENTED OUT - REPLACED WITH NEW TOUR ABOVE)
 # if 'demo_mode' not in st.session_state:
