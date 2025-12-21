@@ -78,6 +78,7 @@ def show_tutorial_card(step_num):
             cursor: pointer;
             background: white;
             color: #667eea;
+            pointer-events: auto !important;
         }}
 
         .btn:hover {{
@@ -112,7 +113,5 @@ def show_tutorial_card(step_num):
     </script>
     """
 
-    # Render HTML component and capture button clicks
-    result = components.html(card_html, height=400)
-
-    return result
+    # Render HTML directly (not in iframe) so positioning and clicks work properly
+    st.markdown(card_html, unsafe_allow_html=True)

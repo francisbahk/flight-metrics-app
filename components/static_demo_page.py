@@ -27,8 +27,7 @@ def render_static_demo_page(step_num):
     <div class="demo-mode">
     """, unsafe_allow_html=True)
 
-    # Show spotlight for current step
-    show_spotlight_step(step_num)
+    # Spotlight rendering removed - tutorial_card.py handles both highlighting and card
 
     st.title("Flight Ranker ✈️")
 
