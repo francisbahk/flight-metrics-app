@@ -28,7 +28,7 @@ def render_static_demo_page(step_num):
     """, unsafe_allow_html=True)
 
     # Show spotlight for current step
-    show_spotlight_step(step_num, total_steps=7)
+    show_spotlight_step(step_num)
 
     st.title("Flight Ranker ✈️")
 

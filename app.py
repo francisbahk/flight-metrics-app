@@ -802,77 +802,31 @@ if st.session_state.get('demo_active', False):
     # Render the static demo page FIRST (frozen version of app with spotlight)
     render_static_demo_page(st.session_state.demo_step)
 
-    # Navigation buttons - hidden initially, will be moved into card by JavaScript
-    st.markdown('<div id="tutorial-buttons-source" style="position: fixed; left: -9999px;">', unsafe_allow_html=True)
+    # Simple navigation buttons at bottom
+    st.markdown("---")
+    st.markdown("### Tutorial Controls")
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("Exit", key="demo_exit"):
+        if st.button("❌ Exit Tutorial", key="demo_exit", use_container_width=True):
             st.session_state.demo_active = False
             st.session_state.demo_step = 0
             st.rerun()
     with col2:
         if st.session_state.demo_step > 0:
-            if st.button("Back", key="demo_back"):
+            if st.button("← Back", key="demo_back", use_container_width=True):
                 st.session_state.demo_step -= 1
                 st.rerun()
     with col3:
         if st.session_state.demo_step < 6:
-            if st.button("Next", key="demo_next", type="primary"):
+            if st.button("Next →", key="demo_next", type="primary", use_container_width=True):
                 st.session_state.demo_step += 1
                 st.rerun()
         else:
-            if st.button("Finish", key="demo_finish", type="primary"):
+            if st.button("✅ Finish!", key="demo_finish", type="primary", use_container_width=True):
                 st.session_state.demo_active = False
                 st.session_state.demo_step = 0
                 st.rerun()
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # JavaScript to move buttons INTO the purple floating card
-    st.markdown(f"""
-    <style>
-        /* Make buttons clickable */
-        button[data-testid*="demo_"] {{
-            pointer-events: auto !important;
-            z-index: 10005 !important;
-            background: white !important;
-            color: #667eea !important;
-            border: none !important;
-            padding: 10px 20px !important;
-            border-radius: 6px !important;
-            font-weight: 600 !important;
-            cursor: pointer !important;
-        }}
-    </style>
-
-    <script>
-        setTimeout(() => {{
-            const card = document.getElementById('tutorial-card-{st.session_state.demo_step}');
-            const buttonSource = document.getElementById('tutorial-buttons-source');
-
-            if (card && buttonSource) {{
-                // Create button container
-                const btnContainer = document.createElement('div');
-                btnContainer.style.marginTop = '16px';
-                btnContainer.style.paddingTop = '16px';
-                btnContainer.style.borderTop = '1px solid rgba(255,255,255,0.3)';
-                btnContainer.style.display = 'flex';
-                btnContainer.style.gap = '8px';
-                btnContainer.style.flexWrap = 'wrap';
-
-                // Move all button columns into container
-                const cols = buttonSource.querySelectorAll('[data-testid="column"]');
-                cols.forEach(col => {{
-                    btnContainer.appendChild(col);
-                }});
-
-                // Add to card
-                card.appendChild(btnContainer);
-            }}
-        }}, 400);
-    </script>
-    """, unsafe_allow_html=True)
 
     # Stop here - don't render the real app
     st.stop()
