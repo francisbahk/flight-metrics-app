@@ -21,7 +21,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 from backend.flight_search import FlightSearchClient
 from backend.prompt_parser import parse_flight_prompt_with_llm, get_test_api_fallback
 from backend.utils.parse_duration import parse_duration_to_minutes
-from components.interactive_demo import init_demo_mode, start_demo, show_demo_overlay
+from components.interactive_demo import init_demo_mode, start_demo
+from components.static_demo_page import render_static_demo_page
 
 load_dotenv()
 
@@ -796,16 +797,29 @@ if st.sidebar.button("🎓 Start Tutorial", use_container_width=True, help="See 
     start_demo()
     st.rerun()
 
-# Show demo overlay if active
+# Show static demo page if active (completely separate from real app)
 if st.session_state.get('demo_active', False):
-    show_demo_overlay()
+    # Add CSS to make navigation buttons clickable
+    st.markdown("""
+    <style>
+        /* Make tutorial navigation buttons clickable */
+        button[data-testid*="demo_exit"],
+        button[data-testid*="demo_back"],
+        button[data-testid*="demo_next"],
+        button[data-testid*="demo_finish"] {
+            pointer-events: auto !important;
+            opacity: 1 !important;
+            z-index: 10002 !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-    # Demo navigation controls
+    # Demo navigation controls (ONLY buttons that work)
     col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
     with col1:
-        if st.button("Exit Tutorial", key="demo_exit"):
+        if st.button("Exit Tutorial", key="demo_exit", help="Exit demo and return to real app"):
             st.session_state.demo_active = False
-            st.session_state.all_flights = []
+            st.session_state.demo_step = 0
             st.rerun()
     with col2:
         if st.button("← Back", key="demo_back", disabled=st.session_state.demo_step == 0):
@@ -819,11 +833,17 @@ if st.session_state.get('demo_active', False):
         else:
             if st.button("Finish!", key="demo_finish", type="primary"):
                 st.session_state.demo_active = False
-                st.session_state.all_flights = []
+                st.session_state.demo_step = 0
                 st.success("🎉 Tutorial complete! You're ready to search for real flights.")
                 st.rerun()
 
     st.markdown("---")
+
+    # Render the static demo page (frozen version of app with spotlight)
+    render_static_demo_page(st.session_state.demo_step)
+
+    # Stop here - don't render the real app
+    st.stop()
 
 # # Interactive Demo/Tutorial Mode (COMMENTED OUT - REPLACED WITH NEW TOUR ABOVE)
 # if 'demo_mode' not in st.session_state:
