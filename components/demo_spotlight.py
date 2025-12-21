@@ -58,18 +58,6 @@ def show_spotlight_step(step_num, total_steps):
     # Inject spotlight CSS and instruction card
     st.markdown(f"""
     <style>
-        /* Dark overlay covering entire page */
-        #spotlight-overlay {{
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(0, 0, 0, 0.75);
-            z-index: 9998;
-            pointer-events: none;
-        }}
-
         /* Highlighted element gets bright */
         #{current_step['target_id']} {{
             position: relative;
@@ -79,19 +67,19 @@ def show_spotlight_step(step_num, total_steps):
             background: white !important;
         }}
 
-        /* Instruction card */
-        #tutorial-card {{
+        /* Instruction card - prominent and always visible */
+        .tutorial-card {{
             position: fixed;
-            top: 50%;
-            right: 40px;
-            transform: translateY(-50%);
-            background: white;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border-radius: 16px;
-            padding: 28px 32px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-            z-index: 10000;
-            max-width: 400px;
+            padding: 24px 28px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            z-index: 10001 !important;
+            max-width: 380px;
             animation: slideIn 0.4s ease;
+            color: white;
         }}
 
         @keyframes slideIn {{
@@ -105,39 +93,39 @@ def show_spotlight_step(step_num, total_steps):
             }}
         }}
 
-        #tutorial-card h2 {{
-            color: #1f2937;
-            font-size: 22px;
-            font-weight: 600;
+        .tutorial-card h2 {{
+            color: white;
+            font-size: 20px;
+            font-weight: 700;
             margin: 0 0 12px 0;
         }}
 
-        #tutorial-card p {{
-            color: #4b5563;
-            font-size: 16px;
-            line-height: 1.6;
-            margin: 0 0 20px 0;
+        .tutorial-card p {{
+            color: rgba(255, 255, 255, 0.95);
+            font-size: 15px;
+            line-height: 1.7;
+            margin: 0 0 16px 0;
         }}
 
-        #tutorial-card .progress {{
-            color: #9ca3af;
-            font-size: 14px;
+        .tutorial-card .progress {{
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
             margin: 0;
-            padding-top: 16px;
-            border-top: 1px solid #e5e7eb;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
             text-align: center;
         }}
 
         /* Animated cursor pointer */
-        #demo-cursor {{
+        .demo-cursor {{
             position: fixed;
-            width: 24px;
-            height: 24px;
+            width: 20px;
+            height: 20px;
             background: #3b82f6;
             border-radius: 50%;
-            z-index: 10001;
+            z-index: 10000;
             pointer-events: none;
-            animation: pulse 2s infinite, moveToCursor 0.8s ease;
+            animation: pulse 2s infinite;
             box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
         }}
 
@@ -162,29 +150,17 @@ def show_spotlight_step(step_num, total_steps):
         }}
     </style>
 
-    <div id="spotlight-overlay"></div>
-
-    <div id="tutorial-card">
+    <div class="tutorial-card">
         <h2>{current_step['title']}</h2>
         <p>{current_step['description']}</p>
         <p class="progress">Step {step_num + 1} of {total_steps}</p>
     </div>
 
-    <div id="demo-cursor"></div>
-
     <script>
-        // Position cursor near target element
+        // Scroll highlighted element into view
         setTimeout(() => {{
             const target = document.getElementById('{current_step['target_id']}');
             if (target) {{
-                const rect = target.getBoundingClientRect();
-                const cursor = document.getElementById('demo-cursor');
-                if (cursor) {{
-                    cursor.style.left = (rect.left + rect.width / 2 - 12) + 'px';
-                    cursor.style.top = (rect.top + rect.height / 2 - 12) + 'px';
-                }}
-
-                // Scroll element into view
                 target.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
             }}
         }}, 100);

@@ -799,45 +799,60 @@ if st.sidebar.button("🎓 Start Tutorial", use_container_width=True, help="See 
 
 # Show static demo page if active (completely separate from real app)
 if st.session_state.get('demo_active', False):
-    # Add CSS to make navigation buttons clickable
+    # Add prominent navigation controls at top with high z-index
     st.markdown("""
     <style>
-        /* Make tutorial navigation buttons clickable */
+        /* Make tutorial controls always visible and clickable */
+        .tutorial-controls {
+            position: sticky;
+            top: 0;
+            z-index: 10002 !important;
+            background: white;
+            padding: 16px 0;
+            border-bottom: 2px solid #667eea;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        /* Ensure buttons stay clickable */
         button[data-testid*="demo_exit"],
         button[data-testid*="demo_back"],
         button[data-testid*="demo_next"],
         button[data-testid*="demo_finish"] {
             pointer-events: auto !important;
             opacity: 1 !important;
-            z-index: 10002 !important;
+            z-index: 10003 !important;
         }
     </style>
+    <div class="tutorial-controls">
     """, unsafe_allow_html=True)
 
     # Demo navigation controls (ONLY buttons that work)
     col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
     with col1:
-        if st.button("Exit Tutorial", key="demo_exit", help="Exit demo and return to real app"):
+        if st.button("❌ Exit Tutorial", key="demo_exit", help="Exit demo and return to real app", use_container_width=True):
             st.session_state.demo_active = False
             st.session_state.demo_step = 0
             st.rerun()
     with col2:
-        if st.button("← Back", key="demo_back", disabled=st.session_state.demo_step == 0):
+        if st.button("← Back", key="demo_back", disabled=st.session_state.demo_step == 0, use_container_width=True):
             st.session_state.demo_step -= 1
             st.rerun()
     with col3:
         if st.session_state.demo_step < 6:  # 7 steps total (0-6)
-            if st.button("Next →", key="demo_next", type="primary"):
+            if st.button("Next →", key="demo_next", type="primary", use_container_width=True):
                 st.session_state.demo_step += 1
                 st.rerun()
         else:
-            if st.button("Finish!", key="demo_finish", type="primary"):
+            if st.button("✅ Finish!", key="demo_finish", type="primary", use_container_width=True):
                 st.session_state.demo_active = False
                 st.session_state.demo_step = 0
                 st.success("🎉 Tutorial complete! You're ready to search for real flights.")
                 st.rerun()
+    with col4:
+        st.markdown(f"<p style='text-align: right; margin: 8px 0; color: #667eea; font-weight: 600;'>Step {st.session_state.demo_step + 1} of 7</p>", unsafe_allow_html=True)
 
-    st.markdown("---")
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # Render the static demo page (frozen version of app with spotlight)
     render_static_demo_page(st.session_state.demo_step)
