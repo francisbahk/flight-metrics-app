@@ -113,6 +113,6 @@ def show_tutorial_card(step_num):
     """
 
     # Render HTML component and capture button clicks
-    result = components.html(card_html, height=0)
+    result = components.html(card_html, height=400)
 
     return result
