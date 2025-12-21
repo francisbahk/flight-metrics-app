@@ -16,10 +16,11 @@ def get_fake_flight_data():
         {
             'id': 'JFK_LAX1',
             'airline': 'B6',  # JetBlue
+            'flight_number': '123',
             'origin': 'JFK',
             'destination': 'LAX',
-            'departure_time': '2024-12-25T08:00:00-05:00',  # 8 AM EST
-            'arrival_time': '2024-12-25T11:30:00-08:00',    # 11:30 AM PST
+            'departure_time': '2024-12-25T08:00:00-05:00',
+            'arrival_time': '2024-12-25T11:30:00-08:00',
             'duration': '6 hr 30 min',
             'duration_min': 390,
             'stops': 0,
@@ -29,6 +30,7 @@ def get_fake_flight_data():
         {
             'id': 'JFK_LAX2',
             'airline': 'DL',  # Delta
+            'flight_number': '456',
             'origin': 'JFK',
             'destination': 'LAX',
             'departure_time': '2024-12-25T10:15:00-05:00',
@@ -42,6 +44,7 @@ def get_fake_flight_data():
         {
             'id': 'JFK_LAX3',
             'airline': 'AA',  # American
+            'flight_number': '789',
             'origin': 'JFK',
             'destination': 'LAX',
             'departure_time': '2024-12-25T12:30:00-05:00',
@@ -55,6 +58,7 @@ def get_fake_flight_data():
         {
             'id': 'JFK_LAX4',
             'airline': 'UA',  # United
+            'flight_number': '234',
             'origin': 'JFK',
             'destination': 'LAX',
             'departure_time': '2024-12-25T14:45:00-05:00',
@@ -68,6 +72,7 @@ def get_fake_flight_data():
         {
             'id': 'JFK_LAX5',
             'airline': 'B6',  # JetBlue
+            'flight_number': '567',
             'origin': 'JFK',
             'destination': 'LAX',
             'departure_time': '2024-12-25T06:00:00-05:00',
@@ -81,6 +86,7 @@ def get_fake_flight_data():
         {
             'id': 'JFK_LAX6',
             'airline': 'NK',  # Spirit (budget)
+            'flight_number': '890',
             'origin': 'JFK',
             'destination': 'LAX',
             'departure_time': '2024-12-25T05:30:00-05:00',
@@ -94,6 +100,7 @@ def get_fake_flight_data():
         {
             'id': 'JFK_LAX7',
             'airline': 'DL',  # Delta
+            'flight_number': '345',
             'origin': 'JFK',
             'destination': 'LAX',
             'departure_time': '2024-12-25T07:00:00-05:00',
@@ -107,6 +114,7 @@ def get_fake_flight_data():
         {
             'id': 'JFK_LAX8',
             'airline': 'AA',  # American
+            'flight_number': '678',
             'origin': 'JFK',
             'destination': 'LAX',
             'departure_time': '2024-12-25T11:00:00-05:00',
@@ -120,6 +128,7 @@ def get_fake_flight_data():
         {
             'id': 'JFK_LAX9',
             'airline': 'F9',  # Frontier (budget)
+            'flight_number': '901',
             'origin': 'JFK',
             'destination': 'LAX',
             'departure_time': '2024-12-25T09:15:00-05:00',
@@ -133,6 +142,7 @@ def get_fake_flight_data():
         {
             'id': 'JFK_LAX10',
             'airline': 'UA',  # United
+            'flight_number': '432',
             'origin': 'JFK',
             'destination': 'LAX',
             'departure_time': '2024-12-25T16:30:00-05:00',
