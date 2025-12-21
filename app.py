@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from backend.flight_search import FlightSearchClient
 from backend.prompt_parser import parse_flight_prompt_with_llm, get_test_api_fallback
 from backend.utils.parse_duration import parse_duration_to_minutes
+from components.simple_tour import show_tour, check_auto_start, add_tour_button_to_sidebar
 
 load_dotenv()
 
@@ -786,7 +787,12 @@ else:
     # Show success message for valid token
     st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
-# # Interactive Demo/Tutorial Mode (COMMENTED OUT)
+# Initialize and show guided tour
+check_auto_start(skip_for_demo=True)  # Auto-start for first-time users (skip for DEMO token)
+show_tour()  # Display current tour step if active
+add_tour_button_to_sidebar()  # Add manual trigger button in sidebar
+
+# # Interactive Demo/Tutorial Mode (COMMENTED OUT - REPLACED WITH NEW TOUR ABOVE)
 # if 'demo_mode' not in st.session_state:
 #     st.session_state.demo_mode = False
 # if 'demo_step' not in st.session_state:
