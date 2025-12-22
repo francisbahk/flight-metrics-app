@@ -46,63 +46,42 @@ def render_static_demo_page(step_num):
     current_step = highlight_steps[min(step_num, len(highlight_steps) - 1)]
     coords = current_step["coords"]
 
-    # Use local PDF file
-    pdf_path = Path(__file__).parent.parent / "screencapture-listen-cornell3-streamlit-app-2025-12-21-23_27_16.pdf"
+    # Use screenshot image (converted from PDF)
+    from PIL import Image, ImageDraw
 
-    # Display PDF with st.components
-    with open(pdf_path, "rb") as pdf_file:
-        pdf_bytes = pdf_file.read()
+    img_path = Path(__file__).parent.parent / "tutorial_screenshot.png"
 
-    # Embed PDF with highlighting overlay using base64
-    import base64
-    pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+    # Load and annotate the image
+    img = Image.open(img_path)
+    img_with_highlight = img.copy().convert("RGBA")
 
-    html_content = f"""
-    <style>
-        .pdf-container {{
-            position: relative;
-            width: 100%;
-            height: 100vh;
-            overflow: hidden;
-        }}
+    # Create overlay
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 180))
 
-        .pdf-frame {{
-            width: 100%;
-            height: 100%;
-            border: none;
-        }}
+    # Calculate pixel coordinates from percentages
+    x1 = int(float(coords['left'].strip('%')) / 100 * img.width)
+    y1 = int(float(coords['top'].strip('%')) / 100 * img.height)
+    w = int(float(coords['width'].strip('%')) / 100 * img.width)
+    h = int(float(coords['height'].strip('%')) / 100 * img.height)
+    x2 = x1 + w
+    y2 = y1 + h
 
-        .highlight-overlay {{
-            position: absolute;
-            border: 4px solid #667eea;
-            border-radius: 12px;
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7),
-                       0 0 30px rgba(102, 126, 234, 0.9);
-            z-index: 1000;
-            pointer-events: none;
-            left: {coords['left']};
-            top: {coords['top']};
-            width: {coords['width']};
-            height: {coords['height']};
-            animation: pulse 2s infinite;
-        }}
+    # Cut out the highlighted area from overlay
+    draw = ImageDraw.Draw(overlay)
+    draw.rectangle([(x1, y1), (x2, y2)], fill=(0, 0, 0, 0))
 
-        @keyframes pulse {{
-            0%, 100% {{
-                box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7),
-                           0 0 30px rgba(102, 126, 234, 0.9);
-            }}
-            50% {{
-                box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7),
-                           0 0 40px rgba(102, 126, 234, 1);
-            }}
-        }}
-    </style>
+    # Composite overlay onto image
+    img_with_highlight = Image.alpha_composite(img_with_highlight, overlay)
 
-    <div class="pdf-container">
-        <iframe src="data:application/pdf;base64,{pdf_base64}#page=1&view=FitH" class="pdf-frame"></iframe>
-        <div class="highlight-overlay"></div>
-    </div>
-    """
+    # Draw border around highlighted area
+    draw = ImageDraw.Draw(img_with_highlight)
+    border_color = (102, 126, 234, 255)
+    for i in range(4):
+        draw.rectangle(
+            [(x1 - i, y1 - i), (x2 + i, y2 + i)],
+            outline=border_color,
+            width=2
+        )
 
-    components.html(html_content, height=800, scrolling=False)
+    # Display the annotated image
+    st.image(img_with_highlight, use_container_width=True)
