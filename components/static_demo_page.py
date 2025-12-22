@@ -1,102 +1,100 @@
 """
-Static demo page - displays the actual PDF screenshot with tutorial highlighting.
+Static demo page - displays the actual PDF with highlighting overlays.
 """
 import streamlit as st
-import os
+import streamlit.components.v1 as components
 from pathlib import Path
-from PIL import Image, ImageDraw
 
 
 def render_static_demo_page(step_num):
     """
-    Shows the actual PDF/screenshot image and highlights specific sections for each tutorial step.
+    Shows the actual PDF screenshot and highlights specific sections for each tutorial step.
     """
 
-    # Path to tutorial images
-    static_dir = Path(__file__).parent.parent / "static" / "tutorial"
-    page_1_path = static_dir / "page_1.png"
-
-    # Define highlight coordinates for each step (based on the PDF screenshot)
-    # Coordinates are in pixels for the 834x1250 image
+    # Define highlight coordinates for each step (percentages of PDF dimensions)
     highlight_steps = [
         {
             "title": "1. Your flight prompt",
-            "page": 1,
-            "coords": (150, 650, 684, 800)  # x1, y1, x2, y2
+            "coords": {"left": "18%", "top": "52%", "width": "64%", "height": "12%"}
         },
         {
             "title": "2. Search buttons",
-            "page": 1,
-            "coords": (150, 830, 684, 880)
+            "coords": {"left": "18%", "top": "66%", "width": "64%", "height": "6%"}
         },
         {
             "title": "3. Filters sidebar",
-            "page": 1,
-            "coords": (17, 190, 130, 650)
+            "coords": {"left": "2%", "top": "15%", "width": "13%", "height": "52%"}
         },
         {
             "title": "4. All Available Flights",
-            "page": 1,
-            "coords": (150, 950, 500, 1200)
+            "coords": {"left": "18%", "top": "76%", "width": "42%", "height": "20%"}
         },
         {
             "title": "5. Select flights (checkboxes)",
-            "page": 1,
-            "coords": (150, 1000, 500, 1180)
+            "coords": {"left": "18%", "top": "80%", "width": "42%", "height": "16%"}
         },
         {
             "title": "6. Your Top 5 rankings",
-            "page": 1,
-            "coords": (517, 950, 817, 1180)
+            "coords": {"left": "62%", "top": "76%", "width": "36%", "height": "19%"}
         },
         {
             "title": "7. Submit button",
-            "page": 1,
-            "coords": (517, 1120, 817, 1160)
+            "coords": {"left": "62%", "top": "88%", "width": "36%", "height": "4%"}
         },
     ]
 
     current_step = highlight_steps[min(step_num, len(highlight_steps) - 1)]
     coords = current_step["coords"]
 
-    # Check if tutorial image exists
-    if not page_1_path.exists():
-        st.error("📸 Tutorial screenshot not found!")
-        st.info(f"""
-        **To set up the tutorial:**
+    # Embed PDF with highlighting overlay
+    pdf_url = "https://github.com/francisbahk/flight-metrics-app/raw/main/screencapture-listen-cornell3-streamlit-app-2025-12-21-23_27_16.pdf"
 
-        Run this command to download and convert the PDF:
-        ```bash
-        curl -L -o static/tutorial/screenshot.pdf "https://github.com/francisbahk/flight-metrics-app/raw/main/screencapture-listen-cornell3-streamlit-app-2025-12-21-23_27_16.pdf"
-        python3 -c "import fitz; pdf=fitz.open('static/tutorial/screenshot.pdf'); [pdf[i].get_pixmap(dpi=150).save(f'static/tutorial/page_{i+1}.png') for i in range(len(pdf))]"
-        ```
-        """)
-        st.write(f"**Current step ({step_num + 1}/7):** {current_step['title']}")
-        return
+    html_content = f"""
+    <style>
+        .pdf-container {{
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }}
 
-    # Load and annotate the image
-    img = Image.open(page_1_path)
-    img_with_highlight = img.copy()
-    draw = ImageDraw.Draw(img_with_highlight, "RGBA")
+        .pdf-frame {{
+            width: 100%;
+            height: 100%;
+            border: none;
+        }}
 
-    # Draw semi-transparent dark overlay everywhere
-    overlay = Image.new("RGBA", img.size, (0, 0, 0, 180))
-    img_with_highlight.paste(overlay, (0, 0), overlay)
+        .highlight-overlay {{
+            position: absolute;
+            border: 4px solid #667eea;
+            border-radius: 12px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7),
+                       0 0 30px rgba(102, 126, 234, 0.9);
+            z-index: 1000;
+            pointer-events: none;
+            left: {coords['left']};
+            top: {coords['top']};
+            width: {coords['width']};
+            height: {coords['height']};
+            animation: pulse 2s infinite;
+        }}
 
-    # Cut out the highlighted area (make it bright again)
-    x1, y1, x2, y2 = coords
-    highlight_region = img.crop((x1, y1, x2, y2))
-    img_with_highlight.paste(highlight_region, (x1, y1))
+        @keyframes pulse {{
+            0%, 100% {{
+                box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7),
+                           0 0 30px rgba(102, 126, 234, 0.9);
+            }}
+            50% {{
+                box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7),
+                           0 0 40px rgba(102, 126, 234, 1);
+            }}
+        }}
+    </style>
 
-    # Draw a border around the highlighted area
-    border_color = (102, 126, 234, 255)  # Purple border
-    border_width = 4
-    for i in range(border_width):
-        draw.rectangle(
-            [(x1 - i, y1 - i), (x2 + i, y2 + i)],
-            outline=border_color,
-            width=2
-        )
+    <div class="pdf-container">
+        <iframe src="{pdf_url}#page=1&view=FitH" class="pdf-frame"></iframe>
+        <div class="highlight-overlay"></div>
+    </div>
+    """
 
-    # Display the annotated image
-    st.image(img_with_highlight, use_container_width=True, caption=current_step["title"])
+    components.html(html_content, height=800, scrolling=False)
