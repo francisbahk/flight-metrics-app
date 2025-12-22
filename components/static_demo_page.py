@@ -46,8 +46,16 @@ def render_static_demo_page(step_num):
     current_step = highlight_steps[min(step_num, len(highlight_steps) - 1)]
     coords = current_step["coords"]
 
-    # Embed PDF with highlighting overlay
-    pdf_url = "https://github.com/francisbahk/flight-metrics-app/raw/main/screencapture-listen-cornell3-streamlit-app-2025-12-21-23_27_16.pdf"
+    # Use local PDF file
+    pdf_path = Path(__file__).parent.parent / "screencapture-listen-cornell3-streamlit-app-2025-12-21-23_27_16.pdf"
+
+    # Display PDF with st.components
+    with open(pdf_path, "rb") as pdf_file:
+        pdf_bytes = pdf_file.read()
+
+    # Embed PDF with highlighting overlay using base64
+    import base64
+    pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
 
     html_content = f"""
     <style>
@@ -92,7 +100,7 @@ def render_static_demo_page(step_num):
     </style>
 
     <div class="pdf-container">
-        <iframe src="{pdf_url}#page=1&view=FitH" class="pdf-frame"></iframe>
+        <iframe src="data:application/pdf;base64,{pdf_base64}#page=1&view=FitH" class="pdf-frame"></iframe>
         <div class="highlight-overlay"></div>
     </div>
     """
