@@ -1,5 +1,5 @@
 """
-Tutorial card with buttons built-in using HTML component.
+Tutorial card with buttons built-in using Streamlit native components.
 """
 import streamlit as st
 
@@ -22,7 +22,7 @@ def show_tutorial_card(step_num):
 
     step = steps[step_num]
 
-    # Inject highlighting CSS and tutorial card directly into the page
+    # Add highlighting CSS for the current step
     st.markdown(f"""
     <style>
         /* Highlight current element with gray outline */
@@ -33,110 +33,93 @@ def show_tutorial_card(step_num):
             border-radius: 8px !important;
         }}
 
-        /* Tutorial card - fixed position on right side */
-        .tutorial-card-wrapper {{
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 10001;
-            max-width: 350px;
-            animation: slideIn 0.3s ease-out;
+        /* Tutorial card styling */
+        [data-testid="stVerticalBlock"] > div:has(> .tutorial-card-content) {{
+            position: fixed !important;
+            top: 20px !important;
+            right: 20px !important;
+            z-index: 10001 !important;
+            max-width: 350px !important;
+            pointer-events: auto !important;
         }}
 
-        @keyframes slideIn {{
-            from {{ transform: translateX(100%); opacity: 0; }}
-            to {{ transform: translateX(0); opacity: 1; }}
-        }}
-
-        .tutorial-card {{
+        .tutorial-card-content {{
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border-radius: 16px;
             padding: 24px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.6);
             color: white;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }}
 
-        .tutorial-card h3 {{
+        .tutorial-card-content h3 {{
+            color: white !important;
             margin: 0 0 12px 0;
             font-size: 20px;
-            font-weight: 600;
         }}
 
-        .tutorial-card p {{
+        .tutorial-card-content p {{
+            color: white !important;
             margin: 0 0 16px 0;
             font-size: 14px;
-            line-height: 1.5;
-            opacity: 0.95;
         }}
 
-        .tutorial-step-counter {{
-            font-size: 12px;
-            opacity: 0.8;
-            margin: 0 0 20px 0;
-            padding-bottom: 16px;
-            border-bottom: 1px solid rgba(255,255,255,0.3);
+        .tutorial-card-content hr {{
+            border-color: rgba(255,255,255,0.3);
+            margin: 16px 0;
         }}
 
-        .tutorial-btn-container {{
-            display: flex;
-            gap: 8px;
-            margin-top: 20px;
+        /* Make buttons work despite demo-mode */
+        .tutorial-card-content button {{
+            pointer-events: auto !important;
         }}
 
-        .tutorial-btn {{
-            flex: 1;
-            padding: 10px 16px;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 14px;
-            cursor: pointer;
-            background: white;
-            color: #667eea;
-            transition: all 0.2s;
-            text-decoration: none;
-            text-align: center;
-            display: inline-block;
-        }}
-
-        .tutorial-btn:hover {{
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        }}
-
-        .tutorial-btn:active {{
-            transform: translateY(0);
-        }}
-
-        .tutorial-btn.disabled {{
-            opacity: 0.5;
-            cursor: not-allowed;
-            pointer-events: none;
-        }}
-    </style>
-
-    <div class="tutorial-card-wrapper">
-        <div class="tutorial-card">
-            <h3>{step['title']}</h3>
-            <p>{step['desc']}</p>
-            <p class="tutorial-step-counter">Step {step_num + 1} of {len(steps)}</p>
-
-            <div class="tutorial-btn-container">
-                <a href="?tutorial_action=exit" class="tutorial-btn">Exit</a>
-                <a href="?tutorial_action=back" class="tutorial-btn {'disabled' if step_num == 0 else ''}">Back</a>
-                <a href="?tutorial_action=next" class="tutorial-btn">{'Finish' if step_num == len(steps)-1 else 'Next'}</a>
-            </div>
-        </div>
-    </div>
-
+        /* Scroll to element script */
+        </style>
     <script>
-        // Scroll to highlighted element
         setTimeout(() => {{
             const el = document.getElementById('{step['id']}');
             if (el) {{
                 el.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
             }}
-        }}, 200);
+        }}, 300);
     </script>
     """, unsafe_allow_html=True)
+
+    # Create tutorial card using Streamlit containers
+    st.markdown('<div class="tutorial-card-content">', unsafe_allow_html=True)
+
+    st.markdown(f"### {step['title']}")
+    st.markdown(f"{step['desc']}")
+    st.markdown(f"*Step {step_num + 1} of {len(steps)}*")
+
+    st.markdown("---")
+
+    # Navigation buttons
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.button("Exit", key=f"exit_{step_num}", use_container_width=True):
+            st.session_state.demo_active = False
+            st.session_state.demo_step = 0
+            st.rerun()
+
+    with col2:
+        if step_num > 0:
+            if st.button("Back", key=f"back_{step_num}", use_container_width=True):
+                st.session_state.demo_step -= 1
+                st.rerun()
+        else:
+            st.button("Back", key=f"back_{step_num}", disabled=True, use_container_width=True)
+
+    with col3:
+        if step_num < len(steps) - 1:
+            if st.button("Next", key=f"next_{step_num}", use_container_width=True, type="primary"):
+                st.session_state.demo_step += 1
+                st.rerun()
+        else:
+            if st.button("Finish", key=f"finish_{step_num}", use_container_width=True, type="primary"):
+                st.session_state.demo_active = False
+                st.session_state.demo_step = 0
+                st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
