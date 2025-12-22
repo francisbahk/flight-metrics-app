@@ -2,7 +2,6 @@
 Tutorial card with buttons built-in using HTML component.
 """
 import streamlit as st
-import streamlit.components.v1 as components
 
 
 def show_tutorial_card(step_num):
@@ -23,122 +22,121 @@ def show_tutorial_card(step_num):
 
     step = steps[step_num]
 
-    # HTML component with card and buttons - using components.html for proper rendering
-    card_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
+    # Inject highlighting CSS and tutorial card directly into the page
+    st.markdown(f"""
     <style>
-        body {{
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
+        /* Highlight current element with gray outline */
+        #{step['id']} {{
+            position: relative !important;
+            z-index: 9999 !important;
+            box-shadow: 0 0 0 3px #888888, 0 0 0 9999px rgba(0,0,0,0.75) !important;
+            border-radius: 8px !important;
         }}
 
-        /* Tutorial card */
-        #tutorial-card {{
+        /* Tutorial card - fixed position on right side */
+        .tutorial-card-wrapper {{
             position: fixed;
-            top: 50%;
-            right: 30px;
-            transform: translateY(-50%);
+            top: 20px;
+            right: 20px;
+            z-index: 10001;
+            max-width: 350px;
+            animation: slideIn 0.3s ease-out;
+        }}
+
+        @keyframes slideIn {{
+            from {{ transform: translateX(100%); opacity: 0; }}
+            to {{ transform: translateX(0); opacity: 1; }}
+        }}
+
+        .tutorial-card {{
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border-radius: 16px;
             padding: 24px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.6);
-            z-index: 10001;
-            max-width: 350px;
             color: white;
-            font-family: sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }}
 
-        #tutorial-card h3 {{
+        .tutorial-card h3 {{
             margin: 0 0 12px 0;
-            font-size: 18px;
+            font-size: 20px;
+            font-weight: 600;
         }}
 
-        #tutorial-card p {{
+        .tutorial-card p {{
             margin: 0 0 16px 0;
             font-size: 14px;
+            line-height: 1.5;
             opacity: 0.95;
         }}
 
-        .btn-container {{
+        .tutorial-step-counter {{
+            font-size: 12px;
+            opacity: 0.8;
+            margin: 0 0 20px 0;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.3);
+        }}
+
+        .tutorial-btn-container {{
             display: flex;
             gap: 8px;
             margin-top: 20px;
-            padding-top: 16px;
-            border-top: 1px solid rgba(255,255,255,0.3);
         }}
 
-        .btn {{
+        .tutorial-btn {{
             flex: 1;
             padding: 10px 16px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             font-weight: 600;
+            font-size: 14px;
             cursor: pointer;
             background: white;
             color: #667eea;
+            transition: all 0.2s;
+            text-decoration: none;
+            text-align: center;
+            display: inline-block;
         }}
 
-        .btn:hover {{
-            opacity: 0.9;
+        .tutorial-btn:hover {{
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }}
 
-        .btn:disabled {{
+        .tutorial-btn:active {{
+            transform: translateY(0);
+        }}
+
+        .tutorial-btn.disabled {{
             opacity: 0.5;
             cursor: not-allowed;
+            pointer-events: none;
         }}
     </style>
-    </head>
-    <body>
-    <div id="tutorial-card">
-        <h3>{step['title']}</h3>
-        <p>{step['desc']}</p>
-        <p style="font-size: 13px; opacity: 0.8; margin: 0;">Step {step_num + 1} of 7</p>
 
-        <div class="btn-container">
-            <button class="btn" onclick="navigateTo('exit')">Exit</button>
-            <button class="btn" onclick="navigateTo('back')" {'disabled' if step_num == 0 else ''}>Back</button>
-            <button class="btn" onclick="navigateTo('next')">
-                {('Finish' if step_num == 6 else 'Next')}
-            </button>
+    <div class="tutorial-card-wrapper">
+        <div class="tutorial-card">
+            <h3>{step['title']}</h3>
+            <p>{step['desc']}</p>
+            <p class="tutorial-step-counter">Step {step_num + 1} of {len(steps)}</p>
+
+            <div class="tutorial-btn-container">
+                <a href="?tutorial_action=exit" class="tutorial-btn">Exit</a>
+                <a href="?tutorial_action=back" class="tutorial-btn {'disabled' if step_num == 0 else ''}">Back</a>
+                <a href="?tutorial_action=next" class="tutorial-btn">{'Finish' if step_num == len(steps)-1 else 'Next'}</a>
+            </div>
         </div>
     </div>
 
     <script>
-        function navigateTo(action) {{
-            // Navigate parent window with query parameter
-            const url = window.parent.location.pathname + '?tutorial_action=' + action;
-            window.parent.location.href = url;
-        }}
-
-        // Scroll to highlighted element in parent document
+        // Scroll to highlighted element
         setTimeout(() => {{
-            try {{
-                const el = window.parent.document.getElementById('{step['id']}');
-                if (el) el.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
-            }} catch(e) {{
-                console.log('Could not scroll to element:', e);
+            const el = document.getElementById('{step['id']}');
+            if (el) {{
+                el.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
             }}
-        }}, 100);
+        }}, 200);
     </script>
-    </body>
-    </html>
-    """
-
-    # Also add highlighting CSS to parent page
-    st.markdown(f"""
-    <style>
-        /* Highlight current element */
-        #{step['id']} {{
-            position: relative !important;
-            z-index: 9999 !important;
-            box-shadow: 0 0 0 4px #3b82f6, 0 0 0 9999px rgba(0,0,0,0.8) !important;
-            border-radius: 8px !important;
-        }}
-    </style>
     """, unsafe_allow_html=True)
-
-    # Render HTML component with proper height
-    components.html(card_html, height=600, scrolling=False)
