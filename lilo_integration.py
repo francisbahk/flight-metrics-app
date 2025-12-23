@@ -68,7 +68,16 @@ class FlightEnvironment(SimulEnvironment):
 
         self.n_var = len(self.x_names)
         self.n_obj = len(self.y_names)
-        self.cfg = cfg
+
+        # Set required config parameters
+        default_cfg = {
+            "n_var": self.n_var,
+            "n_obj": self.n_obj,
+            "outcome_func": "flight_search",
+        }
+        default_cfg.update(cfg)
+        self.cfg = DictConfig(default_cfg)
+
         self.contributions_available = False
         self.utility_func = FlightUtilityFunc()
 
