@@ -50,7 +50,7 @@ if st.session_state.lilo_phase == 'setup':
 
     with st.expander("ℹ️ How LILO Works", expanded=False):
         st.markdown("""
-        **LILO (Learned Inference via Learned Optimization)** is an AI system that:
+        **LILO (Language-in-the-loop Optimization)** is an AI system that:
 
         1. **Asks you natural language questions** about flight preferences
         2. **Learns from your answers** using LLMs and Bayesian optimization
@@ -60,20 +60,11 @@ if st.session_state.lilo_phase == 'setup':
         This is **research technology** - it's experimental but can find flights that match your preferences better than traditional filters!
         """)
 
-    st.subheader("Enter your Gemini API Key")
-    st.markdown("Get a free API key from [Google AI Studio](https://aistudio.google.com/apikey)")
-
-    api_key = st.text_input(
-        "Gemini API Key",
-        type="password",
-        help="Your API key is only used for this session and not stored"
-    )
-
-    if st.button("Initialize LILO", type="primary", disabled=not api_key):
+    if st.button("Start LILO Flight Search", type="primary"):
         with st.spinner("Initializing LILO optimizer..."):
             try:
-                # Initialize bridge
-                st.session_state.lilo_bridge = StreamlitLILOBridge(api_key=api_key)
+                # Initialize bridge (uses Gemini API key from environment)
+                st.session_state.lilo_bridge = StreamlitLILOBridge()
 
                 # Create session
                 session_id = f"user_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
