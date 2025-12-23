@@ -354,8 +354,10 @@ if 'token_message' not in st.session_state:
 
 # Get token from URL parameter (?id=TOKEN)
 # Re-validate on every page load to detect if token was used
-token_from_url = st.query_params.get('id', None)
-if token_from_url:
+# Use old API for Streamlit < 1.30
+query_params = st.experimental_get_query_params()
+if 'id' in query_params and not st.session_state.token:
+    token_from_url = query_params['id'][0]  # Old API returns list
     # Validate token (checks database to see if it's been used)
     from backend.db import validate_token
     token_status = validate_token(token_from_url)
@@ -800,7 +802,8 @@ if st.sidebar.button("🎓 Start Tutorial", use_container_width=True, help="See 
 if st.session_state.get('demo_active', False):
     # Check for tutorial navigation via query params
     try:
-        action = st.query_params.get('tutorial_action', None)
+        query_params = st.experimental_get_query_params()
+        action = query_params.get('tutorial_action', [None])[0]
         if action:
             if action == 'next':
                 if st.session_state.demo_step < 6:
@@ -814,7 +817,7 @@ if st.session_state.get('demo_active', False):
                 st.session_state.demo_active = False
                 st.session_state.demo_step = 0
             # Clear query param
-            st.query_params.clear()
+            st.experimental_set_query_params()
             st.rerun()
     except:
         pass
