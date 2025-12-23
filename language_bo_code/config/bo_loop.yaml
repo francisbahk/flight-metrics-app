@@ -7,7 +7,7 @@ environment:
   seed: ${seed}
   name: "dtlz2"
   utility_func : "piecewise_linear"
-N_iter: 8
+N_iter: 2
 bs_exp: null
 bs_exp_init: null
 bs_feedback: 2

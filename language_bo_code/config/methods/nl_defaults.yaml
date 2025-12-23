@@ -6,7 +6,7 @@ feedback_acquisition_method: "none"
 include_goals: True
 init_method: "random" # [random, llm]
 use_prior_knowledge: False
-num_llm_samples: 5
-uprox_llm_model: "llama3.3-70b-instruct"
+num_llm_samples: 2
+uprox_llm_model: "gemini-2.0-flash-exp"
 hf_llm_model: "llama3.3-70b-instruct"
 api_key: ""
