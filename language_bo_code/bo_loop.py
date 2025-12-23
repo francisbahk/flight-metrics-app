@@ -37,7 +37,7 @@ from scipy.stats import spearmanr
 from .environments import (
     CarCabEnvironment,
     DTLZ2Environment,
-    OSYEnvironment,
+    # OSYEnvironment,  # Not implemented in environments.py
     SimulEnvironment,
     ThermoEnvironment,
     VehicleSafetyEnvironment,

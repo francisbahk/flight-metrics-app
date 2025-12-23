@@ -8,7 +8,7 @@ import pandas as pd
 import torch
 from botorch.models.transforms.input import InputTransform, Normalize
 from botorch.test_functions.multi_objective import VehicleSafety
-from manifold.clients.python import ManifoldClient, StorageException
+# from manifold.clients.python import ManifoldClient, StorageException  # Not used
 from omegaconf import DictConfig
 from pymoo.problems import get_problem
 from scipy.stats import beta

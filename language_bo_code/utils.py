@@ -1,6 +1,7 @@
 import json
 import re
 from json import JSONDecodeError
+from typing import Optional
 
 import numpy as np
 
@@ -27,7 +28,7 @@ def escape_unescaped_backslashes(s: str) -> str:
     return s
 
 
-def extract_json_from_text(text: str) -> dict | None:
+def extract_json_from_text(text: str) -> Optional[dict]:
     """
     Extracts the first JSON object from a text code block labeled as 'json'.
     Returns the parsed Python dict, or None if not found or invalid.
@@ -54,7 +55,7 @@ def extract_json_from_text(text: str) -> dict | None:
     return None
 
 
-def extract_jsonl_from_text(text: str) -> list | None:
+def extract_jsonl_from_text(text: str) -> Optional[list]:
     """
     Extracts the first JSONL object from a text code block labeled as 'jsonl'.
     Returns the parsed Python list of dicts, or None if not found or invalid.
