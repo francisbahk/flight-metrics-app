@@ -768,35 +768,48 @@ components.html("""
 
 st.info("**Note:** This website is part of a pilot data-collection study. The information collected will be used to improve flight search tools.")
 
-# TOKEN VALIDATION CHECK
-# Special handling for DEMO token
-if st.session_state.token and st.session_state.token.upper() == "DEMO":
-    # Bypass validation for DEMO token
-    st.session_state.token_valid = True
-    st.info(f"🎯 **Demo Mode** - Explore the flight search tool freely!")
-elif not st.session_state.token:
-    st.error("❌ **Access Denied: No Token Provided**")
-    st.warning("This study requires a unique access token. Please use the link provided to you by the researchers, or use `?id=DEMO` for demo mode.")
-    st.stop()
-elif not st.session_state.token_valid:
-    st.error(f"❌ **Access Denied: {st.session_state.token_message}**")
-    if 'already used' in st.session_state.token_message.lower():
-        st.warning("This token has already been used. To request a new token for an additional session, please reach out to the research team.")
-    else:
-        st.warning("Please check your access link and try again, or contact the researchers if you believe this is an error.")
-    st.stop()
-else:
-    # Show success message for valid token
-    st.success(f"✅ Access granted! Token: {st.session_state.token}")
-
-# Initialize interactive demo/tutorial mode
+# Initialize interactive demo/tutorial mode FIRST
 init_demo_mode()
+
+# Check for demo URL parameter (?demo=true)
+query_params_check = st.experimental_get_query_params()
+if query_params_check.get('demo', [None])[0] == 'true':
+    st.session_state.demo_active = True
+    st.session_state.demo_step = 0
+
+# Skip token validation if in tutorial mode
+if not st.session_state.get('demo_active', False):
+    # TOKEN VALIDATION CHECK
+    # Special handling for DEMO token
+    if st.session_state.token and st.session_state.token.upper() == "DEMO":
+        # Bypass validation for DEMO token
+        st.session_state.token_valid = True
+        st.info(f"🎯 **Demo Mode** - Explore the flight search tool freely!")
+    elif not st.session_state.token:
+        st.error("❌ **Access Denied: No Token Provided**")
+        st.warning("This study requires a unique access token. Please use the link provided to you by the researchers, or use `?id=DEMO` for demo mode.")
+        st.stop()
+    elif not st.session_state.token_valid:
+        st.error(f"❌ **Access Denied: {st.session_state.token_message}**")
+        if 'already used' in st.session_state.token_message.lower():
+            st.warning("This token has already been used. To request a new token for an additional session, please reach out to the research team.")
+        else:
+            st.warning("Please check your access link and try again, or contact the researchers if you believe this is an error.")
+        st.stop()
+    else:
+        # Show success message for valid token
+        st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
 # Add "Start Tutorial" button in sidebar
 st.sidebar.markdown("---")
 if st.sidebar.button("🎓 Start Tutorial", use_container_width=True, help="See an interactive walkthrough of how to use the app"):
-    start_demo()
+    # Directly set demo_active instead of calling start_demo()
+    st.session_state.demo_active = True
+    st.session_state.demo_step = 0
     st.rerun()
+
+# Debug: Check demo state
+st.sidebar.write(f"DEBUG: demo_active = {st.session_state.get('demo_active', False)}")
 
 # Show static demo page if active (completely separate from real app)
 if st.session_state.get('demo_active', False):

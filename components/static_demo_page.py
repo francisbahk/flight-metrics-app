@@ -16,6 +16,7 @@ def render_static_demo_page(step_num):
 
     # Display the pre-rendered image
     if img_path.exists():
-        st.image(str(img_path), use_container_width=True)
+        # Use use_column_width for Streamlit < 1.30 compatibility
+        st.image(str(img_path), use_column_width=True)
     else:
         st.error(f"Tutorial image not found: {img_path}")
