@@ -93,9 +93,9 @@ def show_tutorial_card(step_num):
         st.markdown(f"### {step['title']}")
         st.markdown(f"{step['desc']}")
 
-        # Show tips if available
-        if 'tips' in step:
-            st.markdown(f"<small style='color: #e0e0e0;'>{step['tips']}</small>", unsafe_allow_html=True)
+        # Tips removed per user request
+        # if 'tips' in step:
+        #     st.markdown(f"<small style='color: #e0e0e0;'>{step['tips']}</small>", unsafe_allow_html=True)
 
         st.caption(f"Step {step_num + 1} of {len(steps)}")
 
