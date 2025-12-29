@@ -819,15 +819,27 @@ if st.session_state.get('demo_active', False):
     except:
         pass
 
-    # Render static demo page
-    render_static_demo_page(st.session_state.demo_step)
+    # OLD TUTORIAL CODE - Commented out in favor of new guided tutorial
+    # render_static_demo_page(st.session_state.demo_step)
+    # from components.tutorial_card import show_tutorial_card
+    # show_tutorial_card(st.session_state.demo_step)
+    # st.stop()
 
-    # Show tutorial card with buttons INSIDE
-    from components.tutorial_card import show_tutorial_card
-    show_tutorial_card(st.session_state.demo_step)
+    # NEW GUIDED TUTORIAL - Shows actual website with floating tooltips
+    from components.guided_tutorial import show_guided_tutorial
 
-    # Stop here - don't render the real app
-    st.stop()
+    # Pre-populate demo state with sample flight data
+    if 'demo_initialized' not in st.session_state:
+        st.session_state.demo_initialized = True
+        # Set up a populated state (as if user already searched)
+        st.session_state.search_prompt = "I want to fly from JFK to LAX on December 26th. I prefer cheap flights but if a flight is longer than 12 hours I'd prefer to pay a bit more."
+        st.session_state.search_complete = True
+        # Add more demo state initialization as needed
+
+    # Show the guided tutorial overlay
+    show_guided_tutorial(st.session_state.demo_step)
+
+    # Continue rendering the real app below (but with interactions disabled in demo mode)
 
 # # Interactive Demo/Tutorial Mode (COMMENTED OUT - REPLACED WITH NEW TOUR ABOVE)
 # if 'demo_mode' not in st.session_state:
@@ -1260,7 +1272,7 @@ I usually don't check bags except on very long trips.`
 components.html(placeholder_html, height=178)
 
 # Add negative margin to pull textarea up over the animation
-st.markdown('<div style="margin-top: -178px;">', unsafe_allow_html=True)
+st.markdown('<div style="margin-top: -178px;"><div id="demo-prompt">', unsafe_allow_html=True)
 
 # Add header for real prompt input
 st.markdown("**Your flight prompt:**")
@@ -1288,10 +1300,11 @@ prompt = st.text_area(
     key="flight_prompt_input"
 )
 
-# Close the negative margin div
-st.markdown('</div>', unsafe_allow_html=True)
+# Close the demo-prompt div and negative margin div
+st.markdown('</div></div>', unsafe_allow_html=True)
 
 # Search buttons
+st.markdown('<div id="demo-search-btn">', unsafe_allow_html=True)
 col_btn1, col_btn2 = st.columns(2)
 
 with col_btn1:
@@ -1326,6 +1339,7 @@ setTimeout(function() {
 }, 100);
 </script>
 """, unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)  # Close demo-search-btn
 
 # Rate limiting for AI search (prevent quota exhaustion)
 import time
