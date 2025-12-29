@@ -421,7 +421,7 @@ if 'review_confirmed' not in st.session_state:
 if 'lilo_completed' not in st.session_state:
     st.session_state.lilo_completed = False
 if 'lilo_round' not in st.session_state:
-    st.session_state.lilo_round = 0  # 0 = not started, 1 = round 1, 2 = round 2
+    st.session_state.lilo_round = -1  # -1 = initial questions, 0 = round 1, 1 = round 2
 if 'lilo_optimizer' not in st.session_state:
     st.session_state.lilo_optimizer = None
 if 'lilo_round1_flights' not in st.session_state:
@@ -1983,10 +1983,50 @@ if st.session_state.all_flights:
                         st.session_state.lilo_completed = True
                         st.rerun()
 
-                # LILO Round 1: Initial feedback collection
-                if st.session_state.lilo_round == 0:
-                    st.markdown("### 🎯 Round 1: Help Us Understand Your Preferences")
-                    st.markdown("*We'd like to learn more about what you're looking for to provide better recommendations*")
+                # LILO Initial Questions (before Round 1)
+                if st.session_state.lilo_round == -1:
+                    st.markdown("### 🤖 AI Preference Learning")
+                    st.markdown("*Before showing you flights, let's understand what you're looking for*")
+                    st.markdown("---")
+
+                    with st.form("lilo_initial_questions"):
+                        st.markdown("**Please answer these questions to help us understand your preferences:**")
+
+                        q1 = st.text_area(
+                            "1. What matters most to you when choosing a flight?",
+                            height=80,
+                            key="lilo_init_q1",
+                            placeholder="E.g., 'Price is my top priority', 'I need direct flights', 'Flexible times work best'..."
+                        )
+
+                        q2 = st.text_area(
+                            "2. Are there any specific preferences or constraints we should know about?",
+                            height=80,
+                            key="lilo_init_q2",
+                            placeholder="E.g., 'I prefer morning departures', 'I hate red-eye flights', 'I'm willing to have layovers to save money'..."
+                        )
+
+                        submitted = st.form_submit_button("Continue to Flight Selection →", type="primary", use_container_width=True)
+
+                        if submitted:
+                            if q1.strip() and q2.strip():
+                                # Store initial answers
+                                st.session_state.lilo_initial_answers = {
+                                    'q1': q1,
+                                    'q2': q2
+                                }
+                                st.session_state.lilo_round = 0
+                                st.rerun()
+                            else:
+                                st.error("Please answer both questions to continue")
+
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    st.stop()
+
+                # LILO Round 1: Flight selection with initial context
+                elif st.session_state.lilo_round == 0:
+                    st.markdown("### 🎯 Round 1: Select and Rank Flights")
+                    st.markdown("*Based on your preferences, here are some flight options*")
 
                     # Select candidates for round 1
                     if not st.session_state.lilo_round1_flights:
