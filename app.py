@@ -23,6 +23,7 @@ from backend.prompt_parser import parse_flight_prompt_with_llm, get_test_api_fal
 from backend.utils.parse_duration import parse_duration_to_minutes
 from components.interactive_demo import init_demo_mode, start_demo
 from components.static_demo_page import render_static_demo_page
+from lilo_integration import StreamlitLILOBridge
 
 load_dotenv()
 
@@ -4007,11 +4008,6 @@ if st.session_state.all_flights:
                     st.session_state.csv_generated = True
                     st.session_state.search_id = search_id
                     st.session_state.countdown_started = True  # Start countdown phase
-
-                    # Initialize LILO phase after rankings submission
-                    st.session_state.lilo_enabled = True
-                    st.session_state.lilo_phase = 'initial_questions'
-
                     st.success(f"✅ Rankings saved to database! Search ID: {search_id}")
                     st.balloons()
                     st.rerun()
@@ -4236,11 +4232,6 @@ if st.session_state.all_flights:
                             st.session_state.csv_data_outbound = csv_data
                             st.session_state.outbound_submitted = True
                             st.session_state.csv_generated = True
-
-                            # Initialize LILO phase after rankings submission
-                            st.session_state.lilo_enabled = True
-                            st.session_state.lilo_phase = 'initial_questions'
-
                             print(f"[DEBUG] Flags set - will show review section")
                             st.rerun()
                     elif st.session_state.outbound_submitted:
