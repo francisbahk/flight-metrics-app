@@ -787,17 +787,24 @@ else:
     # Show success message for valid token
     st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
-# Navigation buttons at top of main page
-col_nav1, col_nav2, col_nav3, col_nav4 = st.columns([0.85, 0.05, 0.05, 0.05])
-with col_nav2:
-    if st.button("🏠", help="Main App", use_container_width=True):
-        st.rerun()
-with col_nav3:
-    if st.button("🤖", help="LILO AI Search", use_container_width=True):
-        st.switch_page("pages/_lilo_flight_search.py")
-with col_nav4:
-    if st.button("⚙️", help="Admin Panel", use_container_width=True):
+# Admin button at top right
+st.markdown("""
+<style>
+.admin-button-container {
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    z-index: 999;
+}
+</style>
+""", unsafe_allow_html=True)
+
+col1, col2 = st.columns([0.95, 0.05])
+with col2:
+    st.markdown('<div class="admin-button-container">', unsafe_allow_html=True)
+    if st.button("Admin", type="secondary", use_container_width=True):
         st.switch_page("pages/_admin.py")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Initialize interactive demo/tutorial mode
 init_demo_mode()
