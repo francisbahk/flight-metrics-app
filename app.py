@@ -787,21 +787,25 @@ else:
     # Show success message for valid token
     st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
-# Admin button in top right
+# Navigation buttons in top right
 st.markdown("""
 <style>
-.admin-button-container {
+.top-nav-buttons {
     position: fixed;
     top: 10px;
     right: 10px;
     z-index: 999;
+    display: flex;
+    gap: 8px;
 }
 </style>
-<div class="admin-button-container"></div>
 """, unsafe_allow_html=True)
 
-col1, col2 = st.columns([0.95, 0.05])
+col1, col2, col3 = st.columns([0.90, 0.05, 0.05])
 with col2:
+    if st.button("🤖", help="LILO AI Search"):
+        st.switch_page("pages/_lilo_flight_search.py")
+with col3:
     if st.button("⚙️", help="Admin Panel"):
         st.switch_page("pages/_admin.py")
 

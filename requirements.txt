@@ -27,6 +27,7 @@ scipy
 scikit-learn
 groq
 pyyaml
+hydra-core>=1.3.0
 
 # Alternative: FastAPI backend (in api/ directory)
 fastapi>=0.104.0
