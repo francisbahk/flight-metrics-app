@@ -801,9 +801,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 if st.button("Admin", type="secondary", key="admin_top_btn"):
-    st.switch_page("pages/_admin.py")
+    # Inline admin page instead of separate page
+    st.session_state.show_admin = True
+    st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
+
+# Show inline admin if requested
+if st.session_state.get('show_admin', False):
+    st.markdown("### Admin Panel")
+    st.markdown("Admin functionality here...")
+    if st.button("← Back to Main"):
+        st.session_state.show_admin = False
+        st.rerun()
+    st.stop()
 
 # Initialize interactive demo/tutorial mode
 init_demo_mode()
