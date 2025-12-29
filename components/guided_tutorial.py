@@ -1,14 +1,11 @@
 """
-State-driven tutorial: pure CSS highlighting, no scrolling, stable rerenders.
+State-driven tutorial with visible overlay and highlighting.
 """
 import streamlit as st
 
 
 def show_guided_tutorial(step_num):
-    """
-    Map step index to highlighted element. State-driven only.
-    No scrolling, no timers - just CSS and rerenders.
-    """
+    """Show tutorial with overlay and highlighted element."""
 
     steps = [
         {'id': 'demo-prompt', 'title': '1. Describe Your Flight', 'desc': 'Enter your travel details in natural language. Be specific about what matters to you!'},
@@ -25,22 +22,20 @@ def show_guided_tutorial(step_num):
 
     step = steps[step_num]
 
-    # Pure CSS: overlay everything, highlight current element
+    # Inject overlay as actual HTML div + CSS for highlighting
     st.markdown(f"""
-    <style>
-        /* Overlay entire main area */
-        [data-testid="stMain"]::before {{
-            content: "";
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.75);
-            z-index: 998;
-            pointer-events: none;
-        }}
+    <div id="tutorial-overlay" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 998;
+        pointer-events: none;
+    "></div>
 
+    <style>
         /* Highlighted element above overlay */
         #{step['id']} {{
             position: relative !important;
@@ -51,7 +46,7 @@ def show_guided_tutorial(step_num):
     </style>
     """, unsafe_allow_html=True)
 
-    # Tutorial card in sidebar - stable layout
+    # Tutorial card in sidebar
     with st.sidebar:
         st.markdown("""
         <div style="
@@ -59,7 +54,6 @@ def show_guided_tutorial(step_num):
             padding: 24px;
             border-radius: 12px;
             margin: 20px 0;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         ">
         """, unsafe_allow_html=True)
 
@@ -68,7 +62,6 @@ def show_guided_tutorial(step_num):
         st.caption(f"Step {step_num + 1} of {len(steps)}")
         st.markdown("---")
 
-        # Buttons: mutate state, trigger rerun
         col1, col2, col3 = st.columns(3)
 
         with col1:
@@ -82,8 +75,6 @@ def show_guided_tutorial(step_num):
                 if st.button("Back", key=f"back_{step_num}"):
                     st.session_state.demo_step -= 1
                     st.rerun()
-            else:
-                st.button("Back", key=f"back_{step_num}_disabled", disabled=True)
 
         with col3:
             if step_num < len(steps) - 1:
