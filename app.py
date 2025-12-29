@@ -1291,8 +1291,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Real textarea that user types in - wrapped in demo-prompt div
-st.markdown('<div id="demo-prompt">', unsafe_allow_html=True)
+# Real textarea that user types in
 prompt = st.text_area(
     "flight prompt input",
     height=150,
@@ -1300,7 +1299,19 @@ prompt = st.text_area(
     label_visibility="collapsed",
     key="flight_prompt_input"
 )
-st.markdown('</div>', unsafe_allow_html=True)
+
+# Add ID dynamically to textarea container for tutorial
+st.markdown("""
+<script>
+setTimeout(() => {
+    const textarea = document.querySelector('textarea[aria-label="flight prompt input"]');
+    if (textarea) {
+        let container = textarea.closest('[data-testid="stTextArea"]');
+        if (container) container.id = 'demo-prompt';
+    }
+}, 200);
+</script>
+""", unsafe_allow_html=True)
 
 # Close the negative margin div
 st.markdown('</div>', unsafe_allow_html=True)
