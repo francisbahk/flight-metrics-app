@@ -1,6 +1,13 @@
 import os
 import pandas as pd
-os.environ['GEMINI_API_KEY'] = 'AIzaSyA8gHulJVvnzEJgJGmME1X0iBuNspDbLOs'
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Use environment variable instead of hardcoded key
+if not os.getenv('GEMINI_API_KEY'):
+    raise ValueError("GEMINI_API_KEY environment variable not set. Please add it to your .env file.")
 
 from lilo_integration import StreamlitLILOBridge
 
