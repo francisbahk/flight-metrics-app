@@ -23,7 +23,6 @@ from backend.prompt_parser import parse_flight_prompt_with_llm, get_test_api_fal
 from backend.utils.parse_duration import parse_duration_to_minutes
 from components.interactive_demo import init_demo_mode, start_demo
 from components.static_demo_page import render_static_demo_page
-from lilo_integration import StreamlitLILOBridge
 
 load_dotenv()
 
