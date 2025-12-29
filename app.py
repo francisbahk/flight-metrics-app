@@ -787,24 +787,23 @@ else:
     # Show success message for valid token
     st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
-# Admin button at top right
+# Admin button at top right - plain text
 st.markdown("""
 <style>
-.admin-button-container {
-    position: fixed;
-    top: 60px;
-    right: 20px;
-    z-index: 999;
+.admin-btn-fixed {
+    position: fixed !important;
+    top: 10px !important;
+    right: 20px !important;
+    z-index: 9999 !important;
 }
 </style>
+<div class="admin-btn-fixed">
 """, unsafe_allow_html=True)
 
-col1, col2 = st.columns([0.95, 0.05])
-with col2:
-    st.markdown('<div class="admin-button-container">', unsafe_allow_html=True)
-    if st.button("Admin", type="secondary", use_container_width=True):
-        st.switch_page("pages/_admin.py")
-    st.markdown('</div>', unsafe_allow_html=True)
+if st.button("Admin", type="secondary", key="admin_top_btn"):
+    st.switch_page("pages/_admin.py")
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 # Initialize interactive demo/tutorial mode
 init_demo_mode()
@@ -4008,6 +4007,11 @@ if st.session_state.all_flights:
                     st.session_state.csv_generated = True
                     st.session_state.search_id = search_id
                     st.session_state.countdown_started = True  # Start countdown phase
+
+                    # Initialize LILO phase after rankings submission
+                    st.session_state.lilo_enabled = True
+                    st.session_state.lilo_phase = 'initial_questions'
+
                     st.success(f"✅ Rankings saved to database! Search ID: {search_id}")
                     st.balloons()
                     st.rerun()
@@ -4232,6 +4236,11 @@ if st.session_state.all_flights:
                             st.session_state.csv_data_outbound = csv_data
                             st.session_state.outbound_submitted = True
                             st.session_state.csv_generated = True
+
+                            # Initialize LILO phase after rankings submission
+                            st.session_state.lilo_enabled = True
+                            st.session_state.lilo_phase = 'initial_questions'
+
                             print(f"[DEBUG] Flags set - will show review section")
                             st.rerun()
                     elif st.session_state.outbound_submitted:
