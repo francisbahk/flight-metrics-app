@@ -787,6 +787,24 @@ else:
     # Show success message for valid token
     st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
+# Admin button in top right
+st.markdown("""
+<style>
+.admin-button-container {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 999;
+}
+</style>
+<div class="admin-button-container"></div>
+""", unsafe_allow_html=True)
+
+col1, col2 = st.columns([0.95, 0.05])
+with col2:
+    if st.button("⚙️", help="Admin Panel"):
+        st.switch_page("pages/_admin.py")
+
 # Initialize interactive demo/tutorial mode
 init_demo_mode()
 
@@ -825,21 +843,22 @@ if st.session_state.get('demo_active', False):
     # show_tutorial_card(st.session_state.demo_step)
     # st.stop()
 
-    # NEW GUIDED TUTORIAL - Shows actual website with floating tooltips
-    from components.guided_tutorial import show_guided_tutorial
-
-    # Pre-populate demo state with sample flight data
-    if 'demo_initialized' not in st.session_state:
-        st.session_state.demo_initialized = True
-        # Set up a populated state (as if user already searched)
-        st.session_state.search_prompt = "I want to fly from JFK to LAX on December 26th. I prefer cheap flights but if a flight is longer than 12 hours I'd prefer to pay a bit more."
-        st.session_state.search_complete = True
-        # Add more demo state initialization as needed
-
-    # Show the guided tutorial overlay
-    show_guided_tutorial(st.session_state.demo_step)
-
-    # Continue rendering the real app below (but with interactions disabled in demo mode)
+    # NEW GUIDED TUTORIAL - COMMENTED OUT PER USER REQUEST
+    # from components.guided_tutorial import show_guided_tutorial
+    #
+    # # Pre-populate demo state with sample flight data
+    # if 'demo_initialized' not in st.session_state:
+    #     st.session_state.demo_initialized = True
+    #     # Set up a populated state (as if user already searched)
+    #     st.session_state.search_prompt = "I want to fly from JFK to LAX on December 26th. I prefer cheap flights but if a flight is longer than 12 hours I'd prefer to pay a bit more."
+    #     st.session_state.search_complete = True
+    #     # Add more demo state initialization as needed
+    #
+    # # Show the guided tutorial overlay
+    # show_guided_tutorial(st.session_state.demo_step)
+    #
+    # # Continue rendering the real app below (but with interactions disabled in demo mode)
+    pass
 
 # # Interactive Demo/Tutorial Mode (COMMENTED OUT - REPLACED WITH NEW TOUR ABOVE)
 # if 'demo_mode' not in st.session_state:
