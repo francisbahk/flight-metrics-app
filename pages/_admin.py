@@ -37,7 +37,6 @@ def check_password():
         st.text_input("Username", key="username")
         st.text_input("Password", type="password", key="password")
         st.button("Login", on_click=password_entered)
-        st.info("💡 Default credentials are in your `.env` file (ADMIN_USERNAME and ADMIN_PASSWORD)")
         return False
     elif not st.session_state["password_correct"]:
         # Password incorrect, show input + error

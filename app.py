@@ -787,36 +787,20 @@ else:
     # Show success message for valid token
     st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
-# Navigation buttons in top right
-st.markdown("""
-<style>
-.top-nav-buttons {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    z-index: 999;
-    display: flex;
-    gap: 8px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-col1, col2, col3 = st.columns([0.90, 0.05, 0.05])
-with col2:
-    if st.button("🤖", help="LILO AI Search"):
+# Navigation buttons at top of main page
+col_nav1, col_nav2, col_nav3, col_nav4 = st.columns([0.85, 0.05, 0.05, 0.05])
+with col_nav2:
+    if st.button("🏠", help="Main App", use_container_width=True):
+        st.rerun()
+with col_nav3:
+    if st.button("🤖", help="LILO AI Search", use_container_width=True):
         st.switch_page("pages/_lilo_flight_search.py")
-with col3:
-    if st.button("⚙️", help="Admin Panel"):
+with col_nav4:
+    if st.button("⚙️", help="Admin Panel", use_container_width=True):
         st.switch_page("pages/_admin.py")
 
 # Initialize interactive demo/tutorial mode
 init_demo_mode()
-
-# Add "Start Tutorial" button in sidebar
-st.sidebar.markdown("---")
-if st.sidebar.button("🎓 Start Tutorial", use_container_width=True, help="See an interactive walkthrough of how to use the app"):
-    start_demo()
-    st.rerun()
 
 # Show static demo page if active (completely separate from real app)
 if st.session_state.get('demo_active', False):
