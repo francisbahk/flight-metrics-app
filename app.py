@@ -1272,7 +1272,7 @@ I usually don't check bags except on very long trips.`
 components.html(placeholder_html, height=178)
 
 # Add negative margin to pull textarea up over the animation
-st.markdown('<div style="margin-top: -178px;"><div id="demo-prompt">', unsafe_allow_html=True)
+st.markdown('<div style="margin-top: -178px;">', unsafe_allow_html=True)
 
 # Add header for real prompt input
 st.markdown("**Your flight prompt:**")
@@ -1291,7 +1291,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Real textarea that user types in
+# Real textarea that user types in - wrapped in demo-prompt div
+st.markdown('<div id="demo-prompt">', unsafe_allow_html=True)
 prompt = st.text_area(
     "flight prompt input",
     height=150,
@@ -1299,9 +1300,10 @@ prompt = st.text_area(
     label_visibility="collapsed",
     key="flight_prompt_input"
 )
+st.markdown('</div>', unsafe_allow_html=True)
 
-# Close the demo-prompt div and negative margin div
-st.markdown('</div></div>', unsafe_allow_html=True)
+# Close the negative margin div
+st.markdown('</div>', unsafe_allow_html=True)
 
 # Search buttons
 st.markdown('<div id="demo-search-btn">', unsafe_allow_html=True)
