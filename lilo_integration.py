@@ -311,8 +311,9 @@ class StreamlitLILOBridge:
             )
 
             # If LLM returns empty or fails, use fallback
-            if not questions or len(questions) == 0:
-                print("Warning: LLM returned no questions, using fallback")
+            # Check if questions list is empty OR contains only empty/whitespace strings
+            if not questions or len(questions) == 0 or all(not q or not q.strip() for q in questions):
+                print("Warning: LLM returned no/empty questions, using fallback")
                 questions = fallback_questions
 
         except Exception as e:
