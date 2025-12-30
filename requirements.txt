@@ -29,6 +29,12 @@ groq
 pyyaml
 hydra-core>=1.3.0
 
+# LILO dependencies
+torch>=2.0.0
+botorch>=0.9.0
+gpytorch>=1.11
+omegaconf>=2.3.0
+
 # Alternative: FastAPI backend (in api/ directory)
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
