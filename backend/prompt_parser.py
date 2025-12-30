@@ -74,22 +74,33 @@ CRITICAL INSTRUCTIONS:
 **MOST IMPORTANT - AIRPORT CODE EXTRACTION:**
 You MUST use your knowledge of world airports to convert city/region names into proper IATA airport codes (3-letter codes).
 
-EXAMPLES of correct city → airport code conversion:
+**CRITICAL RULE - Explicit Airport Codes vs City Names:**
+- If user specifies a specific 3-letter IATA airport code (e.g., "JFK", "LAX", "ORD"), return ONLY that code
+- If user specifies a city/region name (e.g., "New York", "NYC", "Los Angeles"), return ALL major airports for that area
+- Examples:
+  - User says "JFK" → ["JFK"] (NOT ["JFK", "LGA", "EWR"])
+  - User says "NYC" or "New York" → ["JFK", "LGA", "EWR"]
+  - User says "LAX" → ["LAX"] (NOT all LA airports)
+  - User says "Los Angeles" or "LA" → ["LAX", "BUR", "SNA"]
+  - User says "ORD" → ["ORD"] (NOT ["ORD", "MDW"])
+  - User says "Chicago" → ["ORD", "MDW"]
+
+**CITY → AIRPORT CODE CONVERSION (only when user provides city name, not specific code):**
 - "Houston" or "Houston Texas" or "Houston TX" → ["IAH", "HOU"]
 - "New York" or "New York City" or "NYC" → ["JFK", "LGA", "EWR"]
-- "Los Angeles" or "LA" → ["LAX"]
-- "San Francisco" or "SF" → ["SFO"]
+- "Los Angeles" or "LA" → ["LAX", "BUR", "SNA"]
+- "San Francisco" or "SF" or "Bay Area" → ["SFO", "OAK", "SJC"]
 - "Chicago" → ["ORD", "MDW"]
-- "Washington DC" or "DC" or "Washington" → ["DCA", "IAD"]
+- "Washington DC" or "DC" or "Washington" → ["DCA", "IAD", "BWI"]
 - "Boston" → ["BOS"]
 - "Seattle" → ["SEA"]
-- "Miami" → ["MIA"]
+- "Miami" → ["MIA", "FLL"]
 - "Dallas" → ["DFW", "DAL"]
 - "Atlanta" → ["ATL"]
 - "Denver" → ["DEN"]
 - "Phoenix" → ["PHX"]
-- "London" → ["LHR", "LGW"]
-- "Paris" → ["CDG"]
+- "London" → ["LHR", "LGW", "STN"]
+- "Paris" → ["CDG", "ORY"]
 - "Ithaca" or "Ithaca NY" → ["ITH", "SYR"]
 
 **DO NOT extract random words from the sentence as airport codes!**
