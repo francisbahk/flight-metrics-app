@@ -1,6 +1,6 @@
 """
 LILO Integration for Streamlit Flight App
-Replaces simulated human feedback with real user input
+Uses language_bo_code BOAgenticOptimizer for proper LILO implementation
 """
 import asyncio
 import json
@@ -11,65 +11,54 @@ import numpy as np
 from dataclasses import dataclass
 from datetime import datetime
 
-# LILO imports
+# LILO imports from language_bo_code
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'language_bo_code'))
 
 from language_bo_code.bo_loop import BOAgenticOptimizer
 from language_bo_code.environments import SimulEnvironment
 from language_bo_code.llm_utils import LLMClient
+from language_bo_code.utility_approximator import get_questions
 from omegaconf import DictConfig, OmegaConf
 import torch
-from botorch.models.transforms.input import InputTransform, Normalize
-
-
-@dataclass
-class LILOSession:
-    """Tracks a LILO optimization session for a user"""
-    session_id: str
-    optimizer: BOAgenticOptimizer
-    current_trial: int
-    pending_questions: List[str]
-    flight_data: pd.DataFrame
-    created_at: datetime
-
-
-class FlightUtilityFunc:
-    """Simple utility function for flight preferences"""
-    def get_goal_message(self) -> str:
-        return ("My goal is to find flights that balance price, duration, and convenience. "
-                "I want to minimize cost and travel time while maximizing convenience.")
+from botorch.models.transforms.input import Normalize
 
 
 class FlightEnvironment(SimulEnvironment):
     """
-    Custom environment for flight optimization using LILO.
-    Maps flight parameters (x) to flight outcomes (y).
+    Environment for flight optimization using LILO.
+
+    For flights, x and y are the same - we directly observe flight properties.
+    x (parameters) = [price, duration, stops, departure_hour, arrival_hour]
+    y (outcomes) = same as x (we observe these directly)
+
+    LILO learns user preferences over these combinations via language feedback.
     """
 
-    def __init__(self, cfg: DictConfig):
-        # Flight-specific parameter names
+    def __init__(self, cfg: DictConfig, all_flights: List[Dict]):
+        """
+        Args:
+            cfg: LILO config
+            all_flights: List of all available flight dictionaries
+        """
+        self.all_flights = all_flights
+
+        # Define parameter/outcome names
         self.x_names = [
-            "price_weight",
-            "duration_weight",
-            "departure_time_weight",
-            "stops_weight",
-            "airline_weight"
+            "price",
+            "duration_min",
+            "stops",
+            "departure_hour",
+            "arrival_hour"
         ]
 
-        # Flight outcome metrics
-        self.y_names = [
-            "total_price",
-            "total_duration",
-            "departure_score",
-            "num_stops",
-            "airline_score"
-        ]
+        # For flights, y = x (we observe flight properties directly)
+        self.y_names = self.x_names.copy()
 
         self.n_var = len(self.x_names)
         self.n_obj = len(self.y_names)
 
-        # Set required config parameters
+        # Set config with environment-specific parameters
         default_cfg = {
             "n_var": self.n_var,
             "n_obj": self.n_obj,
@@ -79,111 +68,183 @@ class FlightEnvironment(SimulEnvironment):
         self.cfg = DictConfig(default_cfg)
 
         self.contributions_available = False
-        self.utility_func = FlightUtilityFunc()
+        self.utility_func = None  # User utility is learned via LILO
+
+        # Normalize flight data
+        self._normalize_flights()
+
+    def _normalize_flights(self):
+        """Extract and normalize flight parameters."""
+        self.flight_params = []
+
+        for flight in self.all_flights:
+            # Extract parameters
+            params = {
+                "price": flight.get("price", 0),
+                "duration_min": flight.get("duration_min", 0),
+                "stops": flight.get("stops", 0),
+                "departure_hour": self._extract_hour(flight.get("departure_time", "00:00")),
+                "arrival_hour": self._extract_hour(flight.get("arrival_time", "00:00"))
+            }
+            self.flight_params.append(params)
+
+        # Get min/max for normalization
+        df = pd.DataFrame(self.flight_params)
+        self.param_mins = df.min().to_dict()
+        self.param_maxs = df.max().to_dict()
+
+    def _extract_hour(self, time_str: str) -> float:
+        """Extract hour from time string like '14:30:00' or '2:30 PM'."""
+        try:
+            if 'T' in time_str:  # ISO format
+                time_str = time_str.split('T')[1].split('.')[0]
+
+            parts = time_str.split(':')
+            hour = int(parts[0])
+            minute = int(parts[1]) if len(parts) > 1 else 0
+            return hour + minute / 60.0
+        except:
+            return 0.0
 
     def get_outcomes(self, x: np.ndarray) -> np.ndarray:
         """
-        Given preference weights (x), return flight outcomes (y).
-        In practice, this would rank flights and return metrics of top flights.
+        For flights, y = x (we observe flight properties directly).
+
+        Args:
+            x: Array of shape (n, d) with normalized flight parameters
+
+        Returns:
+            y: Same as x (observed flight outcomes)
         """
-        # Placeholder: In real implementation, this would:
-        # 1. Use weights to rank available flights
-        # 2. Return metrics of the top-ranked flights
-        # For now, return dummy data
-        n = x.shape[0]
-        y = np.random.randn(n, self.n_obj)
-        return y
+        return x.copy()
 
     def get_random_x(self, seed: int, N: int = 1) -> np.ndarray:
-        """Generate random weight configurations"""
+        """
+        Sample N random flights from available flights.
+
+        Returns normalized parameters.
+        """
         np.random.seed(seed)
-        # Random weights that sum to 1
-        x = np.random.dirichlet(np.ones(self.n_var), size=N)
+        indices = np.random.choice(len(self.all_flights), size=N, replace=False)
+
+        x = np.zeros((N, self.n_var))
+        for i, idx in enumerate(indices):
+            params = self.flight_params[idx]
+            # Normalize to [0, 1]
+            for j, name in enumerate(self.x_names):
+                min_val = self.param_mins[name]
+                max_val = self.param_maxs[name]
+                if max_val > min_val:
+                    x[i, j] = (params[name] - min_val) / (max_val - min_val)
+                else:
+                    x[i, j] = 0.0
+
         return x
 
     def get_problem_bounds(self) -> List[List[float]]:
-        """Bounds for optimization (weights between 0 and 1)"""
+        """Bounds for optimization (all parameters in [0, 1] after normalization)."""
         return [[0.0] * self.n_var, [1.0] * self.n_var]
 
-    def get_input_transform(self) -> InputTransform:
-        """Returns botorch input transform for normalization"""
+    def get_input_transform(self) -> Normalize:
+        """Returns botorch input transform for normalization."""
         bounds = torch.stack([torch.zeros(self.n_var), torch.ones(self.n_var)])
         return Normalize(d=self.n_var, bounds=bounds)
 
-    def get_utility_from_y(self, y: np.ndarray) -> np.ndarray:
+    def denormalize_params(self, x_normalized: np.ndarray) -> Dict:
         """
-        Compute utility from outcomes.
-        For flights, lower price/duration/stops is better.
-        This is the TRUE utility function we're trying to learn.
-        """
-        # Normalize and invert (lower is better for these metrics)
-        utility = -(y[:, 0] + y[:, 1] + y[:, 3]) / 3.0
-        return utility.reshape(-1, 1)
+        Convert normalized parameters back to original scale.
 
-    def get_utility_gradient(self, y: np.ndarray) -> np.ndarray:
-        """Gradient of utility w.r.t outcomes"""
-        n = y.shape[0]
-        grad = np.zeros((n, self.n_obj))
-        grad[:, [0, 1, 3]] = -1/3.0
-        return grad
+        Args:
+            x_normalized: Single row of normalized parameters
+
+        Returns:
+            Dictionary with denormalized flight parameters
+        """
+        params = {}
+        for i, name in enumerate(self.x_names):
+            min_val = self.param_mins[name]
+            max_val = self.param_maxs[name]
+            params[name] = x_normalized[i] * (max_val - min_val) + min_val
+        return params
+
+    def find_matching_flight(self, x_normalized: np.ndarray) -> Optional[Dict]:
+        """
+        Find the actual flight that best matches these parameters.
+
+        Args:
+            x_normalized: Single row of normalized parameters
+
+        Returns:
+            Flight dictionary from all_flights
+        """
+        target = self.denormalize_params(x_normalized)
+
+        # Find closest matching flight
+        best_idx = 0
+        best_dist = float('inf')
+
+        for idx, params in enumerate(self.flight_params):
+            # Compute distance
+            dist = sum([
+                ((params[name] - target[name]) / (self.param_maxs[name] - self.param_mins[name] + 1e-6)) ** 2
+                for name in self.x_names
+            ])
+            if dist < best_dist:
+                best_dist = dist
+                best_idx = idx
+
+        return self.all_flights[best_idx]
 
 
 class StreamlitLILOBridge:
     """
     Bridge between LILO optimizer and Streamlit UI.
-    Manages optimization sessions and handles real user feedback.
+    Uses real BOAgenticOptimizer from language_bo_code.
     """
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
-        self.sessions: Dict[str, LILOSession] = {}
+        self.sessions: Dict[str, 'LILOSession'] = {}
 
     def create_session(
         self,
         session_id: str,
-        flights_df: pd.DataFrame,
+        flights_data: List[Dict],
         config_overrides: Optional[Dict] = None
-    ) -> LILOSession:
+    ) -> 'LILOSession':
         """
-        Create a new LILO optimization session for a user.
+        Create a new LILO optimization session.
 
         Args:
-            session_id: Unique identifier for this session
-            flights_df: Available flights to optimize over
+            session_id: Unique identifier
+            flights_data: List of flight dictionaries
             config_overrides: Optional config overrides
         """
-        # Load default LILO config
-        config_path = os.path.join(
-            os.path.dirname(__file__),
-            'language_bo_code/config/bo_loop.yaml'
-        )
-
-        # Create config
+        # Create LILO config
         cfg = OmegaConf.create({
             "seed": 0,
             "environment": {
                 "seed": 0,
                 "name": "flight_search",
-                "utility_func": "user_preference"
             },
-            "N_iter": 2,  # 2 rounds as requested
-            "bs_exp": 3,  # Show 3 flight options per round
+            "N_iter": 2,  # 2 LILO iterations
+            "bs_exp": 5,  # Show 5 flight options per round
             "bs_exp_init": 5,  # Show 5 options in first round
-            "bs_feedback": 2,  # 2 questions per round as requested
+            "bs_feedback": 2,  # Ask 2 questions per round
             "save_outputs": False,
-            "debug_mode": True,
-            "feedback_type": "nl_qa",
-            "uprox_prompt_type": "pairwise_direct",
-            "acquisition_method": "log_nei",
+            "debug_mode": False,
+            "feedback_type": "nl_qa",  # Natural language Q&A
+            "uprox_prompt_type": "pairwise",  # Pairwise comparisons
+            "acquisition_method": "log_nei",  # Log NEI acquisition
             "summarize_feedback": True,
             "include_goals": True,
             "init_method": "random",
             "use_prior_knowledge": False,
-            "num_llm_samples": 2,  # Reduced for speed (was 3)
-            "uprox_llm_model": "gemini-2.0-flash-exp",
-            "hf_llm_model": "gemini-2.0-flash-exp",
+            "num_llm_samples": 2,
+            "uprox_llm_model": "gemini/gemini-2.0-flash-exp",
+            "hf_llm_model": "gemini/gemini-2.0-flash-exp",
             "api_key": self.api_key,
-            "feedback_acquisition_method": "none",
+            "feedback_acquisition_method": "none",  # No active learning for feedback
             "pairwise_pref_model_input_type": "y"
         })
 
@@ -191,8 +252,8 @@ class StreamlitLILOBridge:
         if config_overrides:
             cfg = OmegaConf.merge(cfg, OmegaConf.create(config_overrides))
 
-        # Create environment
-        env = FlightEnvironment(cfg.environment)
+        # Create environment with actual flight data
+        env = FlightEnvironment(cfg.environment, flights_data)
 
         # Create optimizer
         optimizer = BOAgenticOptimizer(env, cfg)
@@ -201,10 +262,9 @@ class StreamlitLILOBridge:
         session = LILOSession(
             session_id=session_id,
             optimizer=optimizer,
-            current_trial=0,
-            pending_questions=[],
-            flight_data=flights_df,
-            created_at=datetime.now()
+            env=env,
+            current_iteration=0,
+            flights_data=flights_data
         )
 
         self.sessions[session_id] = session
@@ -212,8 +272,10 @@ class StreamlitLILOBridge:
 
     def get_initial_questions(self, session_id: str) -> List[str]:
         """
-        Get initial preference questions for the user.
-        This replaces get_human_answers with Streamlit UI collection.
+        Get initial goal-understanding questions before showing any flights.
+
+        This uses LILO's question generation with empty experimental data
+        to ask high-level preference questions.
         """
         session = self.sessions.get(session_id)
         if not session:
@@ -221,127 +283,94 @@ class StreamlitLILOBridge:
 
         optimizer = session.optimizer
 
-        # Get initial questions (trial_index=-1 means initial goals)
-        from language_bo_code.utility_approximator import get_questions
-
+        # Generate initial goal questions (trial_index=-1 means initialization)
         questions = get_questions(
-            exp_df=pd.DataFrame(),  # Empty for initial questions
-            context_df=pd.DataFrame(),
+            exp_df=pd.DataFrame(),  # Empty - no experiments yet
+            context_df=pd.DataFrame(),  # Empty - no feedback yet
             env=optimizer.env,
             selected_arm_index_ls=[],
             n_questions=optimizer.cfg.bs_feedback,
             llm_client=optimizer.uprox_client,
             include_goals=optimizer.cfg.include_goals,
             pre_select_data=False,
-            prompt_type="pairwise" if optimizer.cfg.uprox_prompt_type != "scalar" else "scalar"
+            prompt_type="pairwise"
         )
 
-        session.pending_questions = questions
         return questions
 
-    def submit_user_answers(
+    def run_iteration(
         self,
         session_id: str,
-        answers: List[str]
-    ) -> Dict:
+        user_feedback: Dict[str, str]
+    ) -> Tuple[List[Dict], List[str]]:
         """
-        Submit real user answers (from Streamlit UI) and update optimizer.
+        Run one LILO iteration:
+        1. Record user feedback from previous round
+        2. Generate new candidate flights
+        3. Evaluate them
+        4. Generate questions for next round
 
         Args:
-            session_id: Session identifier
-            answers: User's answers to the pending questions
+            session_id: Session ID
+            user_feedback: Dict mapping questions to answers
 
         Returns:
-            Dict with next flight options to present
+            (flights_to_show, next_questions)
         """
         session = self.sessions.get(session_id)
         if not session:
             raise ValueError(f"Session {session_id} not found")
 
         optimizer = session.optimizer
+        trial_index = session.current_iteration
 
-        # Create feedback dict from questions and answers
-        feedback = dict(zip(session.pending_questions, answers))
-
-        # Update context with real user feedback
-        trial_index = session.current_trial if session.current_trial > 0 else -1
+        # 1. Update context with user feedback
         optimizer.update_context(
             trial_index=trial_index,
-            feedback=feedback,
-            arm_index_ls=[]
+            feedback=user_feedback,
+            arm_index_ls=[]  # Not doing active learning for feedback selection
         )
 
-        # Clear pending questions
-        session.pending_questions = []
+        # 2. Generate candidate x values (flight parameters)
+        n_candidates = optimizer.bs_exp if trial_index > 0 else optimizer.bs_exp_init
+        x = optimizer.acqf(seed=optimizer.cfg.seed + trial_index + 1, N=n_candidates)
 
-        return {"status": "success", "feedback_recorded": len(answers)}
-
-    def get_next_flight_options(self, session_id: str) -> Tuple[pd.DataFrame, List[str]]:
-        """
-        Run one iteration of LILO and get next flight options to present.
-
-        Returns:
-            Tuple of (flights_dataframe, questions_for_user)
-        """
-        session = self.sessions.get(session_id)
-        if not session:
-            raise ValueError(f"Session {session_id} not found")
-
-        optimizer = session.optimizer
-        session.current_trial += 1
-
-        # Run one LILO iteration
-        # This generates candidate flights based on learned preferences
-        n_exp = optimizer.bs_exp if session.current_trial > 1 else optimizer.bs_exp_init
-
-        # Get candidate flight configurations
-        x = optimizer.acqf(seed=optimizer.cfg.seed + session.current_trial, N=n_exp)
-
-        # Get outcomes for these configurations
+        # 3. Evaluate to get y (for flights, y = x)
         y = optimizer.env.get_outcomes(x)
 
-        # Update experimental dataset
-        optimizer.update_exp_data(x=x, y=y, trial_index=session.current_trial)
+        # 4. Update experimental dataset
+        optimizer.update_exp_data(x=x, y=y, trial_index=trial_index + 1)
 
-        # Generate questions for this round
-        from language_bo_code.utility_approximator import get_questions
-
-        arm_index_ls = optimizer.feedback_acqf(
-            n=optimizer.cfg.bs_feedback * 2,
-            pref_model=optimizer.pref_model
-        )
-
-        questions = get_questions(
+        # 5. Generate questions for next round
+        next_questions = get_questions(
             exp_df=optimizer.exp_df,
             context_df=optimizer.context_df,
             env=optimizer.env,
-            selected_arm_index_ls=arm_index_ls,
+            selected_arm_index_ls=[],
             n_questions=optimizer.cfg.bs_feedback,
             llm_client=optimizer.uprox_client,
             include_goals=optimizer.cfg.include_goals,
-            pre_select_data=True,
-            prompt_type="pairwise" if optimizer.cfg.uprox_prompt_type != "scalar" else "scalar"
+            pre_select_data=False,
+            prompt_type="pairwise"
         )
 
-        session.pending_questions = questions
+        # 6. Find actual flights matching the generated x values
+        flights_to_show = []
+        for i in range(len(x)):
+            flight = session.env.find_matching_flight(x[i])
+            if flight:
+                flights_to_show.append(flight)
 
-        # Return flight options
-        flights_df = optimizer.exp_df[
-            optimizer.exp_df.trial_index == session.current_trial
-        ].copy()
+        session.current_iteration += 1
 
-        return flights_df, questions
+        return flights_to_show, next_questions
 
-    def get_session_status(self, session_id: str) -> Dict:
-        """Get current status of optimization session"""
-        session = self.sessions.get(session_id)
-        if not session:
-            return {"exists": False}
 
-        return {
-            "exists": True,
-            "current_trial": session.current_trial,
-            "pending_questions": len(session.pending_questions),
-            "total_experiments": len(session.optimizer.exp_df),
-            "created_at": session.created_at.isoformat()
-        }
+@dataclass
+class LILOSession:
+    """Tracks a LILO optimization session."""
+    session_id: str
+    optimizer: BOAgenticOptimizer
+    env: FlightEnvironment
+    current_iteration: int
+    flights_data: List[Dict]
