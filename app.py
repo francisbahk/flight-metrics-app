@@ -1614,9 +1614,10 @@ if ai_search or regular_search:
                     st.stop()
 
                 # Look up airline names using Amadeus API
-                all_airline_codes = [f['airline'] for f in all_flights]
+                # Use .get() for compatibility with both APIs (airline or carrier_code)
+                all_airline_codes = [f.get('airline') or f.get('carrier_code') for f in all_flights if f.get('airline') or f.get('carrier_code')]
                 if has_return and all_return_flights:
-                    all_airline_codes.extend([f['airline'] for f in all_return_flights])
+                    all_airline_codes.extend([f.get('airline') or f.get('carrier_code') for f in all_return_flights if f.get('airline') or f.get('carrier_code')])
 
                 unique_airlines = list(set(all_airline_codes))
                 airline_name_map = flight_client.get_airline_names(unique_airlines)
