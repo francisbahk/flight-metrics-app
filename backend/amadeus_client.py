@@ -270,6 +270,7 @@ class AmadeusClient:
                 "stops": stops,
                 "price": price,
                 "carrier_code": carrier_code,
+                "airline": carrier_code,  # Alias for compatibility with SerpAPI format
                 "raw_data": offer,
             }
 

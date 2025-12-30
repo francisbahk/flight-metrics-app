@@ -1508,7 +1508,8 @@ if ai_search or regular_search:
                 all_flights = []
                 all_return_flights = []
 
-                st.info("✈️ Searching outbound flights from SerpAPI...")
+                provider_name = "Amadeus API" if flight_client.provider == "amadeus" else "SerpAPI (Google Flights)"
+                st.info(f"✈️ Searching outbound flights from {provider_name}...")
 
                 # Get departure dates (list)
                 departure_dates = parsed.get('departure_dates', [])
