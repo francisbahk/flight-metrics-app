@@ -1971,33 +1971,75 @@ if st.session_state.all_flights:
                 st.markdown("---")
                 st.markdown('<div class="lilo-section">', unsafe_allow_html=True)
 
-                # Initialize LILO optimizer
-                if st.session_state.lilo_optimizer is None:
+                # Initialize LILO session using real language_bo_code
+                if 'lilo_bridge' not in st.session_state:
                     try:
-                        from backend.lilo_flight_optimizer import LILOFlightOptimizer
-                        st.session_state.lilo_optimizer = LILOFlightOptimizer()
-                        # Store all flights from the search
-                        st.session_state.lilo_optimizer.all_flights = st.session_state.get('all_flights_data', [])
+                        from lilo_integration import StreamlitLILOBridge
+
+                        # Create bridge
+                        bridge = StreamlitLILOBridge()
+                        st.session_state.lilo_bridge = bridge
+
+                        # Create LILO session with all flights
+                        session = bridge.create_session(
+                            session_id=f"user_{st.session_state.get('user_id', 'default')}",
+                            flights_data=st.session_state.get('all_flights_data', [])
+                        )
+                        st.session_state.lilo_session_id = session.session_id
+
+                        # Get initial high-level questions
+                        initial_questions = bridge.get_initial_questions(session.session_id)
+                        st.session_state.lilo_initial_questions = initial_questions
+
                     except Exception as e:
                         st.error(f"⚠️ Error initializing LILO: {e}")
+                        import traceback
+                        st.code(traceback.format_exc())
                         st.session_state.lilo_completed = True
                         st.rerun()
 
-                # LILO Round 1: Initial feedback collection
+                # LILO Round 0: Initial goal-understanding questions (BEFORE showing any flights)
                 if st.session_state.lilo_round == 0:
-                    st.markdown("### 🎯 Round 1: Help Us Understand Your Preferences")
-                    st.markdown("*We'd like to learn more about what you're looking for to provide better recommendations*")
+                    st.markdown("### 🎯 Understanding Your Flight Preferences")
+                    st.markdown("*Before showing specific flights, help us understand your goals and priorities*")
 
-                    # Select candidates for round 1
-                    if not st.session_state.lilo_round1_flights:
-                        lilo_flights = st.session_state.lilo_optimizer.select_candidates(
-                            st.session_state.lilo_optimizer.all_flights,
-                            round_num=1,
-                            n_candidates=15
+                    # Show initial high-level questions
+                    st.markdown("**Please answer these questions about your preferences:**")
+
+                    initial_answers = {}
+                    for i, question in enumerate(st.session_state.get('lilo_initial_questions', [])):
+                        answer = st.text_area(
+                            f"{i+1}. {question}",
+                            key=f"lilo_initial_q{i}",
+                            height=100,
+                            placeholder="Share your preferences in detail..."
                         )
-                        st.session_state.lilo_round1_flights = lilo_flights
+                        initial_answers[f"q{i}"] = answer
 
-                    st.markdown("**Step 1:** Review these 15 flights and select your top 5, then drag to rank them.")
+                    if st.button("Continue →", key="lilo_initial_submit", type="primary", use_container_width=True):
+                        # Check all questions answered
+                        if any(not ans or len(ans.strip()) < 10 for ans in initial_answers.values()):
+                            st.error("Please answer all questions with at least 10 characters each")
+                        else:
+                            try:
+                                # Run LILO iteration 1: this will generate flights based on initial answers
+                                flights, next_questions = st.session_state.lilo_bridge.run_iteration(
+                                    st.session_state.lilo_session_id,
+                                    initial_answers
+                                )
+                                st.session_state.lilo_round1_flights = flights
+                                st.session_state.lilo_round1_questions = next_questions
+                                st.session_state.lilo_round = 1
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error running LILO iteration: {e}")
+                                import traceback
+                                st.code(traceback.format_exc())
+
+                # LILO Iteration 1: Show flights + collect feedback
+                elif st.session_state.lilo_round == 1:
+                    st.markdown("### ✈️ LILO Iteration 1: Review Flight Options")
+                    st.markdown("*Based on your goals, here are flight options to consider*")
                     st.markdown("---")
 
                     # Display flights
