@@ -290,18 +290,35 @@ class StreamlitLILOBridge:
 
         optimizer = session.optimizer
 
-        # Generate initial goal questions (trial_index=-1 means initialization)
-        questions = get_questions(
-            exp_df=pd.DataFrame(),  # Empty - no experiments yet
-            context_df=pd.DataFrame(),  # Empty - no feedback yet
-            env=optimizer.env,
-            selected_arm_index_ls=[],
-            n_questions=optimizer.cfg.bs_feedback,
-            llm_client=optimizer.uprox_client,
-            include_goals=optimizer.cfg.include_goals,
-            pre_select_data=False,
-            prompt_type="pairwise"
-        )
+        # Fallback questions in case LLM fails
+        fallback_questions = [
+            "What is your primary goal for this flight? (e.g., minimize cost, minimize travel time, maximize comfort, avoid early departures)",
+            "How do you feel about connecting flights? Would you prefer direct flights even if they cost more, or are you okay with layovers to save money?"
+        ]
+
+        try:
+            # Generate initial goal questions (trial_index=-1 means initialization)
+            questions = get_questions(
+                exp_df=pd.DataFrame(),  # Empty - no experiments yet
+                context_df=pd.DataFrame(),  # Empty - no feedback yet
+                env=optimizer.env,
+                selected_arm_index_ls=[],
+                n_questions=optimizer.cfg.bs_feedback,
+                llm_client=optimizer.uprox_client,
+                include_goals=optimizer.cfg.include_goals,
+                pre_select_data=False,
+                prompt_type="pairwise"
+            )
+
+            # If LLM returns empty or fails, use fallback
+            if not questions or len(questions) == 0:
+                print("Warning: LLM returned no questions, using fallback")
+                questions = fallback_questions
+
+        except Exception as e:
+            print(f"Error generating LILO questions: {e}")
+            print("Using fallback questions")
+            questions = fallback_questions
 
         return questions
 
