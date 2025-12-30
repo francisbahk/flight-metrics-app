@@ -261,6 +261,10 @@ class AmadeusClient:
             # Extract airline name (from first segment)
             carrier_code = first_segment.get("carrierCode", "")
 
+            # Extract flight number (e.g., "AA123")
+            flight_num = first_segment.get("number", "")
+            flight_number = f"{carrier_code}{flight_num}" if flight_num else carrier_code
+
             # Convert duration from format like "PT2H30M" to minutes
             duration_minutes = self._parse_duration_to_minutes(duration)
 
@@ -276,6 +280,7 @@ class AmadeusClient:
                 "carrier_code": carrier_code,
                 "airline": carrier_code,  # Alias for compatibility with SerpAPI format
                 "airline_name": carrier_code,  # Add airline_name field
+                "flight_number": flight_number,  # Flight number (e.g., "AA123")
                 "raw_data": offer,
             }
 
