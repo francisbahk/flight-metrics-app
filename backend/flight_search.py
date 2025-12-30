@@ -30,7 +30,7 @@ class FlightSearchClient:
         """
         # Determine provider
         if provider is None:
-            provider = os.getenv("FLIGHT_API_PROVIDER", "serpapi").lower()
+            provider = os.getenv("FLIGHT_API_PROVIDER", "amadeus").lower()
 
         self.provider = provider
 
