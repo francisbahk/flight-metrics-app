@@ -2045,11 +2045,14 @@ if st.session_state.all_flights:
 
                     initial_answers = {}
                     for i, question in enumerate(hardcoded_questions):
+                        # Display question text explicitly
+                        st.markdown(f"**{i+1}. {question}**")
                         answer = st.text_area(
-                            f"**{i+1}. {question}**",
+                            "Your answer:",
                             key=f"lilo_initial_q{i}",
                             height=100,
-                            placeholder="Share your preferences in detail..."
+                            placeholder="Share your preferences in detail...",
+                            label_visibility="collapsed"
                         )
                         initial_answers[f"q{i}"] = answer
 
