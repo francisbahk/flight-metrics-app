@@ -479,6 +479,18 @@ flight_client = get_flight_client()
 # Custom CSS for Suno-like clean design
 st.markdown("""
 <style>
+    /* Prevent auto-scroll on interactions */
+    html {
+        scroll-behavior: auto !important;
+        overflow-anchor: none !important;
+    }
+    body {
+        overflow-anchor: none !important;
+    }
+    .main {
+        overflow-anchor: none !important;
+    }
+
     .main-title {
         font-size: 3rem;
         font-weight: 600;
@@ -1969,34 +1981,47 @@ if st.session_state.all_flights:
             # ============================================================================
             if not st.session_state.get('lilo_completed'):
                 st.markdown("---")
+                st.markdown("# 🧠 LILO: AI-Powered Preference Learning")
+                st.markdown("*Help the AI understand your flight preferences through interactive questioning*")
+                st.markdown("---")
                 st.markdown('<div class="lilo-section">', unsafe_allow_html=True)
 
                 # Initialize LILO session using real language_bo_code
                 if 'lilo_bridge' not in st.session_state:
-                    try:
-                        from lilo_integration import StreamlitLILOBridge
+                    with st.spinner("Initializing LILO preference learning system..."):
+                        try:
+                            from lilo_integration import StreamlitLILOBridge
 
-                        # Create bridge
-                        bridge = StreamlitLILOBridge()
-                        st.session_state.lilo_bridge = bridge
+                            # Create bridge
+                            bridge = StreamlitLILOBridge()
+                            st.session_state.lilo_bridge = bridge
 
-                        # Create LILO session with all flights
-                        session = bridge.create_session(
-                            session_id=f"user_{st.session_state.get('user_id', 'default')}",
-                            flights_data=st.session_state.get('all_flights_data', [])
-                        )
-                        st.session_state.lilo_session_id = session.session_id
+                            # Create LILO session with all flights
+                            flights_data = st.session_state.get('all_flights_data', [])
+                            if not flights_data:
+                                st.warning("⚠️ No flight data available for LILO. Skipping LILO section.")
+                                st.session_state.lilo_completed = True
+                                st.rerun()
 
-                        # Get initial high-level questions
-                        initial_questions = bridge.get_initial_questions(session.session_id)
-                        st.session_state.lilo_initial_questions = initial_questions
+                            session = bridge.create_session(
+                                session_id=f"user_{st.session_state.get('user_id', 'default')}",
+                                flights_data=flights_data
+                            )
+                            st.session_state.lilo_session_id = session.session_id
 
-                    except Exception as e:
-                        st.error(f"⚠️ Error initializing LILO: {e}")
-                        import traceback
-                        st.code(traceback.format_exc())
-                        st.session_state.lilo_completed = True
-                        st.rerun()
+                            # Get initial high-level questions
+                            initial_questions = bridge.get_initial_questions(session.session_id)
+                            st.session_state.lilo_initial_questions = initial_questions
+                            st.success("✅ LILO initialized successfully!")
+
+                        except Exception as e:
+                            st.error(f"⚠️ Error initializing LILO: {e}")
+                            import traceback
+                            st.code(traceback.format_exc())
+                            if st.button("Skip LILO and Continue", type="primary"):
+                                st.session_state.lilo_completed = True
+                                st.rerun()
+                            st.stop()
 
                 # LILO Round 0: Initial goal-understanding questions (BEFORE showing any flights)
                 if st.session_state.lilo_round == 0:
@@ -2146,12 +2171,16 @@ if st.session_state.all_flights:
                         .main > div:has(+ div .cross-validation-section) {
                             display: none !important;
                         }
-                        /* Alternative: Hide everything except cross-validation container */
+                        /* Dim header and main content but NOT sidebar */
                         .stApp > header,
-                        [data-testid="stSidebar"],
                         .main > div:not(:has(.cross-validation-section)) {
                             opacity: 0.1;
                             pointer-events: none;
+                        }
+                        /* Keep sidebar fully functional */
+                        [data-testid="stSidebar"] {
+                            opacity: 1 !important;
+                            pointer-events: auto !important;
                         }
                         .cross-validation-section {
                             background: white;
