@@ -268,11 +268,8 @@ class AmadeusClient:
             # Convert duration from format like "PT2H30M" to minutes
             duration_minutes = self._parse_duration_to_minutes(duration)
 
-            # Generate unique ID from offer ID or create from flight details
-            flight_id = offer.get("id", f"{flight_number}_{departure_time}_{price}")
-
             return {
-                "id": flight_id,  # Unique identifier
+                "id": offer.get("id"),  # Amadeus offer ID
                 "origin": origin,
                 "destination": destination,
                 "departure_time": departure_time,
