@@ -35,6 +35,7 @@ botorch>=0.9.0
 gpytorch>=1.11
 omegaconf>=2.3.0
 pymoo>=0.6.0
+pyre-extensions>=0.0.30
 
 # Alternative: FastAPI backend (in api/ directory)
 fastapi>=0.104.0
