@@ -2315,20 +2315,20 @@ if st.session_state.all_flights:
                             if len(filtered_cv) < len(cv_flights):
                                 st.info(f"🔍 Filters applied: Showing {len(filtered_cv)} of {len(cv_flights)} flights")
 
-                            # Sort buttons (exact copy)
+                            # Sort buttons - fixed to sort filtered results
                             col_sort1, col_sort2 = st.columns(2)
                             with col_sort1:
                                 arrow = "↑" if st.session_state.cv_sort_price_dir == 'asc' else "↓"
                                 if st.button(f"💰 Sort by Price {arrow}", key="cv_sort_price", use_container_width=True):
                                     reverse = st.session_state.cv_sort_price_dir == 'desc'
-                                    cv_flights[:] = sorted(cv_flights, key=lambda x: x['price'], reverse=reverse)
+                                    filtered_cv[:] = sorted(filtered_cv, key=lambda x: x['price'], reverse=reverse)
                                     st.session_state.cv_sort_price_dir = 'desc' if st.session_state.cv_sort_price_dir == 'asc' else 'asc'
                                     st.rerun()
                             with col_sort2:
                                 arrow = "↑" if st.session_state.cv_sort_duration_dir == 'asc' else "↓"
                                 if st.button(f"⏱️ Sort by Duration {arrow}", key="cv_sort_dur", use_container_width=True):
                                     reverse = st.session_state.cv_sort_duration_dir == 'desc'
-                                    cv_flights[:] = sorted(cv_flights, key=lambda x: x['duration_min'], reverse=reverse)
+                                    filtered_cv[:] = sorted(filtered_cv, key=lambda x: x['duration_min'], reverse=reverse)
                                     st.session_state.cv_sort_duration_dir = 'desc' if st.session_state.cv_sort_duration_dir == 'asc' else 'asc'
                                     st.rerun()
 
@@ -2341,6 +2341,20 @@ if st.session_state.all_flights:
 
                                 with col1:
                                     # Use button instead of checkbox for more reliable state management
+                                    # Add custom CSS for compact button styling
+                                    st.markdown("""
+                                        <style>
+                                        /* Make selection buttons compact like checkboxes */
+                                        div[data-testid="column"] button[kind="primary"],
+                                        div[data-testid="column"] button[kind="secondary"] {
+                                            padding: 0.25rem 0.5rem !important;
+                                            font-size: 1.2rem !important;
+                                            min-height: 2rem !important;
+                                            height: 2rem !important;
+                                        }
+                                        </style>
+                                    """, unsafe_allow_html=True)
+
                                     button_label = "✓" if is_selected else "☐"
                                     button_type = "primary" if is_selected else "secondary"
                                     button_key = f"cv_btn_{idx}_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '').replace(' ', '')
@@ -2709,7 +2723,7 @@ if st.session_state.all_flights:
                         success = save_survey_response(
                             session_id=st.session_state.session_id,
                             survey_data=survey_data,
-                            token=st.session_state.token
+                            completion_token=st.session_state.token
                         )
 
                         if success:
