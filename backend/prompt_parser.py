@@ -7,15 +7,17 @@ import json
 import re
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configure Gemini
+# Configure Gemini with new SDK
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    genai_client = genai.Client(api_key=GEMINI_API_KEY)
+else:
+    genai_client = None
 
 
 def parse_flight_prompt_with_llm(prompt: str) -> Dict:
@@ -101,8 +103,14 @@ For small cities, include nearby major airports within 100 miles as alternatives
 """
 
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(llm_prompt)
+        if not genai_client:
+            raise ValueError("Gemini API key not configured")
+
+        # Use new SDK
+        response = genai_client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=llm_prompt
+        )
 
         # Extract JSON from response
         response_text = response.text.strip()
