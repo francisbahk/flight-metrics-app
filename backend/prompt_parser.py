@@ -31,10 +31,29 @@ def parse_flight_prompt_with_llm(prompt: str) -> Dict:
         Dictionary with structured flight search parameters
     """
 
+    # Detect explicit airport codes (3-letter uppercase codes)
+    airport_code_pattern = r'\b([A-Z]{3})\b'
+    found_codes = re.findall(airport_code_pattern, prompt.upper())
+
+    # Filter to only valid airport codes (common ones)
+    valid_airport_codes = {
+        'JFK', 'LAX', 'ORD', 'DFW', 'DEN', 'SFO', 'SEA', 'LAS', 'MCO', 'EWR',
+        'CLT', 'PHX', 'IAH', 'MIA', 'BOS', 'MSP', 'FLL', 'DTW', 'PHL', 'LGA',
+        'BWI', 'SLC', 'SAN', 'IAD', 'DCA', 'MDW', 'TPA', 'PDX', 'HNL', 'AUS',
+        'BNA', 'OAK', 'RDU', 'SNA', 'SMF', 'SJC', 'MCI', 'SAT', 'RSW', 'PIT',
+        'DAL', 'IND', 'CMH', 'CLE', 'CVG', 'JAX', 'OKC', 'BUR', 'ONT', 'SJU'
+    }
+    explicit_codes = [code for code in found_codes if code in valid_airport_codes]
+
+    # Build instruction about explicit codes
+    explicit_instruction = ""
+    if len(explicit_codes) >= 2:
+        explicit_instruction = f"\n\n**CRITICAL**: User explicitly mentioned airport codes: {', '.join(explicit_codes)}. You MUST use ONLY these exact codes and NOT add any other airports. Do not expand to nearby airports."
+
     llm_prompt = f"""You are a flight search assistant. Extract structured information from this flight search query.
 
 User Query:
-{prompt}
+{prompt}{explicit_instruction}
 
 Extract and return ONLY a valid JSON object with these fields:
 {{
