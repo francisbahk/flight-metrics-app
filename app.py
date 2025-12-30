@@ -2009,6 +2009,11 @@ if st.session_state.all_flights:
                             )
                             st.session_state.lilo_session_id = session.session_id
 
+                            # Reset LILO state for new session
+                            st.session_state.lilo_round = 0
+                            st.session_state.lilo_round1_flights = []
+                            st.session_state.lilo_round2_flights = []
+
                             # Get initial high-level questions
                             initial_questions = bridge.get_initial_questions(session.session_id)
                             st.session_state.lilo_initial_questions = initial_questions
