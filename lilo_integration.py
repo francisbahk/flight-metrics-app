@@ -145,6 +145,13 @@ class FlightEnvironment(SimulEnvironment):
         """Bounds for optimization (all parameters in [0, 1] after normalization)."""
         return [[0.0] * self.n_var, [1.0] * self.n_var]
 
+    def get_goal_message(self) -> str:
+        """Returns a message describing the flight search goal."""
+        return (
+            "Find the best flight option that balances price, duration, "
+            "number of stops, and convenient departure/arrival times based on your preferences."
+        )
+
     def get_input_transform(self) -> Normalize:
         """Returns botorch input transform for normalization."""
         bounds = torch.stack([torch.zeros(self.n_var), torch.ones(self.n_var)])
