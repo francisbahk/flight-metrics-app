@@ -261,19 +261,53 @@ class AmadeusClient:
             # Extract airline name (from first segment)
             carrier_code = first_segment.get("carrierCode", "")
 
+            # Convert duration from format like "PT2H30M" to minutes
+            duration_minutes = self._parse_duration_to_minutes(duration)
+
             return {
                 "origin": origin,
                 "destination": destination,
                 "departure_time": departure_time,
                 "arrival_time": arrival_time,
-                "duration": duration,
+                "duration": duration,  # Keep original format
+                "duration_min": duration_minutes,  # Add SerpAPI-compatible field
                 "stops": stops,
                 "price": price,
                 "carrier_code": carrier_code,
                 "airline": carrier_code,  # Alias for compatibility with SerpAPI format
+                "airline_name": carrier_code,  # Add airline_name field
                 "raw_data": offer,
             }
 
         except Exception as e:
             print(f"Error parsing flight offer: {str(e)}")
             return None
+
+    def _parse_duration_to_minutes(self, duration_str: str) -> int:
+        """
+        Parse ISO 8601 duration (e.g., 'PT2H30M') to total minutes.
+
+        Args:
+            duration_str: Duration in ISO 8601 format
+
+        Returns:
+            Total duration in minutes
+        """
+        try:
+            import re
+            hours = 0
+            minutes = 0
+
+            # Extract hours if present (e.g., "2H")
+            hour_match = re.search(r'(\d+)H', duration_str)
+            if hour_match:
+                hours = int(hour_match.group(1))
+
+            # Extract minutes if present (e.g., "30M")
+            minute_match = re.search(r'(\d+)M', duration_str)
+            if minute_match:
+                minutes = int(minute_match.group(1))
+
+            return hours * 60 + minutes
+        except:
+            return 0
