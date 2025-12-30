@@ -2352,11 +2352,15 @@ if st.session_state.all_flights:
                                     if selected and not is_selected:
                                         if len(st.session_state.cross_val_selected_flights) < 5:
                                             st.session_state.cross_val_selected_flights.append(flight)
+                                            st.session_state.cv_checkbox_version += 1
+                                            st.rerun()
                                     elif not selected and is_selected:
                                         st.session_state.cross_val_selected_flights = [
                                             f for f in st.session_state.cross_val_selected_flights
                                             if f"{f['id']}_{f['departure_time']}" != flight_unique_key
                                         ]
+                                        st.session_state.cv_checkbox_version += 1
+                                        st.rerun()
 
                                 with col2:
                                     dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
