@@ -2033,22 +2033,18 @@ if st.session_state.all_flights:
                     st.markdown("### 🎯 Understanding Your Flight Preferences")
                     st.markdown("*Before showing specific flights, help us understand your goals and priorities*")
 
-                    # Check if questions exist
-                    lilo_questions = st.session_state.get('lilo_initial_questions', [])
-                    if not lilo_questions:
-                        st.warning("⚠️ No LILO questions available. This might indicate an initialization issue.")
-                        if st.button("Skip LILO", key="skip_no_questions"):
-                            st.session_state.lilo_completed = True
-                            st.rerun()
-                        st.stop()
+                    # HARDCODED questions - always shown regardless of LLM
+                    hardcoded_questions = [
+                        "What is your primary goal for this flight? (e.g., minimize cost, minimize travel time, maximize comfort, avoid early departures)",
+                        "How do you feel about connecting flights? Would you prefer direct flights even if they cost more, or are you okay with layovers to save money?"
+                    ]
 
-                    # Show initial high-level questions
                     st.markdown("**Please answer these questions about your preferences:**")
 
                     initial_answers = {}
-                    for i, question in enumerate(lilo_questions):
+                    for i, question in enumerate(hardcoded_questions):
                         answer = st.text_area(
-                            f"{i+1}. {question}",
+                            f"**{i+1}. {question}**",
                             key=f"lilo_initial_q{i}",
                             height=100,
                             placeholder="Share your preferences in detail..."
