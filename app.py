@@ -2042,10 +2042,10 @@ if st.session_state.all_flights:
                     st.markdown("*Based on your goals, here are flight options to consider*")
                     st.markdown("---")
 
-                    # Display flights
-                    for idx, flight in enumerate(st.session_state.lilo_round1_flights):
+                    # Display LILO-generated flights
+                    for idx, flight in enumerate(st.session_state.get('lilo_round1_flights', [])):
                         with st.expander(f"✈️ Flight {idx+1}: {flight.get('airline', 'Unknown')} - ${flight.get('price', 0):.0f}", expanded=False):
-                            col1, col2, col3 = st.columns([2, 2, 1])
+                            col1, col2 = st.columns([1, 1])
                             with col1:
                                 st.markdown(f"**Route:** {flight.get('origin', '')} → {flight.get('destination', '')}")
                                 st.markdown(f"**Departure:** {flight.get('departure_time', 'N/A')}")
@@ -2055,265 +2055,51 @@ if st.session_state.all_flights:
                                 st.markdown(f"**Duration:** {duration_min//60}h {duration_min%60}m")
                                 st.markdown(f"**Stops:** {flight.get('stops', 0)}")
                                 st.markdown(f"**Price:** ${flight.get('price', 0):.0f}")
-                            with col3:
-                                is_selected = idx in st.session_state.lilo_round1_selected
-                                if st.button("✓ Select" if not is_selected else "✗ Remove",
-                                           key=f"lilo_r1_select_{idx}",
-                                           type="primary" if is_selected else "secondary"):
-                                    if is_selected:
-                                        st.session_state.lilo_round1_selected.remove(idx)
-                                    else:
-                                        if len(st.session_state.lilo_round1_selected) < 5:
-                                            st.session_state.lilo_round1_selected.append(idx)
-                                        else:
-                                            st.warning("You can only select up to 5 flights")
-                                    st.rerun()
 
+                    # Show LILO-generated questions for iteration 1
                     st.markdown("---")
-                    st.markdown(f"**Selected:** {len(st.session_state.lilo_round1_selected)}/5 flights")
+                    st.markdown("**Please answer these questions based on the flights shown:**")
 
-                    # Ranking interface
-                    if len(st.session_state.lilo_round1_selected) == 5:
-                        st.markdown("**Step 2:** Drag to rank your selected flights (best at top)")
-
-                        # Get flight objects from indices
-                        selected_flights = [st.session_state.lilo_round1_flights[i] for i in st.session_state.lilo_round1_selected]
-
-                        ranked_items = sort_items(
-                            [f"{f.get('airline', 'Unknown')} - ${f.get('price', 0):.0f}"
-                             for f in selected_flights],
-                            key="lilo_round1_ranking"
-                        )
-
-                        # Step 3: Feedback
-                        st.markdown("**Step 3:** Tell us about your preferences")
-                        lilo_r1_feedback = st.text_area(
-                            "What matters most to you in choosing flights? What did you like/dislike about these options?",
-                            height=100,
-                            key="lilo_r1_feedback",
-                            placeholder="E.g., 'I prioritize price over speed', 'I hate layovers', 'Early morning departures work best'..."
-                        )
-
-                        if st.button("Continue to Round 2 →", key="lilo_r1_submit", type="primary", use_container_width=True):
-                            if not lilo_r1_feedback or len(lilo_r1_feedback.strip()) < 10:
-                                st.error("Please provide some feedback about your preferences (at least 10 characters)")
-                            else:
-                                # Map ranked items back to indices
-                                user_rankings = []
-                                for item in ranked_items:
-                                    for idx in st.session_state.lilo_round1_selected:
-                                        flight = st.session_state.lilo_round1_flights[idx]
-                                        if f"{flight.get('airline', 'Unknown')} - ${flight.get('price', 0):.0f}" == item:
-                                            user_rankings.append(idx)
-                                            break
-
-                                # Run LILO round 1
-                                result = st.session_state.lilo_optimizer.run_round(
-                                    all_flights=st.session_state.lilo_optimizer.all_flights,
-                                    round_num=1,
-                                    user_rankings=user_rankings,
-                                    user_feedback=lilo_r1_feedback,
-                                    n_candidates=15
-                                )
-
-                                # Store questions for round 2
-                                st.session_state.lilo_questions = result.get('questions', [])
-                                st.session_state.lilo_round = 1
-
-                                # Save to database
-                                try:
-                                    from backend.db import SessionLocal, LILOSession, LILORound
-                                    db = SessionLocal()
-
-                                    # Create LILO session if not exists
-                                    lilo_session = db.query(LILOSession).filter(
-                                        LILOSession.session_id == st.session_state.session_id
-                                    ).first()
-
-                                    if not lilo_session:
-                                        lilo_session = LILOSession(
-                                            session_id=st.session_state.session_id,
-                                            search_id=st.session_state.get('search_id'),
-                                            num_rounds=1
-                                        )
-                                        db.add(lilo_session)
-                                    else:
-                                        lilo_session.num_rounds = 1
-
-                                    # Create round 1 record
-                                    lilo_round1 = LILORound(
-                                        session_id=st.session_state.session_id,
-                                        round_number=1,
-                                        flights_shown=[i for i in range(len(st.session_state.lilo_round1_flights))],
-                                        user_rankings=user_rankings,
-                                        user_feedback=lilo_r1_feedback,
-                                        generated_questions=st.session_state.lilo_questions
-                                    )
-                                    db.add(lilo_round1)
-                                    db.commit()
-                                    db.close()
-                                except Exception as e:
-                                    print(f"⚠️ Error saving LILO round 1: {e}")
-
-                                st.rerun()
-                    else:
-                        st.info(f"ℹ️ Please select {5 - len(st.session_state.lilo_round1_selected)} more flights")
-
-                # LILO Round 2: Question answering and refinement
-                elif st.session_state.lilo_round == 1:
-                    st.markdown("### 🎯 Round 2: Refine Your Preferences")
-                    st.markdown("*Thanks! Now let's dig a bit deeper to understand what you're looking for*")
-
-                    # Show questions
-                    st.markdown("**Please answer these questions:**")
-
-                    for i, question in enumerate(st.session_state.lilo_questions):
+                    iter1_answers = {}
+                    for i, question in enumerate(st.session_state.get('lilo_round1_questions', [])):
                         answer = st.text_area(
                             f"{i+1}. {question}",
-                            key=f"lilo_q{i+1}",
-                            height=80
+                            key=f"lilo_iter1_q{i}",
+                            height=100,
+                            placeholder="Share your thoughts about these flight options..."
                         )
-                        st.session_state.lilo_answers[f"q{i+1}"] = answer
+                        iter1_answers[f"q{i}"] = answer
 
-                    st.markdown("---")
-
-                    # Select new candidates for round 2
-                    if not st.session_state.lilo_round2_flights:
-                        lilo_r2_flights = st.session_state.lilo_optimizer.select_candidates(
-                            st.session_state.lilo_optimizer.all_flights,
-                            round_num=2,
-                            n_candidates=15
-                        )
-                        st.session_state.lilo_round2_flights = lilo_r2_flights
-
-                    st.markdown("**Based on your feedback, here are 15 flights we think might work better. Select your top 5 and rank them:**")
-
-                    # Display flights
-                    for idx, flight in enumerate(st.session_state.lilo_round2_flights):
-                        with st.expander(f"✈️ Flight {idx+1}: {flight.get('airline', 'Unknown')} - ${flight.get('price', 0):.0f}", expanded=False):
-                            col1, col2, col3 = st.columns([2, 2, 1])
-                            with col1:
-                                st.markdown(f"**Route:** {flight.get('origin', '')} → {flight.get('destination', '')}")
-                                st.markdown(f"**Departure:** {flight.get('departure_time', 'N/A')}")
-                                st.markdown(f"**Arrival:** {flight.get('arrival_time', 'N/A')}")
-                            with col2:
-                                duration_min = flight.get('duration_min', 0)
-                                st.markdown(f"**Duration:** {duration_min//60}h {duration_min%60}m")
-                                st.markdown(f"**Stops:** {flight.get('stops', 0)}")
-                                st.markdown(f"**Price:** ${flight.get('price', 0):.0f}")
-                            with col3:
-                                is_selected = idx in st.session_state.lilo_round2_selected
-                                if st.button("✓ Select" if not is_selected else "✗ Remove",
-                                           key=f"lilo_r2_select_{idx}",
-                                           type="primary" if is_selected else "secondary"):
-                                    if is_selected:
-                                        st.session_state.lilo_round2_selected.remove(idx)
-                                    else:
-                                        if len(st.session_state.lilo_round2_selected) < 5:
-                                            st.session_state.lilo_round2_selected.append(idx)
-                                        else:
-                                            st.warning("You can only select up to 5 flights")
-                                    st.rerun()
-
-                    st.markdown("---")
-                    st.markdown(f"**Selected:** {len(st.session_state.lilo_round2_selected)}/5 flights")
-
-                    # Ranking interface
-                    if len(st.session_state.lilo_round2_selected) == 5:
-                        st.markdown("**Drag to rank your selected flights (best at top):**")
-
-                        # Get flight objects from indices
-                        selected_flights = [st.session_state.lilo_round2_flights[i] for i in st.session_state.lilo_round2_selected]
-
-                        ranked_items = sort_items(
-                            [f"{f.get('airline', 'Unknown')} - ${f.get('price', 0):.0f}"
-                             for f in selected_flights],
-                            key="lilo_round2_ranking"
-                        )
-
-                        if st.button("See Final Recommendations →", key="lilo_r2_submit", type="primary", use_container_width=True):
-                            # Check all questions answered
-                            all_answered = all(
-                                st.session_state.lilo_answers.get(f"q{i+1}", "").strip()
-                                for i in range(len(st.session_state.lilo_questions))
-                            )
-
-                            if not all_answered:
-                                st.error("Please answer all questions before continuing")
-                            else:
-                                # Map ranked items back to indices
-                                user_rankings = []
-                                for item in ranked_items:
-                                    for idx in st.session_state.lilo_round2_selected:
-                                        flight = st.session_state.lilo_round2_flights[idx]
-                                        if f"{flight.get('airline', 'Unknown')} - ${flight.get('price', 0):.0f}" == item:
-                                            user_rankings.append(idx)
-                                            break
-
-                                # Combine answers into feedback
-                                answers_text = "\n".join([
-                                    f"Q{i+1}: {st.session_state.lilo_answers.get(f'q{i+1}', '')}"
-                                    for i in range(len(st.session_state.lilo_questions))
-                                ])
-
-                                # Run LILO round 2
-                                result = st.session_state.lilo_optimizer.run_round(
-                                    all_flights=st.session_state.lilo_optimizer.all_flights,
-                                    round_num=2,
-                                    user_rankings=user_rankings,
-                                    user_feedback=answers_text,
-                                    user_answers=st.session_state.lilo_answers,
-                                    n_candidates=15
+                    if st.button("Continue to Iteration 2 →", key="lilo_iter1_submit", type="primary", use_container_width=True):
+                        # Check all questions answered
+                        if any(not ans or len(ans.strip()) < 10 for ans in iter1_answers.values()):
+                            st.error("Please answer all questions with at least 10 characters each")
+                        else:
+                            try:
+                                # Run LILO iteration 2: this will generate new flights based on iteration 1 feedback
+                                flights, next_questions = st.session_state.lilo_bridge.run_iteration(
+                                    st.session_state.lilo_session_id,
+                                    iter1_answers
                                 )
-
+                                st.session_state.lilo_round2_flights = flights
+                                st.session_state.lilo_round2_questions = next_questions
                                 st.session_state.lilo_round = 2
-
-                                # Save to database
-                                try:
-                                    from backend.db import SessionLocal, LILOSession, LILORound
-                                    db = SessionLocal()
-
-                                    # Update session
-                                    lilo_session = db.query(LILOSession).filter(
-                                        LILOSession.session_id == st.session_state.session_id
-                                    ).first()
-                                    if lilo_session:
-                                        lilo_session.num_rounds = 2
-
-                                    # Create round 2 record
-                                    lilo_round2 = LILORound(
-                                        session_id=st.session_state.session_id,
-                                        round_number=2,
-                                        flights_shown=[i for i in range(len(st.session_state.lilo_round2_flights))],
-                                        user_rankings=user_rankings,
-                                        user_feedback=answers_text,
-                                        extracted_preferences=st.session_state.lilo_answers
-                                    )
-                                    db.add(lilo_round2)
-                                    db.commit()
-                                    db.close()
-                                except Exception as e:
-                                    print(f"⚠️ Error saving LILO round 2: {e}")
-
                                 st.rerun()
-                    else:
-                        st.info(f"ℹ️ Please select {5 - len(st.session_state.lilo_round2_selected)} more flights and answer all questions")
+                            except Exception as e:
+                                st.error(f"Error running LILO iteration: {e}")
+                                import traceback
+                                st.code(traceback.format_exc())
 
-                # LILO Final Ranking: Show optimized results
+                # LILO Iteration 2: Final refinement
                 elif st.session_state.lilo_round == 2:
-                    st.markdown("### ✨ Your Personalized Flight Recommendations")
-                    st.markdown("*Based on your preferences, here are the top 10 flights we recommend:*")
+                    st.markdown("### ✈️ LILO Iteration 2: Final Options")
+                    st.markdown("*Based on all your feedback, here are refined flight recommendations*")
+                    st.markdown("---")
 
-                    # Get final ranking
-                    final_flights = st.session_state.lilo_optimizer.get_final_ranking(
-                        st.session_state.lilo_optimizer.all_flights,
-                        top_k=10
-                    )
-
-                    # Display final recommendations
-                    for idx, flight in enumerate(final_flights):
-                        with st.expander(f"🏆 #{idx+1}: {flight.get('airline', 'Unknown')} - ${flight.get('price', 0):.0f}", expanded=(idx < 3)):
-                            col1, col2 = st.columns([2, 2])
+                    # Display LILO-generated flights for iteration 2
+                    for idx, flight in enumerate(st.session_state.get('lilo_round2_flights', [])):
+                        with st.expander(f"✈️ Flight {idx+1}: {flight.get('airline', 'Unknown')} - ${flight.get('price', 0):.0f}", expanded=False):
+                            col1, col2 = st.columns([1, 1])
                             with col1:
                                 st.markdown(f"**Route:** {flight.get('origin', '')} → {flight.get('destination', '')}")
                                 st.markdown(f"**Departure:** {flight.get('departure_time', 'N/A')}")
@@ -2324,30 +2110,28 @@ if st.session_state.all_flights:
                                 st.markdown(f"**Stops:** {flight.get('stops', 0)}")
                                 st.markdown(f"**Price:** ${flight.get('price', 0):.0f}")
 
+                    # Show LILO-generated questions for iteration 2
                     st.markdown("---")
+                    st.markdown("**Final questions:**")
 
-                    # Save final utilities
-                    try:
-                        from backend.db import SessionLocal, LILOSession
-                        db = SessionLocal()
-                        lilo_session = db.query(LILOSession).filter(
-                            LILOSession.session_id == st.session_state.session_id
-                        ).first()
-                        if lilo_session:
-                            lilo_session.completed_at = datetime.now()
-                            utilities = st.session_state.lilo_optimizer.estimate_utilities(
-                                st.session_state.lilo_optimizer.all_flights
-                            )
-                            lilo_session.final_utility_scores = [float(u) for u in utilities]
-                            lilo_session.feedback_summary = st.session_state.lilo_optimizer.feedback_summary
-                            db.commit()
-                        db.close()
-                    except Exception as e:
-                        print(f"⚠️ Error saving LILO final results: {e}")
+                    iter2_answers = {}
+                    for i, question in enumerate(st.session_state.get('lilo_round2_questions', [])):
+                        answer = st.text_area(
+                            f"{i+1}. {question}",
+                            key=f"lilo_iter2_q{i}",
+                            height=100,
+                            placeholder="Share your final thoughts..."
+                        )
+                        iter2_answers[f"q{i}"] = answer
 
-                    if st.button("Continue to Validation →", key="lilo_complete", type="primary", use_container_width=True):
-                        st.session_state.lilo_completed = True
-                        st.rerun()
+                    if st.button("Complete LILO →", key="lilo_iter2_submit", type="primary", use_container_width=True):
+                        # Check all questions answered
+                        if any(not ans or len(ans.strip()) < 10 for ans in iter2_answers.values()):
+                            st.error("Please answer all questions with at least 10 characters each")
+                        else:
+                            # LILO is complete - mark as finished
+                            st.session_state.lilo_completed = True
+                            st.rerun()
 
                 st.markdown('</div>', unsafe_allow_html=True)
             # Cross-validation section (before survey) - only show after LILO is completed
