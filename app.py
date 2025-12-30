@@ -2340,26 +2340,25 @@ if st.session_state.all_flights:
                                 col1, col2 = st.columns([1, 5])
 
                                 with col1:
-                                    checkbox_key = f"cv_chk_{idx}_{flight_unique_key}_v{st.session_state.cv_checkbox_version}".replace(':', '').replace('-', '').replace('+', '').replace(' ', '')
-                                    selected = st.checkbox(
-                                        "Select flight",
-                                        value=is_selected,
-                                        key=checkbox_key,
-                                        label_visibility="collapsed",
-                                        disabled=(not is_selected and len(st.session_state.cross_val_selected_flights) >= 5)
-                                    )
+                                    # Use button instead of checkbox for more reliable state management
+                                    button_label = "✓" if is_selected else "☐"
+                                    button_type = "primary" if is_selected else "secondary"
+                                    button_key = f"cv_btn_{idx}_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '').replace(' ', '')
 
-                                    if selected and not is_selected:
-                                        if len(st.session_state.cross_val_selected_flights) < 5:
-                                            st.session_state.cross_val_selected_flights.append(flight)
-                                            st.session_state.cv_checkbox_version += 1
-                                            st.rerun()
-                                    elif not selected and is_selected:
-                                        st.session_state.cross_val_selected_flights = [
-                                            f for f in st.session_state.cross_val_selected_flights
-                                            if f"{f['id']}_{f['departure_time']}" != flight_unique_key
-                                        ]
-                                        st.session_state.cv_checkbox_version += 1
+                                    disabled = (not is_selected and len(st.session_state.cross_val_selected_flights) >= 5)
+
+                                    if st.button(button_label, key=button_key, type=button_type,
+                                                disabled=disabled, use_container_width=True):
+                                        if is_selected:
+                                            # Deselect
+                                            st.session_state.cross_val_selected_flights = [
+                                                f for f in st.session_state.cross_val_selected_flights
+                                                if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                                            ]
+                                        else:
+                                            # Select
+                                            if len(st.session_state.cross_val_selected_flights) < 5:
+                                                st.session_state.cross_val_selected_flights.append(flight)
                                         st.rerun()
 
                                 with col2:
