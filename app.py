@@ -467,7 +467,7 @@ if 'filter_reset_counter' not in st.session_state:
 # if 'shortlist' not in st.session_state:
 #     st.session_state.shortlist = []
 
-# Initialize Flight Search Client (supports SerpAPI and Amadeus)
+# Initialize Flight Search Client (supports Amadeus and SerpAPI)
 def get_flight_client():
     # Ensure .env is loaded fresh
     load_dotenv(override=True)
@@ -1542,7 +1542,7 @@ if ai_search or regular_search:
                             )
 
                             # Debug: show raw results
-                            with st.expander(f"🔍 Debug: SerpAPI Response ({origin}→{dest} on {departure_date})"):
+                            with st.expander(f"🔍 Debug: {provider_name} Response ({origin}→{dest} on {departure_date})"):
                                 st.write(f"Type: {type(results)}")
                                 if isinstance(results, dict):
                                     st.write(f"Keys: {results.keys()}")

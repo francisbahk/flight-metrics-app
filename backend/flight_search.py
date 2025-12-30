@@ -14,11 +14,11 @@ class FlightSearchClient:
     Unified client for flight search supporting multiple providers.
 
     Providers:
-    - 'serpapi': SerpAPI Google Flights (recommended, more data)
-    - 'amadeus': Amadeus API (legacy, requires OAuth)
+    - 'amadeus': Amadeus API (recommended, default)
+    - 'serpapi': SerpAPI Google Flights (alternative provider)
 
     Set FLIGHT_API_PROVIDER environment variable to choose provider.
-    Defaults to 'serpapi' if both API keys are available.
+    Defaults to 'amadeus' if not specified.
     """
 
     def __init__(self, provider: Optional[str] = None):
