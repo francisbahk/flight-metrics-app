@@ -2191,32 +2191,26 @@ if st.session_state.all_flights:
                         current_question = questions[current_idx]
                         render_chat_message(current_question, is_bot=True)
 
-                        # Input for current question
-                        st.markdown("---")
-                        answer = st.text_area(
-                            "Your answer:",
-                            key=f"lilo_q{current_idx}_input",
-                            height=100,
-                            placeholder="Type your answer here...",
-                            label_visibility="collapsed"
+                        # Chat input with Enter key support
+                        answer = st.chat_input(
+                            "Type your answer and press Enter...",
+                            key=f"lilo_q{current_idx}_input"
                         )
 
-                        col1, col2 = st.columns([3, 1])
-                        with col2:
-                            if st.button("Send", key=f"lilo_q{current_idx}_send", type="primary", use_container_width=True):
-                                if answer and len(answer.strip()) >= 10:
-                                    # Add to chat history
-                                    st.session_state.lilo_chat_history.append({'text': current_question, 'is_bot': True})
-                                    st.session_state.lilo_chat_history.append({'text': answer, 'is_bot': False})
+                        if answer:
+                            if len(answer.strip()) >= 10:
+                                # Add to chat history
+                                st.session_state.lilo_chat_history.append({'text': current_question, 'is_bot': True})
+                                st.session_state.lilo_chat_history.append({'text': answer, 'is_bot': False})
 
-                                    # Save answer
-                                    st.session_state.lilo_answers[f"q{current_idx}"] = answer
+                                # Save answer
+                                st.session_state.lilo_answers[f"q{current_idx}"] = answer
 
-                                    # Move to next question
-                                    st.session_state.lilo_current_question_idx += 1
-                                    st.rerun()
-                                else:
-                                    st.error("Please provide an answer with at least 10 characters")
+                                # Move to next question
+                                st.session_state.lilo_current_question_idx += 1
+                                st.rerun()
+                            else:
+                                st.error("Please provide an answer with at least 10 characters")
 
                 # LILO Iteration 1: Show flights + collect feedback
                 elif st.session_state.lilo_round == 1:
@@ -2230,6 +2224,10 @@ if st.session_state.all_flights:
                     current_idx = st.session_state.get('lilo_current_question_idx', 0)
                     chat_history = st.session_state.get('lilo_chat_history', [])
 
+                    # Debug info
+                    if not questions:
+                        st.warning(f"⚠️ No questions found for Round 1. Debug: {len(flights)} flights available")
+
                     # Display chat history
                     for msg in chat_history:
                         if msg.get('flights'):
@@ -2238,7 +2236,7 @@ if st.session_state.all_flights:
                         render_chat_message(msg['text'], is_bot=msg['is_bot'])
 
                     # Check if all questions answered
-                    if current_idx >= len(questions):
+                    if questions and current_idx >= len(questions):
                         render_chat_message("Great! Moving to final round...", is_bot=True)
 
                         if st.button("Continue to Round 2 →", key="lilo_round1_complete", type="primary", use_container_width=True):
@@ -2258,7 +2256,7 @@ if st.session_state.all_flights:
                                 st.error(f"Error: {e}")
                                 import traceback
                                 st.code(traceback.format_exc())
-                    else:
+                    elif questions:
                         # Show flight comparison for current question (show first 2 flights)
                         if len(flights) >= 2 and current_idx == 0:
                             st.markdown("**Compare these flight options:**")
@@ -2269,31 +2267,26 @@ if st.session_state.all_flights:
                         current_question = questions[current_idx]
                         render_chat_message(current_question, is_bot=True)
 
-                        # Input
-                        answer = st.text_area(
-                            "Your answer:",
-                            key=f"lilo_r1_q{current_idx}_input",
-                            height=100,
-                            placeholder="Type your answer...",
-                            label_visibility="collapsed"
+                        # Chat input with Enter key support
+                        answer = st.chat_input(
+                            "Type your answer and press Enter...",
+                            key=f"lilo_r1_q{current_idx}_input"
                         )
 
-                        col1, col2 = st.columns([3, 1])
-                        with col2:
-                            if st.button("Send", key=f"lilo_r1_q{current_idx}_send", type="primary", use_container_width=True):
-                                if answer and len(answer.strip()) >= 10:
-                                    # Add to history
-                                    msg_data = {'text': current_question, 'is_bot': True}
-                                    if current_idx == 0 and len(flights) >= 2:
-                                        msg_data['flights'] = [flights[0], flights[1]]
-                                    st.session_state.lilo_chat_history.append(msg_data)
-                                    st.session_state.lilo_chat_history.append({'text': answer, 'is_bot': False})
+                        if answer:
+                            if len(answer.strip()) >= 10:
+                                # Add to history
+                                msg_data = {'text': current_question, 'is_bot': True}
+                                if current_idx == 0 and len(flights) >= 2:
+                                    msg_data['flights'] = [flights[0], flights[1]]
+                                st.session_state.lilo_chat_history.append(msg_data)
+                                st.session_state.lilo_chat_history.append({'text': answer, 'is_bot': False})
 
-                                    st.session_state.lilo_answers[f"q{current_idx}"] = answer
-                                    st.session_state.lilo_current_question_idx += 1
-                                    st.rerun()
-                                else:
-                                    st.error("Please provide at least 10 characters")
+                                st.session_state.lilo_answers[f"q{current_idx}"] = answer
+                                st.session_state.lilo_current_question_idx += 1
+                                st.rerun()
+                            else:
+                                st.error("Please provide at least 10 characters")
 
                 # LILO Iteration 2: Final refinement
                 elif st.session_state.lilo_round == 2:
@@ -2331,31 +2324,26 @@ if st.session_state.all_flights:
                         current_question = questions[current_idx]
                         render_chat_message(current_question, is_bot=True)
 
-                        # Input
-                        answer = st.text_area(
-                            "Your answer:",
-                            key=f"lilo_r2_q{current_idx}_input",
-                            height=100,
-                            placeholder="Type your final thoughts...",
-                            label_visibility="collapsed"
+                        # Chat input with Enter key support
+                        answer = st.chat_input(
+                            "Type your answer and press Enter...",
+                            key=f"lilo_r2_q{current_idx}_input"
                         )
 
-                        col1, col2 = st.columns([3, 1])
-                        with col2:
-                            if st.button("Send", key=f"lilo_r2_q{current_idx}_send", type="primary", use_container_width=True):
-                                if answer and len(answer.strip()) >= 10:
-                                    # Add to history
-                                    msg_data = {'text': current_question, 'is_bot': True}
-                                    if current_idx == 0 and len(flights) >= 2:
-                                        msg_data['flights'] = [flights[0], flights[1]]
-                                    st.session_state.lilo_chat_history.append(msg_data)
-                                    st.session_state.lilo_chat_history.append({'text': answer, 'is_bot': False})
+                        if answer:
+                            if len(answer.strip()) >= 10:
+                                # Add to history
+                                msg_data = {'text': current_question, 'is_bot': True}
+                                if current_idx == 0 and len(flights) >= 2:
+                                    msg_data['flights'] = [flights[0], flights[1]]
+                                st.session_state.lilo_chat_history.append(msg_data)
+                                st.session_state.lilo_chat_history.append({'text': answer, 'is_bot': False})
 
-                                    st.session_state.lilo_answers[f"q{current_idx}"] = answer
-                                    st.session_state.lilo_current_question_idx += 1
-                                    st.rerun()
-                                else:
-                                    st.error("Please provide at least 10 characters")
+                                st.session_state.lilo_answers[f"q{current_idx}"] = answer
+                                st.session_state.lilo_current_question_idx += 1
+                                st.rerun()
+                            else:
+                                st.error("Please provide at least 10 characters")
 
                 st.markdown('</div>', unsafe_allow_html=True)
             # Cross-validation section (before survey) - only show after LILO is completed
