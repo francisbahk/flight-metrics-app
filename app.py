@@ -2089,45 +2089,64 @@ if st.session_state.all_flights:
 
                 # Initialize LILO session using real language_bo_code
                 if 'lilo_bridge' not in st.session_state:
-                    with st.spinner("Initializing LILO preference learning system..."):
-                        try:
-                            from lilo_integration import StreamlitLILOBridge
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
 
-                            # Create bridge
-                            bridge = StreamlitLILOBridge()
-                            st.session_state.lilo_bridge = bridge
+                    try:
+                        from lilo_integration import StreamlitLILOBridge
 
-                            # Create LILO session with all flights
-                            flights_data = st.session_state.get('all_flights_data', [])
-                            if not flights_data:
-                                st.warning("⚠️ No flight data available for LILO. Skipping LILO section.")
-                                st.session_state.lilo_completed = True
-                                st.rerun()
+                        # Step 1: Create bridge
+                        status_text.text("Loading ML libraries (PyTorch, BoTorch)...")
+                        progress_bar.progress(20)
+                        bridge = StreamlitLILOBridge()
+                        st.session_state.lilo_bridge = bridge
 
-                            session = bridge.create_session(
-                                session_id=f"user_{st.session_state.get('user_id', 'default')}",
-                                flights_data=flights_data
-                            )
-                            st.session_state.lilo_session_id = session.session_id
+                        # Step 2: Create LILO session
+                        status_text.text("Creating LILO session...")
+                        progress_bar.progress(50)
+                        flights_data = st.session_state.get('all_flights_data', [])
+                        if not flights_data:
+                            st.warning("⚠️ No flight data available for LILO. Skipping LILO section.")
+                            st.session_state.lilo_completed = True
+                            st.rerun()
 
-                            # Reset LILO state for new session
-                            st.session_state.lilo_round = 0
-                            st.session_state.lilo_round1_flights = []
-                            st.session_state.lilo_round2_flights = []
+                        session = bridge.create_session(
+                            session_id=f"user_{st.session_state.get('user_id', 'default')}",
+                            flights_data=flights_data
+                        )
+                        st.session_state.lilo_session_id = session.session_id
 
-                            # Get initial high-level questions
-                            initial_questions = bridge.get_initial_questions(session.session_id)
-                            st.session_state.lilo_initial_questions = initial_questions
-                            st.success("✅ LILO initialized successfully!")
+                        # Step 3: Initialize state
+                        status_text.text("Initializing conversation...")
+                        progress_bar.progress(75)
+                        st.session_state.lilo_round = 0
+                        st.session_state.lilo_chat_history = []  # Chat message history
+                        st.session_state.lilo_current_question_idx = 0  # Current question index
+                        st.session_state.lilo_round1_flights = []
+                        st.session_state.lilo_round2_flights = []
 
-                        except Exception as e:
-                            st.error(f"⚠️ Error initializing LILO: {e}")
-                            import traceback
-                            st.code(traceback.format_exc())
-                            if st.button("Skip LILO and Continue", type="primary"):
-                                st.session_state.lilo_completed = True
-                                st.rerun()
-                            st.stop()
+                        # Step 4: Get initial questions
+                        status_text.text("Generating initial questions...")
+                        progress_bar.progress(90)
+                        initial_questions = bridge.get_initial_questions(session.session_id)
+                        st.session_state.lilo_questions = initial_questions
+                        st.session_state.lilo_answers = {}  # Store answers
+
+                        # Complete
+                        progress_bar.progress(100)
+                        status_text.text("✅ Ready!")
+                        st.success("✅ LILO initialized successfully!")
+
+                    except Exception as e:
+                        progress_bar.empty()
+                        status_text.empty()
+                        st.error(f"⚠️ Error initializing LILO: {e}")
+                        import traceback
+                        st.code(traceback.format_exc())
+                        if st.button("Skip LILO and Continue", type="primary"):
+                            st.session_state.lilo_completed = True
+                            st.rerun()
+                        st.stop()
 
                 # LILO Round 0: Initial goal-understanding questions (BEFORE showing any flights)
                 if st.session_state.lilo_round == 0:
