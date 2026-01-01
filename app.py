@@ -1833,6 +1833,25 @@ if ai_search or regular_search:
                 # Store for LILO optimizer
                 st.session_state.all_flights_data = all_flights
 
+                # Pre-generate LILO questions in background (cache for later)
+                if 'lilo_questions_cached' not in st.session_state and len(all_flights) > 0:
+                    try:
+                        from lilo_integration import StreamlitLILOBridge
+                        with st.spinner("⚡ Pre-generating LILO questions in background..."):
+                            # Create temporary bridge for question generation
+                            temp_bridge = StreamlitLILOBridge()
+                            temp_session = temp_bridge.create_session(
+                                session_id=f"temp_{st.session_state.get('user_id', 'default')}",
+                                flights_data=all_flights
+                            )
+                            # Get initial questions and cache them
+                            cached_questions = temp_bridge.get_initial_questions(temp_session.session_id)
+                            st.session_state.lilo_questions_cached = cached_questions
+                            st.success("✅ LILO questions ready!")
+                    except Exception as e:
+                        print(f"Warning: Could not pre-generate LILO questions: {e}")
+                        # Don't fail the flight search if question generation fails
+
                 if has_return:
                     st.success(f"✅ Found {len(all_flights)} outbound flights and {len(all_return_flights)} return flights!")
                 else:
@@ -2125,10 +2144,15 @@ if st.session_state.all_flights:
                         st.session_state.lilo_round1_flights = []
                         st.session_state.lilo_round2_flights = []
 
-                        # Step 4: Get initial questions
-                        status_text.text("Generating initial questions...")
-                        progress_bar.progress(90)
-                        initial_questions = bridge.get_initial_questions(session.session_id)
+                        # Step 4: Get initial questions (use cached if available)
+                        if 'lilo_questions_cached' in st.session_state:
+                            status_text.text("Loading pre-generated questions...")
+                            progress_bar.progress(90)
+                            initial_questions = st.session_state.lilo_questions_cached
+                        else:
+                            status_text.text("Generating initial questions...")
+                            progress_bar.progress(90)
+                            initial_questions = bridge.get_initial_questions(session.session_id)
                         st.session_state.lilo_questions = initial_questions
                         st.session_state.lilo_answers = {}  # Store answers
 
