@@ -453,7 +453,8 @@ if 'token_message' not in st.session_state:
 
 # Get token from URL parameter (?id=TOKEN)
 # Re-validate on every page load to detect if token was used
-token_from_url = st.query_params.get('id', None)
+query_params = st.experimental_get_query_params()
+token_from_url = query_params.get('id', [None])[0]
 if token_from_url:
     # Validate token (checks database to see if it's been used)
     from backend.db import validate_token
@@ -590,6 +591,14 @@ st.markdown("""
         overflow-anchor: none !important;
     }
 
+    /* Prevent checkboxes from triggering scroll */
+    .stCheckbox {
+        overflow-anchor: none !important;
+    }
+    .stCheckbox input[type="checkbox"] {
+        overflow-anchor: none !important;
+    }
+
     .main-title {
         font-size: 3rem;
         font-weight: 600;
@@ -633,6 +642,40 @@ st.markdown("""
         cursor: pointer;
     }
 </style>
+<script>
+    // Prevent scrolling when checkboxes are clicked
+    document.addEventListener('DOMContentLoaded', function() {
+        // Store current scroll position before any checkbox interaction
+        let scrollPosition = 0;
+
+        // Observe for checkbox changes
+        const observer = new MutationObserver(function() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(function(checkbox) {
+                if (!checkbox.hasAttribute('data-scroll-prevention')) {
+                    checkbox.setAttribute('data-scroll-prevention', 'true');
+
+                    // Save scroll position before click
+                    checkbox.addEventListener('mousedown', function() {
+                        scrollPosition = window.scrollY;
+                    });
+
+                    // Restore scroll position after click
+                    checkbox.addEventListener('change', function() {
+                        setTimeout(function() {
+                            window.scrollTo(0, scrollPosition);
+                        }, 0);
+                    });
+                }
+            });
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    });
+</script>
 """, unsafe_allow_html=True)
 
 # Header with animated title flip using components.html for full control
@@ -934,7 +977,8 @@ init_demo_mode()
 if st.session_state.get('demo_active', False):
     # Check for tutorial navigation via query params
     try:
-        action = st.query_params.get('tutorial_action', None)
+        query_params = st.experimental_get_query_params()
+        action = query_params.get('tutorial_action', [None])[0]
         if action:
             if action == 'next':
                 if st.session_state.demo_step < 6:
@@ -948,7 +992,7 @@ if st.session_state.get('demo_active', False):
                 st.session_state.demo_active = False
                 st.session_state.demo_step = 0
             # Clear query param
-            st.query_params.clear()
+            st.experimental_set_query_params()
             st.rerun()
     except:
         pass
@@ -1066,6 +1110,10 @@ if st.session_state.get('demo_active', False):
 # How to Use section
 st.markdown('<div id="how-to-use"></div>', unsafe_allow_html=True)
 st.markdown("### 📖 How to Use")
+
+# Container to hide content on LILO/survey pages
+st.markdown('<div class="hideable-survey-content">', unsafe_allow_html=True)
+
 st.markdown("""
 1. **Describe your flight** - Enter your travel details in natural language, as if you are telling a flight itinerary manager how to book your ideal trip. What would you want them to know?
 """)
@@ -1489,6 +1537,9 @@ setTimeout(function() {
 """, unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)  # Close demo-search-btn
 
+# Close hideable-survey-content container
+st.markdown('</div>', unsafe_allow_html=True)
+
 # Rate limiting for AI search (prevent quota exhaustion)
 import time
 if 'last_ai_search_time' not in st.session_state:
@@ -1833,23 +1884,9 @@ if ai_search or regular_search:
                 # Store for LILO optimizer
                 st.session_state.all_flights_data = all_flights
 
-                # Pre-generate LILO questions silently in background (cache for later)
-                # This happens async - doesn't block flight display
-                if 'lilo_questions_cached' not in st.session_state and len(all_flights) > 0:
-                    try:
-                        from lilo_integration import StreamlitLILOBridge
-                        # Silent background generation (no spinner, no announcement)
-                        temp_bridge = StreamlitLILOBridge()
-                        temp_session = temp_bridge.create_session(
-                            session_id=f"temp_{st.session_state.get('user_id', 'default')}",
-                            flights_data=all_flights
-                        )
-                        # Get initial questions and cache them
-                        cached_questions = temp_bridge.get_initial_questions(temp_session.session_id)
-                        st.session_state.lilo_questions_cached = cached_questions
-                    except Exception as e:
-                        print(f"Warning: Could not pre-generate LILO questions: {e}")
-                        # Don't fail the flight search if question generation fails
+                # REMOVED: Pre-generation was blocking flight display (15-30+ seconds!)
+                # LILO questions will be generated when user reaches LILO section
+                # This makes flights appear immediately after Amadeus API responds
 
                 if has_return:
                     st.success(f"✅ Found {len(all_flights)} outbound flights and {len(all_return_flights)} return flights!")
@@ -1909,6 +1946,15 @@ if ai_search or regular_search:
 
 # Display results - NEW SIMPLIFIED VERSION (no algorithm ranking)
 if st.session_state.all_flights:
+    # Hide content between "How to Use" and "Search Flights" on results page
+    st.markdown("""
+    <style>
+        .hideable-survey-content {
+            display: none !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
     # Calculate submission progress
     has_return = st.session_state.has_return and st.session_state.all_return_flights
     num_required = 2 if has_return else 1
@@ -2099,6 +2145,15 @@ if st.session_state.all_flights:
             # LILO PREFERENCE LEARNING SECTION (between initial ranking and cross-validation)
             # ============================================================================
             if not st.session_state.get('lilo_completed'):
+                # Hide survey content on LILO page
+                st.markdown("""
+                <style>
+                    .hideable-survey-content {
+                        display: none !important;
+                    }
+                </style>
+                """, unsafe_allow_html=True)
+
                 st.markdown("---")
                 st.markdown("# 🧠 LILO: AI-Powered Preference Learning")
                 st.markdown("*Help the AI understand your flight preferences through interactive questioning*")
@@ -2143,15 +2198,10 @@ if st.session_state.all_flights:
                         st.session_state.lilo_round1_flights = []
                         st.session_state.lilo_round2_flights = []
 
-                        # Step 4: Get initial questions (use cached if available)
-                        if 'lilo_questions_cached' in st.session_state:
-                            status_text.text("Loading pre-generated questions...")
-                            progress_bar.progress(90)
-                            initial_questions = st.session_state.lilo_questions_cached
-                        else:
-                            status_text.text("Generating initial questions...")
-                            progress_bar.progress(90)
-                            initial_questions = bridge.get_initial_questions(session.session_id)
+                        # Step 4: Generate initial questions
+                        status_text.text("Generating initial questions...")
+                        progress_bar.progress(90)
+                        initial_questions = bridge.get_initial_questions(session.session_id)
                         st.session_state.lilo_questions = initial_questions
                         st.session_state.lilo_answers = {}  # Store answers
 
@@ -2173,6 +2223,12 @@ if st.session_state.all_flights:
 
                 # LILO: Continuous chat interface (single page, no reloads between rounds)
                 st.markdown("### 💬 Chat with LILO")
+
+                # Debug info: Show current round
+                current_round_display = st.session_state.get('lilo_round', 0)
+                total_rounds = 3  # Round 0, 1, 2
+                st.caption(f"Round {current_round_display + 1} of {total_rounds}")
+
                 st.markdown("---")
 
                 # Add LILO-specific CSS
@@ -2195,9 +2251,9 @@ if st.session_state.all_flights:
                         box-shadow: 0 -2px 10px rgba(0,0,0,0.1) !important;
                     }
 
-                    /* Hide sections between search and how-to during LILO */
-                    .lilo-section ~ div:not(.cross-validation-section):not(.survey-section) {
-                        display: block !important;
+                    /* Hide content between "How to Use" and "Search Flights" during LILO */
+                    .hideable-survey-content {
+                        display: none !important;
                     }
                 </style>
                 """, unsafe_allow_html=True)
@@ -2245,6 +2301,21 @@ if st.session_state.all_flights:
                             else:
                                 st.session_state.lilo_round2_flights = flights
 
+                            # Check if we got valid questions
+                            if not next_questions or len(next_questions) == 0:
+                                st.error("⚠️ LILO failed to generate questions for next round. Using fallback.")
+                                # Use fallback questions
+                                if current_round == 0:
+                                    next_questions = [
+                                        "Between the two flight options shown, which one better matches your needs and why?",
+                                        "What trade-offs are you willing to make between price, duration, and convenience?"
+                                    ]
+                                else:
+                                    next_questions = [
+                                        "Looking at the refined options, which aspects are most important to you?",
+                                        "Is there anything you'd like to adjust in your preferences?"
+                                    ]
+
                             # Update state for next round
                             st.session_state.lilo_questions = next_questions
                             st.session_state.lilo_current_question_idx = 0
@@ -2270,7 +2341,8 @@ if st.session_state.all_flights:
                 elif current_idx >= len(questions) and current_round == 2:
                     render_chat_message("Perfect! I've learned your preferences. LILO is complete! ✅", is_bot=True)
                     st.session_state.lilo_chat_history.append({'text': "Perfect! I've learned your preferences. LILO is complete! ✅", 'is_bot': True})
-                    st.session_state.lilo_completed = True
+                    # Show transition animation before cross-validation
+                    st.session_state.show_evaluation_animation = True
                     st.rerun()
 
                 # Show current question
@@ -2300,6 +2372,418 @@ if st.session_state.all_flights:
                             st.error("Please provide an answer with at least 10 characters")
 
                 st.markdown('</div>', unsafe_allow_html=True)
+
+            # Evaluation Animation - Show between LILO completion and cross-validation
+            if st.session_state.get('show_evaluation_animation'):
+                st.markdown("""
+                <style>
+                    /* Full-screen animation overlay */
+                    .evaluation-animation {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100vw;
+                        height: 100vh;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        z-index: 9999;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        overflow: hidden;
+                    }
+
+                    /* Person A watching */
+                    .observer {
+                        position: absolute;
+                        bottom: 20px;
+                        left: 50px;
+                        width: 120px;
+                        height: 140px;
+                        opacity: 0;
+                        animation: fadeInObserver 1s ease-in forwards;
+                    }
+
+                    @keyframes fadeInObserver {
+                        to { opacity: 1; }
+                    }
+
+                    /* Flight path container */
+                    .flight-container {
+                        position: relative;
+                        width: 70%;
+                        height: 60%;
+                        background: rgba(255, 255, 255, 0.1);
+                        border-radius: 20px;
+                        backdrop-filter: blur(10px);
+                        border: 2px solid rgba(255, 255, 255, 0.2);
+                        overflow: hidden;
+                    }
+
+                    /* Animated flight path */
+                    .flight-path {
+                        position: absolute;
+                        top: 50%;
+                        left: 10%;
+                        width: 0;
+                        height: 3px;
+                        background: linear-gradient(90deg, #4CAF50, #2196F3, #9C27B0);
+                        animation: drawPath 3s ease-in-out forwards;
+                        animation-delay: 0.5s;
+                    }
+
+                    @keyframes drawPath {
+                        to { width: 80%; }
+                    }
+
+                    /* Airplane icon */
+                    .airplane {
+                        position: absolute;
+                        top: calc(50% - 15px);
+                        left: 10%;
+                        font-size: 30px;
+                        animation: flyPlane 3s ease-in-out forwards;
+                        animation-delay: 0.5s;
+                    }
+
+                    @keyframes flyPlane {
+                        0% { left: 10%; }
+                        100% { left: 90%; }
+                    }
+
+                    /* Telemetry overlays */
+                    .telemetry {
+                        position: absolute;
+                        right: 30px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                        opacity: 0;
+                        animation: fadeInTelemetry 1s ease-in forwards;
+                        animation-delay: 1.5s;
+                    }
+
+                    @keyframes fadeInTelemetry {
+                        to { opacity: 1; }
+                    }
+
+                    .telemetry-item {
+                        background: rgba(255, 255, 255, 0.9);
+                        padding: 15px 20px;
+                        border-radius: 10px;
+                        min-width: 200px;
+                        animation: pulse 2s infinite;
+                    }
+
+                    @keyframes pulse {
+                        0%, 100% { transform: scale(1); box-shadow: 0 0 10px rgba(76, 175, 80, 0.3); }
+                        50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(76, 175, 80, 0.6); }
+                    }
+
+                    .telemetry-label {
+                        font-size: 12px;
+                        color: #666;
+                        text-transform: uppercase;
+                        margin-bottom: 5px;
+                    }
+
+                    .telemetry-value {
+                        font-size: 24px;
+                        font-weight: bold;
+                        color: #2196F3;
+                    }
+
+                    /* Ranking scale */
+                    .ranking-scale {
+                        position: absolute;
+                        bottom: 100px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        display: flex;
+                        gap: 10px;
+                        opacity: 0;
+                        animation: fadeInScale 1s ease-in forwards;
+                        animation-delay: 2.5s;
+                    }
+
+                    @keyframes fadeInScale {
+                        to { opacity: 1; }
+                    }
+
+                    .ranking-bar {
+                        width: 40px;
+                        background: rgba(255, 255, 255, 0.3);
+                        border-radius: 5px 5px 0 0;
+                        position: relative;
+                        overflow: hidden;
+                    }
+
+                    .ranking-bar-fill {
+                        position: absolute;
+                        bottom: 0;
+                        width: 100%;
+                        background: linear-gradient(180deg, #4CAF50, #2196F3);
+                        animation: fillBar 1.5s ease-out forwards;
+                        animation-delay: 3s;
+                    }
+
+                    @keyframes fillBar {
+                        from { height: 0; }
+                    }
+
+                    .bar-label {
+                        position: absolute;
+                        bottom: -25px;
+                        width: 100%;
+                        text-align: center;
+                        color: white;
+                        font-size: 11px;
+                    }
+
+                    /* Score assembly */
+                    .score-container {
+                        position: absolute;
+                        top: 30px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        opacity: 0;
+                        animation: fadeInScore 1s ease-in forwards;
+                        animation-delay: 4.5s;
+                    }
+
+                    @keyframes fadeInScore {
+                        to { opacity: 1; }
+                    }
+
+                    .score-box {
+                        background: white;
+                        padding: 30px 50px;
+                        border-radius: 15px;
+                        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+                        text-align: center;
+                    }
+
+                    .score-label {
+                        font-size: 14px;
+                        color: #666;
+                        margin-bottom: 10px;
+                    }
+
+                    .score-value {
+                        font-size: 64px;
+                        font-weight: bold;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        animation: countUp 2s ease-out forwards;
+                    }
+
+                    @keyframes countUp {
+                        from { opacity: 0; transform: scale(0.5); }
+                        to { opacity: 1; transform: scale(1); }
+                    }
+
+                    /* Playback controls */
+                    .playback-controls {
+                        position: absolute;
+                        bottom: 30px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        display: flex;
+                        gap: 15px;
+                        opacity: 0;
+                        animation: fadeInControls 1s ease-in forwards;
+                        animation-delay: 1s;
+                    }
+
+                    @keyframes fadeInControls {
+                        to { opacity: 1; }
+                    }
+
+                    .control-btn {
+                        background: rgba(255, 255, 255, 0.2);
+                        border: 2px solid rgba(255, 255, 255, 0.4);
+                        color: white;
+                        padding: 10px 20px;
+                        border-radius: 25px;
+                        cursor: pointer;
+                        transition: all 0.3s;
+                        backdrop-filter: blur(5px);
+                    }
+
+                    .control-btn:hover {
+                        background: rgba(255, 255, 255, 0.3);
+                        transform: scale(1.05);
+                    }
+
+                    /* Continue button */
+                    .continue-btn {
+                        position: absolute;
+                        bottom: 50px;
+                        right: 50px;
+                        background: white;
+                        color: #667eea;
+                        padding: 15px 40px;
+                        border-radius: 30px;
+                        font-size: 18px;
+                        font-weight: bold;
+                        cursor: pointer;
+                        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+                        opacity: 0;
+                        animation: fadeInContinue 1s ease-in forwards;
+                        animation-delay: 5.5s;
+                        transition: all 0.3s;
+                    }
+
+                    .continue-btn:hover {
+                        transform: scale(1.1);
+                        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+                    }
+
+                    @keyframes fadeInContinue {
+                        to { opacity: 1; }
+                    }
+
+                    /* Confirmation checkmark */
+                    .checkmark {
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%) scale(0);
+                        width: 100px;
+                        height: 100px;
+                        border-radius: 50%;
+                        background: white;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 60px;
+                        animation: popCheckmark 0.5s ease-out forwards;
+                        animation-delay: 6s;
+                        z-index: 10000;
+                    }
+
+                    @keyframes popCheckmark {
+                        0% { transform: translate(-50%, -50%) scale(0); }
+                        50% { transform: translate(-50%, -50%) scale(1.2); }
+                        100% { transform: translate(-50%, -50%) scale(1); }
+                    }
+                </style>
+
+                <div class="evaluation-animation">
+                    <!-- Observer (Person A) -->
+                    <div class="observer">
+                        <div style="font-size: 80px;">👨‍💼</div>
+                        <div style="color: white; text-align: center; margin-top: 5px; font-size: 12px;">Person A</div>
+                    </div>
+
+                    <!-- Flight container -->
+                    <div class="flight-container">
+                        <!-- Flight path -->
+                        <div class="flight-path"></div>
+
+                        <!-- Airplane -->
+                        <div class="airplane">✈️</div>
+
+                        <!-- Telemetry overlays -->
+                        <div class="telemetry">
+                            <div class="telemetry-item">
+                                <div class="telemetry-label">Altitude</div>
+                                <div class="telemetry-value">35,000 ft</div>
+                            </div>
+                            <div class="telemetry-item" style="animation-delay: 0.2s;">
+                                <div class="telemetry-label">Speed</div>
+                                <div class="telemetry-value">550 mph</div>
+                            </div>
+                            <div class="telemetry-item" style="animation-delay: 0.4s;">
+                                <div class="telemetry-label">Smoothness</div>
+                                <div class="telemetry-value">98%</div>
+                            </div>
+                            <div class="telemetry-item" style="animation-delay: 0.6s;">
+                                <div class="telemetry-label">Efficiency</div>
+                                <div class="telemetry-value">95%</div>
+                            </div>
+                        </div>
+
+                        <!-- Playback controls -->
+                        <div class="playback-controls">
+                            <div class="control-btn">⏮️ Replay</div>
+                            <div class="control-btn">⏸️ Pause</div>
+                            <div class="control-btn">⏭️ Skip</div>
+                        </div>
+                    </div>
+
+                    <!-- Ranking scale -->
+                    <div class="ranking-scale">
+                        <div class="ranking-bar" style="height: 100px;">
+                            <div class="ranking-bar-fill" style="--fill-height: 85%;"></div>
+                            <div class="bar-label">Comfort</div>
+                        </div>
+                        <div class="ranking-bar" style="height: 120px;">
+                            <div class="ranking-bar-fill" style="--fill-height: 92%; animation-delay: 3.2s;"></div>
+                            <div class="bar-label">Speed</div>
+                        </div>
+                        <div class="ranking-bar" style="height: 110px;">
+                            <div class="ranking-bar-fill" style="--fill-height: 88%; animation-delay: 3.4s;"></div>
+                            <div class="bar-label">Price</div>
+                        </div>
+                        <div class="ranking-bar" style="height: 105px;">
+                            <div class="ranking-bar-fill" style="--fill-height: 90%; animation-delay: 3.6s;"></div>
+                            <div class="bar-label">Route</div>
+                        </div>
+                    </div>
+
+                    <!-- Score assembly -->
+                    <div class="score-container">
+                        <div class="score-box">
+                            <div class="score-label">COMPOSITE SCORE</div>
+                            <div class="score-value">8.9</div>
+                        </div>
+                    </div>
+
+                    <!-- Checkmark confirmation -->
+                    <div class="checkmark">✓</div>
+                </div>
+
+                <script>
+                    // Auto-advance to cross-validation after animation completes
+                    setTimeout(function() {
+                        // Find and click the hidden continue button
+                        const continueBtn = document.querySelector('[data-testid="evaluation-continue"]');
+                        if (continueBtn) {
+                            continueBtn.click();
+                        }
+                    }, 7000); // 7 seconds total animation time
+                </script>
+                """, unsafe_allow_html=True)
+
+                # Auto-advance using session state timer
+                if 'animation_start_time' not in st.session_state:
+                    import time
+                    st.session_state.animation_start_time = time.time()
+
+                # Check if 7 seconds have passed
+                import time
+                elapsed = time.time() - st.session_state.animation_start_time
+                if elapsed >= 7:
+                    # Clear timer and advance
+                    del st.session_state.animation_start_time
+                    st.session_state.lilo_completed = True
+                    st.session_state.show_evaluation_animation = False
+                    st.rerun()
+                else:
+                    # Show manual continue button
+                    if st.button("Continue to Cross-Validation", key="evaluation-continue", help="Continue", type="primary"):
+                        del st.session_state.animation_start_time
+                        st.session_state.lilo_completed = True
+                        st.session_state.show_evaluation_animation = False
+                        st.rerun()
+                    # Force rerun to check timer again
+                    time.sleep(0.1)
+                    st.rerun()
+
             # Cross-validation section (before survey) - only show after LILO is completed
             if st.session_state.get('lilo_completed') and not st.session_state.get('cross_validation_completed'):
                 try:
@@ -2327,6 +2811,17 @@ if st.session_state.all_flights:
                             background: white;
                             position: relative;
                             z-index: 1000;
+                        }
+                        /* Match checkbox styling to main website */
+                        .cross-validation-section .stCheckbox {
+                            font-size: 14px !important;
+                        }
+                        .cross-validation-section .stCheckbox > label {
+                            font-size: 14px !important;
+                        }
+                        .cross-validation-section .stCheckbox input[type="checkbox"] {
+                            width: 16px !important;
+                            height: 16px !important;
                         }
                     </style>
                     """, unsafe_allow_html=True)
@@ -2381,7 +2876,7 @@ if st.session_state.all_flights:
                         # SIDEBAR FILTERS (EXACT copy from main interface)
                         with st.sidebar:
                             st.markdown("---")
-                            st.markdown('<h2><span class="filter-heading-neon">🔍 CV Filters</span></h2>', unsafe_allow_html=True)
+                            st.markdown('<h2><span class="filter-heading-neon">🔍 Filters</span></h2>', unsafe_allow_html=True)
 
                             # Get unique values
                             unique_airlines_cv = sorted(set([f['airline'] for f in cv_flights]))
@@ -2684,6 +3179,10 @@ if st.session_state.all_flights:
                         position: relative;
                         z-index: 1000;
                         padding-top: 20px;
+                    }
+                    /* Hide content between "How to Use" and "Search Flights" on survey page */
+                    .hideable-survey-content {
+                        display: none !important;
                     }
                 </style>
                 <script>
@@ -3100,8 +3599,8 @@ if st.session_state.all_flights:
             # Add neon trace effect for Filters heading
             st.markdown("""
                 <style>
-                    /* Neon glow animation - runs for 4 seconds then fades out */
-                    @keyframes neonGlow4s {
+                    /* Neon glow animation - runs for 10 seconds then fades out */
+                    @keyframes neonGlow10s {
                         0% {
                             box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444;
                             border-color: #ff4444;
@@ -3150,7 +3649,7 @@ if st.session_state.all_flights:
 
                     .filter-heading-neon {
                         display: inline-block;
-                        animation: neonGlow4s 4s ease-in-out forwards;
+                        animation: neonGlow10s 10s ease-in-out forwards;
                         padding: 4px 12px;
                         border-radius: 6px;
                         border: 1.5px solid #ff4444;
@@ -3167,7 +3666,19 @@ if st.session_state.all_flights:
                         margin: 0 2px;
                     }
                 </style>
-                <h2><span class="filter-heading-neon">🔍 Filters</span></h2>
+                <h2><span class="filter-heading-neon" key="filter-heading-{id(st.session_state)}">🔍 Filters</span></h2>
+                <script>
+                    // Force animation to replay on every Streamlit rerun
+                    setTimeout(() => {{
+                        const elem = document.querySelector('.filter-heading-neon');
+                        if (elem) {{
+                            elem.style.animation = 'none';
+                            setTimeout(() => {{
+                                elem.style.animation = 'neonGlow10s 10s ease-in-out forwards';
+                            }}, 10);
+                        }}
+                    }}, 100);
+                </script>
             """, unsafe_allow_html=True)
 
             # Get all flights for filter options (combine outbound and return if applicable)
