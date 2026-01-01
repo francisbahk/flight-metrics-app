@@ -2189,12 +2189,12 @@ if st.session_state.all_flights:
 
                     # Check if all questions answered
                     if current_idx >= len(questions):
-                        # All questions answered, proceed to Round 1
-                        render_chat_message("Thank you! Let me analyze your preferences and find the best flights for you...", is_bot=True)
+                        # All questions answered, auto-proceed to Round 1
+                        render_chat_message("Thank you! Analyzing your preferences and finding the best flights...", is_bot=True)
 
-                        if st.button("Continue to Flight Comparison →", key="lilo_round0_complete", type="primary", use_container_width=True):
-                            try:
-                                # Run LILO iteration 1
+                        # Auto-run iteration (no button needed)
+                        try:
+                            with st.spinner("🤖 Running LILO algorithm..."):
                                 flights, next_questions = st.session_state.lilo_bridge.run_iteration(
                                     st.session_state.lilo_session_id,
                                     st.session_state.lilo_answers
@@ -2206,10 +2206,10 @@ if st.session_state.all_flights:
                                 st.session_state.lilo_answers = {}
                                 st.session_state.lilo_round = 1
                                 st.rerun()
-                            except Exception as e:
-                                st.error(f"Error: {e}")
-                                import traceback
-                                st.code(traceback.format_exc())
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+                            import traceback
+                            st.code(traceback.format_exc())
                     else:
                         # Show current question
                         current_question = questions[current_idx]
@@ -2261,10 +2261,11 @@ if st.session_state.all_flights:
 
                     # Check if all questions answered
                     if questions and current_idx >= len(questions):
-                        render_chat_message("Great! Moving to final round...", is_bot=True)
+                        render_chat_message("Great! Refining flight options based on your feedback...", is_bot=True)
 
-                        if st.button("Continue to Round 2 →", key="lilo_round1_complete", type="primary", use_container_width=True):
-                            try:
+                        # Auto-proceed to Round 2
+                        try:
+                            with st.spinner("🤖 Generating refined options..."):
                                 flights, next_questions = st.session_state.lilo_bridge.run_iteration(
                                     st.session_state.lilo_session_id,
                                     st.session_state.lilo_answers
@@ -2276,10 +2277,10 @@ if st.session_state.all_flights:
                                 st.session_state.lilo_answers = {}
                                 st.session_state.lilo_round = 2
                                 st.rerun()
-                            except Exception as e:
-                                st.error(f"Error: {e}")
-                                import traceback
-                                st.code(traceback.format_exc())
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+                            import traceback
+                            st.code(traceback.format_exc())
                     elif questions:
                         # Show flight comparison for current question (show first 2 flights)
                         if len(flights) >= 2 and current_idx == 0:
@@ -2332,11 +2333,11 @@ if st.session_state.all_flights:
 
                     # Check if all questions answered
                     if current_idx >= len(questions):
-                        render_chat_message("Perfect! I've learned your preferences. LILO is complete!", is_bot=True)
+                        render_chat_message("Perfect! I've learned your preferences. LILO is complete! ✅", is_bot=True)
 
-                        if st.button("Complete LILO →", key="lilo_round2_complete", type="primary", use_container_width=True):
-                            st.session_state.lilo_completed = True
-                            st.rerun()
+                        # Auto-complete LILO
+                        st.session_state.lilo_completed = True
+                        st.rerun()
                     else:
                         # Show flight comparison for current question
                         if len(flights) >= 2 and current_idx == 0:
