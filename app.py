@@ -1833,21 +1833,20 @@ if ai_search or regular_search:
                 # Store for LILO optimizer
                 st.session_state.all_flights_data = all_flights
 
-                # Pre-generate LILO questions in background (cache for later)
+                # Pre-generate LILO questions silently in background (cache for later)
+                # This happens async - doesn't block flight display
                 if 'lilo_questions_cached' not in st.session_state and len(all_flights) > 0:
                     try:
                         from lilo_integration import StreamlitLILOBridge
-                        with st.spinner("⚡ Pre-generating LILO questions in background..."):
-                            # Create temporary bridge for question generation
-                            temp_bridge = StreamlitLILOBridge()
-                            temp_session = temp_bridge.create_session(
-                                session_id=f"temp_{st.session_state.get('user_id', 'default')}",
-                                flights_data=all_flights
-                            )
-                            # Get initial questions and cache them
-                            cached_questions = temp_bridge.get_initial_questions(temp_session.session_id)
-                            st.session_state.lilo_questions_cached = cached_questions
-                            st.success("✅ LILO questions ready!")
+                        # Silent background generation (no spinner, no announcement)
+                        temp_bridge = StreamlitLILOBridge()
+                        temp_session = temp_bridge.create_session(
+                            session_id=f"temp_{st.session_state.get('user_id', 'default')}",
+                            flights_data=all_flights
+                        )
+                        # Get initial questions and cache them
+                        cached_questions = temp_bridge.get_initial_questions(temp_session.session_id)
+                        st.session_state.lilo_questions_cached = cached_questions
                     except Exception as e:
                         print(f"Warning: Could not pre-generate LILO questions: {e}")
                         # Don't fail the flight search if question generation fails
@@ -2174,7 +2173,6 @@ if st.session_state.all_flights:
 
                 # LILO: Continuous chat interface (single page, no reloads between rounds)
                 st.markdown("### 💬 Chat with LILO")
-                st.markdown("*Continuous conversation - just like texting!*")
                 st.markdown("---")
 
                 # Initialize chat state if needed
@@ -3075,8 +3073,8 @@ if st.session_state.all_flights:
             # Add neon trace effect for Filters heading
             st.markdown("""
                 <style>
-                    /* Neon glow animation - runs for 10 seconds then fades out */
-                    @keyframes neonGlow10s {
+                    /* Neon glow animation - runs for 4 seconds then fades out */
+                    @keyframes neonGlow4s {
                         0% {
                             box-shadow: 0 0 3px #ff4444, 0 0 6px #ff4444;
                             border-color: #ff4444;
@@ -3125,7 +3123,7 @@ if st.session_state.all_flights:
 
                     .filter-heading-neon {
                         display: inline-block;
-                        animation: neonGlow10s 10s ease-in-out forwards;
+                        animation: neonGlow4s 4s ease-in-out forwards;
                         padding: 4px 12px;
                         border-radius: 6px;
                         border: 1.5px solid #ff4444;
