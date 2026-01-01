@@ -416,6 +416,112 @@ class StreamlitLILOBridge:
 
         return flights_to_show, next_questions
 
+    def compute_final_rankings(
+        self,
+        session_id: str,
+        all_flights: List[Dict]
+    ) -> List[Dict]:
+        """
+        Compute final utility scores for all flights and return ranked list.
+
+        Args:
+            session_id: Session ID
+            all_flights: All available flights to rank
+
+        Returns:
+            List of dicts: [{'flight': flight_dict, 'utility_score': float, 'rank': int}, ...]
+            Sorted by utility (best first)
+        """
+        session = self.sessions.get(session_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
+
+        optimizer = session.optimizer
+        env = session.env
+
+        # Convert all flights to normalized x values
+        all_x = []
+        for flight in all_flights:
+            # Extract parameters from flight
+            params = {
+                "price": flight.get("price", 0),
+                "duration_min": flight.get("duration_min", 0),
+                "stops": flight.get("stops", 0),
+                "departure_hour": env._extract_hour(flight.get("departure_time", "00:00")),
+                "arrival_hour": env._extract_hour(flight.get("arrival_time", "00:00"))
+            }
+
+            # Normalize to [0, 1]
+            x = np.zeros(env.n_var)
+            for j, name in enumerate(env.x_names):
+                min_val = env.param_mins[name]
+                max_val = env.param_maxs[name]
+                if max_val > min_val:
+                    x[j] = (params[name] - min_val) / (max_val - min_val)
+                else:
+                    x[j] = 0.0
+
+            all_x.append(x)
+
+        all_x = np.array(all_x)
+
+        # Get utility scores from LILO model
+        # The label_exp_df contains p_accept_mean which is the utility
+        if optimizer.label_exp_df is not None and 'p_accept_mean' in optimizer.label_exp_df.columns:
+            # Use the trained preference model to predict utilities
+            from language_bo_code.utility_approximator import get_pairwise_llm_proxy_utilities
+
+            # Create a temporary dataframe with all flights
+            temp_df = pd.DataFrame()
+            for i, name in enumerate(env.x_names):
+                temp_df[name] = all_x[:, i]
+
+            # Get outcomes (for flights, y = x)
+            all_y = env.get_outcomes(all_x)
+            for i, name in enumerate(env.y_names):
+                temp_df[name] = all_y[:, i]
+
+            # Get utility predictions using the same method as LILO
+            try:
+                labeled_df, _ = get_pairwise_llm_proxy_utilities(
+                    to_label_df=temp_df,
+                    context_df=optimizer.context_df,
+                    env=optimizer.env,
+                    llm_client=optimizer.uprox_client,
+                    include_goals=optimizer.cfg.include_goals,
+                    num_responses=optimizer.cfg.num_llm_samples,
+                    pref_model=optimizer.pref_model,
+                    pref_model_input_type="y",
+                    summarize_feedback=False
+                )
+
+                utilities = labeled_df['p_accept_mean'].values
+            except Exception as e:
+                print(f"[LILO] Error computing utilities with model: {e}")
+                # Fallback: use simple scoring based on last iteration's best
+                utilities = -np.sum((all_x - all_x.mean(axis=0))**2, axis=1)
+        else:
+            # Fallback: use simple scoring
+            utilities = -np.sum((all_x - all_x.mean(axis=0))**2, axis=1)
+
+        # Create ranked list
+        ranked_flights = []
+        for i, flight in enumerate(all_flights):
+            ranked_flights.append({
+                'flight': flight,
+                'utility_score': float(utilities[i]),
+                'rank': 0  # Will be set after sorting
+            })
+
+        # Sort by utility (descending)
+        ranked_flights.sort(key=lambda x: x['utility_score'], reverse=True)
+
+        # Assign ranks
+        for rank, item in enumerate(ranked_flights, 1):
+            item['rank'] = rank
+
+        return ranked_flights
+
 
 @dataclass
 class LILOSession:

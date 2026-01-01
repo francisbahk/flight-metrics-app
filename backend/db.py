@@ -147,41 +147,6 @@ class UserRanking(Base):
     flight = relationship("FlightShown", back_populates="rankings")
 
 
-class LILOSession(Base):
-    """Stores LILO refinement sessions."""
-    __tablename__ = 'lilo_sessions'
-
-    session_id = Column(String(255), primary_key=True)
-    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=True, index=True)
-    user_id = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    completed_at = Column(DateTime, nullable=True)
-    num_rounds = Column(Integer, default=0)
-    final_utility_scores = Column(JSON, nullable=True)  # Final utilities for all flights
-    feedback_summary = Column(Text, nullable=True)  # Summarized preferences
-
-    # Relationships
-    rounds = relationship("LILORound", back_populates="session", cascade="all, delete-orphan")
-
-
-class LILORound(Base):
-    """Stores each round of LILO refinement."""
-    __tablename__ = 'lilo_rounds'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(String(255), ForeignKey('lilo_sessions.session_id', ondelete='CASCADE'), nullable=False, index=True)
-    round_number = Column(Integer, nullable=False)
-    flights_shown = Column(JSON, nullable=False)  # List of flight IDs/indices shown this round
-    user_rankings = Column(JSON, nullable=False)  # User's top-k ranking for this round
-    user_feedback = Column(Text, nullable=False)  # Natural language feedback
-    generated_questions = Column(JSON, nullable=True)  # Questions asked by LLM
-    extracted_preferences = Column(JSON, nullable=True)  # LLM-extracted preference signals
-    timestamp = Column(DateTime, default=datetime.utcnow)
-
-    # Relationships
-    session = relationship("LILOSession", back_populates="rounds")
-
-
 class EvaluationSession(Base):
     """Stores human vs LLM evaluation experiments."""
     __tablename__ = 'evaluation_sessions'
@@ -330,6 +295,81 @@ class CrossValidation(Base):
     selected_flights_data = Column(JSON, nullable=True)  # Full flight data for selected flights
 
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class LILOSession(Base):
+    """Stores LILO (Language-Informed Latent Optimization) session metadata."""
+    __tablename__ = 'lilo_sessions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(255), nullable=False, index=True)  # Links to search session
+    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=False)
+    completion_token = Column(String(255), nullable=True, index=True)
+
+    # LILO configuration
+    num_iterations = Column(Integer, nullable=False)  # Total iterations (typically 2)
+    questions_per_round = Column(Integer, nullable=False)  # Questions asked per round
+
+    # Timestamps
+    started_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class LILOChatMessage(Base):
+    """Stores full chat transcript from LILO conversation."""
+    __tablename__ = 'lilo_chat_messages'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    lilo_session_id = Column(Integer, ForeignKey('lilo_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
+
+    round_number = Column(Integer, nullable=False)  # 0, 1, or 2
+    message_index = Column(Integer, nullable=False)  # Order within the round
+    is_bot = Column(Integer, nullable=False)  # 1 if bot message, 0 if user message
+    message_text = Column(Text, nullable=False)
+
+    # Optional: Store flight comparison if message includes flights
+    flight_a_data = Column(JSON, nullable=True)
+    flight_b_data = Column(JSON, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class LILOIteration(Base):
+    """Stores utility values and model state at each LILO iteration."""
+    __tablename__ = 'lilo_iterations'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    lilo_session_id = Column(Integer, ForeignKey('lilo_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
+
+    iteration_number = Column(Integer, nullable=False)  # 0, 1, 2
+
+    # User responses for this iteration
+    user_responses = Column(JSON, nullable=False)  # Dict of Q&A pairs
+
+    # Flights shown in this iteration
+    flights_shown = Column(JSON, nullable=True)  # List of flight dicts
+
+    # Model state
+    utility_function_params = Column(JSON, nullable=True)  # Learned utility parameters
+    acquisition_value = Column(JSON, nullable=True)  # Acquisition function values
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class LILOFinalRanking(Base):
+    """Stores final flight rankings by learned utility function."""
+    __tablename__ = 'lilo_final_rankings'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    lilo_session_id = Column(Integer, ForeignKey('lilo_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
+
+    flight_data = Column(JSON, nullable=False)  # Full flight object
+    utility_score = Column(JSON, nullable=False)  # Final utility score (can be float or array)
+    rank = Column(Integer, nullable=False)  # 1 = best, 2 = second best, etc.
+
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 # Database functions
@@ -560,6 +600,326 @@ def save_search_and_csv(
         db.rollback()
         print(f"✗ Error saving to database: {str(e)}")
         raise
+
+    finally:
+        db.close()
+
+
+# ============================================================================
+# LILO Database Functions
+# ============================================================================
+
+def save_lilo_session(
+    session_id: str,
+    search_id: int,
+    completion_token: Optional[str] = None,
+    num_iterations: int = 2,
+    questions_per_round: int = 2
+) -> Optional[int]:
+    """
+    Create a LILO session record.
+
+    Args:
+        session_id: Unique LILO session identifier
+        search_id: Foreign key to searches table
+        completion_token: Optional participant token
+        num_iterations: Total LILO iterations (default 2)
+        questions_per_round: Questions per round (default 2)
+
+    Returns:
+        lilo_session_id if successful, None otherwise
+    """
+    db = SessionLocal()
+
+    try:
+        lilo_session = LILOSession(
+            session_id=session_id,
+            search_id=search_id,
+            completion_token=completion_token,
+            num_iterations=num_iterations,
+            questions_per_round=questions_per_round
+        )
+        db.add(lilo_session)
+        db.commit()
+        db.refresh(lilo_session)
+
+        print(f"✓ Created LILO session {lilo_session.id} for search {search_id}")
+        return lilo_session.id
+
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Error creating LILO session: {str(e)}")
+        return None
+
+    finally:
+        db.close()
+
+
+def save_lilo_chat_message(
+    lilo_session_id: int,
+    round_number: int,
+    message_index: int,
+    is_bot: bool,
+    message_text: str,
+    flight_a_data: Optional[Dict] = None,
+    flight_b_data: Optional[Dict] = None
+) -> bool:
+    """
+    Save a single chat message from LILO conversation.
+
+    Args:
+        lilo_session_id: Foreign key to lilo_sessions
+        round_number: Round number (0, 1, or 2)
+        message_index: Order within the round
+        is_bot: True if bot message, False if user message
+        message_text: The message content
+        flight_a_data: Optional flight data for comparisons
+        flight_b_data: Optional flight data for comparisons
+
+    Returns:
+        True if successful, False otherwise
+    """
+    db = SessionLocal()
+
+    try:
+        chat_message = LILOChatMessage(
+            lilo_session_id=lilo_session_id,
+            round_number=round_number,
+            message_index=message_index,
+            is_bot=1 if is_bot else 0,
+            message_text=message_text,
+            flight_a_data=flight_a_data,
+            flight_b_data=flight_b_data
+        )
+        db.add(chat_message)
+        db.commit()
+        return True
+
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Error saving chat message: {str(e)}")
+        return False
+
+    finally:
+        db.close()
+
+
+def save_lilo_chat_transcript(
+    lilo_session_id: int,
+    chat_history: List[Dict]
+) -> bool:
+    """
+    Save complete chat history at once.
+
+    Args:
+        lilo_session_id: Foreign key to lilo_sessions
+        chat_history: List of chat messages with structure:
+            [{'text': str, 'is_bot': bool, 'round': int, 'index': int,
+              'flight_a': dict (optional), 'flight_b': dict (optional)}, ...]
+
+    Returns:
+        True if successful, False otherwise
+    """
+    db = SessionLocal()
+
+    try:
+        for msg in chat_history:
+            chat_message = LILOChatMessage(
+                lilo_session_id=lilo_session_id,
+                round_number=msg.get('round', 0),
+                message_index=msg.get('index', 0),
+                is_bot=1 if msg.get('is_bot', False) else 0,
+                message_text=msg.get('text', ''),
+                flight_a_data=msg.get('flight_a'),
+                flight_b_data=msg.get('flight_b')
+            )
+            db.add(chat_message)
+
+        db.commit()
+        print(f"✓ Saved {len(chat_history)} chat messages for LILO session {lilo_session_id}")
+        return True
+
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Error saving chat transcript: {str(e)}")
+        return False
+
+    finally:
+        db.close()
+
+
+def save_lilo_iteration(
+    lilo_session_id: int,
+    iteration_number: int,
+    user_responses: Dict[str, str],
+    flights_shown: Optional[List[Dict]] = None,
+    utility_params: Optional[Dict] = None,
+    acquisition_values: Optional[Dict] = None
+) -> bool:
+    """
+    Save LILO iteration data including utility values.
+
+    Args:
+        lilo_session_id: Foreign key to lilo_sessions
+        iteration_number: Iteration number (0, 1, 2)
+        user_responses: Dict mapping questions to answers
+        flights_shown: List of flights shown in this iteration
+        utility_params: Learned utility function parameters
+        acquisition_values: Acquisition function values
+
+    Returns:
+        True if successful, False otherwise
+    """
+    db = SessionLocal()
+
+    try:
+        iteration = LILOIteration(
+            lilo_session_id=lilo_session_id,
+            iteration_number=iteration_number,
+            user_responses=user_responses,
+            flights_shown=flights_shown,
+            utility_function_params=utility_params,
+            acquisition_value=acquisition_values
+        )
+        db.add(iteration)
+        db.commit()
+
+        print(f"✓ Saved LILO iteration {iteration_number} for session {lilo_session_id}")
+        return True
+
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Error saving LILO iteration: {str(e)}")
+        return False
+
+    finally:
+        db.close()
+
+
+def save_lilo_final_rankings(
+    lilo_session_id: int,
+    ranked_flights: List[Dict]
+) -> Optional[str]:
+    """
+    Save final flight rankings by learned utility function.
+    Also generates CSV data with utility scores.
+
+    Args:
+        lilo_session_id: Foreign key to lilo_sessions
+        ranked_flights: List of dicts with structure:
+            [{'flight': flight_dict, 'utility_score': float, 'rank': int}, ...]
+            Must be sorted by rank (best first)
+
+    Returns:
+        CSV string if successful, None otherwise
+    """
+    db = SessionLocal()
+
+    try:
+        # Save rankings to database
+        for flight_info in ranked_flights:
+            ranking = LILOFinalRanking(
+                lilo_session_id=lilo_session_id,
+                flight_data=flight_info['flight'],
+                utility_score=flight_info['utility_score'],
+                rank=flight_info['rank']
+            )
+            db.add(ranking)
+
+        db.commit()
+
+        # Generate CSV
+        import csv
+        from io import StringIO
+
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # Write header
+        header = [
+            'Rank', 'Utility Score', 'Price', 'Duration (min)', 'Stops',
+            'Departure Time', 'Arrival Time', 'Airline', 'Flight ID'
+        ]
+        writer.writerow(header)
+
+        # Write data
+        for flight_info in ranked_flights:
+            flight = flight_info['flight']
+            row = [
+                flight_info['rank'],
+                f"{flight_info['utility_score']:.6f}" if isinstance(flight_info['utility_score'], (int, float)) else str(flight_info['utility_score']),
+                flight.get('price', 'N/A'),
+                flight.get('duration_min', 'N/A'),
+                flight.get('stops', 'N/A'),
+                flight.get('departure_time', 'N/A'),
+                flight.get('arrival_time', 'N/A'),
+                flight.get('airline', 'N/A'),
+                flight.get('id', 'N/A')
+            ]
+            writer.writerow(row)
+
+        csv_data = output.getvalue()
+        output.close()
+
+        print(f"✓ Saved {len(ranked_flights)} final rankings for LILO session {lilo_session_id}")
+        return csv_data
+
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Error saving final rankings: {str(e)}")
+        return None
+
+    finally:
+        db.close()
+
+
+def complete_lilo_session(lilo_session_id: int) -> bool:
+    """
+    Mark a LILO session as completed.
+
+    Args:
+        lilo_session_id: ID of the LILO session to complete
+
+    Returns:
+        True if successful, False otherwise
+    """
+    db = SessionLocal()
+
+    try:
+        lilo_session = db.query(LILOSession).filter(LILOSession.id == lilo_session_id).first()
+        if lilo_session:
+            lilo_session.completed_at = datetime.utcnow()
+            db.commit()
+            print(f"✓ Completed LILO session {lilo_session_id}")
+            return True
+        else:
+            print(f"✗ LILO session {lilo_session_id} not found")
+            return False
+
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Error completing LILO session: {str(e)}")
+        return False
+
+    finally:
+        db.close()
+
+
+def get_lilo_session_by_search(search_id: int) -> Optional[int]:
+    """
+    Get LILO session ID for a given search ID.
+
+    Args:
+        search_id: The search_id to look up
+
+    Returns:
+        lilo_session_id if found, None otherwise
+    """
+    db = SessionLocal()
+
+    try:
+        lilo_session = db.query(LILOSession).filter(LILOSession.search_id == search_id).first()
+        return lilo_session.id if lilo_session else None
 
     finally:
         db.close()
