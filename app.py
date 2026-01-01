@@ -2175,6 +2175,33 @@ if st.session_state.all_flights:
                 st.markdown("### 💬 Chat with LILO")
                 st.markdown("---")
 
+                # Add LILO-specific CSS
+                st.markdown("""
+                <style>
+                    /* Prevent auto-scroll on checkbox click */
+                    .stCheckbox {
+                        overflow-anchor: none !important;
+                    }
+
+                    /* Position chat input above footer */
+                    .stChatInput {
+                        position: fixed !important;
+                        bottom: 60px !important;
+                        left: 0 !important;
+                        right: 0 !important;
+                        z-index: 999 !important;
+                        background: white !important;
+                        padding: 10px !important;
+                        box-shadow: 0 -2px 10px rgba(0,0,0,0.1) !important;
+                    }
+
+                    /* Hide sections between search and how-to during LILO */
+                    .lilo-section ~ div:not(.cross-validation-section):not(.survey-section) {
+                        display: block !important;
+                    }
+                </style>
+                """, unsafe_allow_html=True)
+
                 # Initialize chat state if needed
                 if 'lilo_chat_history' not in st.session_state:
                     st.session_state.lilo_chat_history = []
