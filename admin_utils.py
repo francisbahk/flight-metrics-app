@@ -23,7 +23,19 @@ def get_all_sessions_summary() -> List[Dict]:
     db = SessionLocal()
     try:
         # Get all searches (this includes both completed and in-progress sessions)
-        searches = db.query(Search).order_by(desc(Search.created_at)).all()
+        try:
+            searches = db.query(Search).order_by(desc(Search.created_at)).all()
+        except Exception as e:
+            print(f"Error querying searches: {e}")
+            # Fall back to completion tokens only
+            completion_tokens = db.query(CompletionToken).order_by(desc(CompletionToken.created_at)).all()
+            searches = []
+            for comp_token in completion_tokens:
+                search = db.query(Search).filter(
+                    Search.session_id == comp_token.session_id
+                ).first()
+                if search:
+                    searches.append(search)
 
         summaries = []
         seen_sessions = set()  # Track unique sessions
@@ -39,22 +51,34 @@ def get_all_sessions_summary() -> List[Dict]:
             seen_sessions.add(session_key)
 
             # Get survey
-            survey = db.query(SurveyResponse).filter(
-                or_(SurveyResponse.completion_token == token, SurveyResponse.session_id == session_id) if token
-                else SurveyResponse.session_id == session_id
-            ).first()
+            if token:
+                survey = db.query(SurveyResponse).filter(
+                    or_(SurveyResponse.completion_token == token, SurveyResponse.session_id == session_id)
+                ).first()
+            else:
+                survey = db.query(SurveyResponse).filter(
+                    SurveyResponse.session_id == session_id
+                ).first()
 
             # Get cross-validation count
-            cv_count = db.query(CrossValidation).filter(
-                or_(CrossValidation.completion_token == token, CrossValidation.session_id == session_id) if token
-                else CrossValidation.session_id == session_id
-            ).count()
+            if token:
+                cv_count = db.query(CrossValidation).filter(
+                    or_(CrossValidation.completion_token == token, CrossValidation.session_id == session_id)
+                ).count()
+            else:
+                cv_count = db.query(CrossValidation).filter(
+                    CrossValidation.session_id == session_id
+                ).count()
 
             # Get LILO session
-            lilo = db.query(LILOSession).filter(
-                or_(LILOSession.completion_token == token, LILOSession.session_id == session_id) if token
-                else LILOSession.session_id == session_id
-            ).first()
+            if token:
+                lilo = db.query(LILOSession).filter(
+                    or_(LILOSession.completion_token == token, LILOSession.session_id == session_id)
+                ).first()
+            else:
+                lilo = db.query(LILOSession).filter(
+                    LILOSession.session_id == session_id
+                ).first()
 
             # Count LILO data if exists
             lilo_messages = 0
@@ -93,6 +117,11 @@ def get_all_sessions_summary() -> List[Dict]:
 
         return summaries
 
+    except Exception as e:
+        print(f"Error in get_all_sessions_summary: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
     finally:
         db.close()
 
