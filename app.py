@@ -2144,7 +2144,8 @@ if st.session_state.all_flights:
             # ============================================================================
             # LILO PREFERENCE LEARNING SECTION (between initial ranking and cross-validation)
             # ============================================================================
-            if not st.session_state.get('lilo_completed'):
+            # Only show LILO if not completed AND not showing animation
+            if not st.session_state.get('lilo_completed') and not st.session_state.get('show_evaluation_animation'):
                 # DEBUG: Check session state at start of LILO section
                 print(f"[LILO DEBUG] Entering LILO section - all_flights exists: {bool(st.session_state.get('all_flights'))}, count: {len(st.session_state.get('all_flights', []))}")
                 print(f"[LILO DEBUG] Entering LILO section - lilo_round: {st.session_state.get('lilo_round', 'NOT SET')}, search_id: {st.session_state.get('search_id', 'NOT SET')}")
@@ -2451,10 +2452,18 @@ if st.session_state.all_flights:
 
                     render_chat_message(completion_msg, is_bot=True)
 
-                    # Show transition animation before cross-validation
-                    if not st.session_state.get('show_evaluation_animation'):
-                        st.session_state.show_evaluation_animation = True
-                        st.rerun()
+                    # Complete LILO and move to cross-validation (skip animation for cleaner transition)
+                    st.markdown("---")
+                    st.info("🎯 Thank you! Moving to the next section...")
+
+                    # Mark LILO as completed and skip animation
+                    st.session_state.lilo_completed = True
+                    st.session_state.show_evaluation_animation = False
+
+                    # Small delay then rerun for smooth transition
+                    import time
+                    time.sleep(1)
+                    st.rerun()
 
                 # Show current question
                 elif current_idx < len(questions):
