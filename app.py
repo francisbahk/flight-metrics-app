@@ -1141,20 +1141,76 @@ if st.session_state.get('show_admin', False):
                         })
                     st.dataframe(pd.DataFrame(top_data), use_container_width=True, hide_index=True)
 
-            # Export button
+            # Export buttons
             st.markdown("---")
             st.markdown("### 📥 Export Data")
-            if st.button("Download LILO Rankings as CSV", type="primary"):
-                csv_data = export_session_csv(token)
-                if csv_data:
-                    st.download_button(
-                        label="💾 Download CSV",
-                        data=csv_data,
-                        file_name=f"session_{detail['completion_token']}.csv",
-                        mime="text/csv"
-                    )
+
+            from admin_utils import (
+                export_manual_rankings_csv,
+                export_cross_validation_csv,
+                export_survey_csv,
+                export_lilo_full_csv
+            )
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                if detail.get('user_rankings'):
+                    csv_data = export_manual_rankings_csv(token)
+                    if csv_data:
+                        st.download_button(
+                            label="📊 Manual Rankings",
+                            data=csv_data,
+                            file_name=f"manual_rankings_{detail['completion_token']}.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
                 else:
-                    st.info("No LILO rankings available for export")
+                    st.button("📊 Manual Rankings", disabled=True, use_container_width=True)
+
+            with col2:
+                if detail.get('cross_validation'):
+                    csv_data = export_cross_validation_csv(token)
+                    if csv_data:
+                        st.download_button(
+                            label="✅ Cross-Validation",
+                            data=csv_data,
+                            file_name=f"cross_validation_{detail['completion_token']}.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+                else:
+                    st.button("✅ Cross-Validation", disabled=True, use_container_width=True)
+
+            with col3:
+                if detail.get('survey'):
+                    csv_data = export_survey_csv(token)
+                    if csv_data:
+                        st.download_button(
+                            label="📝 Survey",
+                            data=csv_data,
+                            file_name=f"survey_{detail['completion_token']}.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+                else:
+                    st.button("📝 Survey", disabled=True, use_container_width=True)
+
+            with col4:
+                if detail.get('lilo'):
+                    csv_data = export_lilo_full_csv(token)
+                    if csv_data:
+                        st.download_button(
+                            label="🤖 LILO Full Data",
+                            data=csv_data,
+                            file_name=f"lilo_full_{detail['completion_token']}.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+                    else:
+                        st.button("🤖 LILO Full Data", disabled=True, use_container_width=True)
+                else:
+                    st.button("🤖 LILO Full Data", disabled=True, use_container_width=True)
 
     else:
         # Show list of all sessions

@@ -351,9 +351,228 @@ def get_complete_session_detail(identifier: str) -> Optional[Dict]:
         db.close()
 
 
+def export_manual_rankings_csv(identifier: str) -> Optional[str]:
+    """
+    Export manual rankings to CSV.
+
+    Args:
+        identifier: Completion token or session_id
+
+    Returns:
+        CSV string or None if not found
+    """
+    db = SessionLocal()
+    try:
+        # Get session detail
+        detail = get_complete_session_detail(identifier)
+        if not detail or not detail.get('user_rankings'):
+            return None
+
+        import csv
+        from io import StringIO
+
+        output = StringIO()
+        writer = csv.writer(output)
+
+        writer.writerow(['Rank', 'Flight ID', 'Ranked At'])
+
+        for ranking in detail['user_rankings']:
+            writer.writerow([
+                ranking['rank'],
+                ranking['flight_id'],
+                ranking['created_at'].strftime('%Y-%m-%d %H:%M:%S') if ranking['created_at'] else 'N/A'
+            ])
+
+        return output.getvalue()
+
+    finally:
+        db.close()
+
+
+def export_cross_validation_csv(identifier: str) -> Optional[str]:
+    """
+    Export cross-validation data to CSV.
+
+    Args:
+        identifier: Completion token or session_id
+
+    Returns:
+        CSV string or None if not found
+    """
+    db = SessionLocal()
+    try:
+        # Get session detail
+        detail = get_complete_session_detail(identifier)
+        if not detail or not detail.get('cross_validation'):
+            return None
+
+        import csv
+        from io import StringIO
+
+        output = StringIO()
+        writer = csv.writer(output)
+
+        writer.writerow(['Review #', 'Reviewed Session ID', 'Reviewed Prompt', 'Selected Flights Count', 'Reviewed At'])
+
+        for i, cv in enumerate(detail['cross_validation'], 1):
+            writer.writerow([
+                i,
+                cv['reviewed_session_id'],
+                cv['reviewed_prompt'][:100],  # Truncate long prompts
+                len(cv.get('selected_flight_ids', [])),
+                cv['created_at'].strftime('%Y-%m-%d %H:%M:%S') if cv['created_at'] else 'N/A'
+            ])
+
+        return output.getvalue()
+
+    finally:
+        db.close()
+
+
+def export_survey_csv(identifier: str) -> Optional[str]:
+    """
+    Export survey responses to CSV.
+
+    Args:
+        identifier: Completion token or session_id
+
+    Returns:
+        CSV string or None if not found
+    """
+    db = SessionLocal()
+    try:
+        # Get session detail
+        detail = get_complete_session_detail(identifier)
+        if not detail or not detail.get('survey'):
+            return None
+
+        import csv
+        from io import StringIO
+
+        survey = detail['survey']
+
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # Write header
+        writer.writerow(['Question', 'Response'])
+
+        # Write all survey responses
+        writer.writerow(['Satisfaction (1-5)', survey.get('satisfaction', 'N/A')])
+        writer.writerow(['Ease of Use (1-5)', survey.get('ease_of_use', 'N/A')])
+        writer.writerow(['Encountered Issues', survey.get('encountered_issues', 'N/A')])
+        writer.writerow(['Issues Description', survey.get('issues_description', 'N/A')])
+        writer.writerow(['Search Method', survey.get('search_method', 'N/A')])
+        writer.writerow(['Understood Ranking (1-5)', survey.get('understood_ranking', 'N/A')])
+        writer.writerow(['Helpful Features', ', '.join(survey.get('helpful_features', [])) if survey.get('helpful_features') else 'N/A'])
+        writer.writerow(['Flights Matched Expectations (1-5)', survey.get('flights_matched', 'N/A')])
+        writer.writerow(['Confusing/Frustrating', survey.get('confusing_frustrating', 'N/A')])
+        writer.writerow(['Missing Features', survey.get('missing_features', 'N/A')])
+        writer.writerow(['Would Use Again', survey.get('would_use_again', 'N/A')])
+        writer.writerow(['Would Use Again Reason', survey.get('would_use_again_reason', 'N/A')])
+        writer.writerow(['Compared to Others (1-5)', survey.get('compared_to_others', 'N/A')])
+        writer.writerow(['Additional Comments', survey.get('additional_comments', 'N/A')])
+        writer.writerow(['Completed At', survey['created_at'].strftime('%Y-%m-%d %H:%M:%S') if survey['created_at'] else 'N/A'])
+
+        return output.getvalue()
+
+    finally:
+        db.close()
+
+
+def export_lilo_full_csv(identifier: str) -> Optional[str]:
+    """
+    Export complete LILO conversational flow to CSV with rounds, questions, answers, and flights.
+
+    Args:
+        identifier: Completion token or session_id
+
+    Returns:
+        CSV string or None if not found
+    """
+    db = SessionLocal()
+    try:
+        # Get session detail
+        detail = get_complete_session_detail(identifier)
+        if not detail or not detail.get('lilo'):
+            return None
+
+        lilo = detail['lilo']
+
+        import csv
+        from io import StringIO
+
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # Write session metadata
+        writer.writerow(['LILO Session Data'])
+        writer.writerow(['Session ID', detail['session_id']])
+        writer.writerow(['Completion Token', detail['completion_token']])
+        writer.writerow(['Iterations', lilo['num_iterations']])
+        writer.writerow(['Questions per Round', lilo['questions_per_round']])
+        writer.writerow([])
+
+        # Write conversational flow by round
+        chat_transcript = lilo.get('chat_transcript', {})
+        for round_num in sorted(chat_transcript.keys()):
+            writer.writerow([f'--- ROUND {round_num} ---'])
+            writer.writerow([])
+
+            messages = chat_transcript[round_num]
+            for msg in messages:
+                speaker = 'Bot' if msg['is_bot'] else 'User'
+                writer.writerow([speaker, msg['text']])
+
+                if msg.get('has_flights'):
+                    writer.writerow(['', '(Flight comparison data included)'])
+
+            writer.writerow([])
+
+        # Write final rankings
+        writer.writerow(['--- FINAL RANKINGS ---'])
+        writer.writerow([])
+        writer.writerow([
+            'Rank', 'Utility Score', 'Price', 'Duration (min)', 'Stops',
+            'Departure Time', 'Arrival Time', 'Airline', 'Flight ID'
+        ])
+
+        rankings = lilo['rankings']['top_10']
+        for r in rankings:
+            flight = r['flight_data']
+            writer.writerow([
+                r['rank'],
+                f"{r['utility_score']:.6f}",
+                flight.get('price', 'N/A'),
+                flight.get('duration_min', 'N/A'),
+                flight.get('stops', 'N/A'),
+                flight.get('departure_time', 'N/A'),
+                flight.get('arrival_time', 'N/A'),
+                flight.get('airline', 'N/A'),
+                flight.get('id', 'N/A')
+            ])
+
+        # Add utility stats
+        writer.writerow([])
+        writer.writerow(['--- UTILITY STATISTICS ---'])
+        if lilo['rankings'].get('utility_stats'):
+            stats = lilo['rankings']['utility_stats']
+            writer.writerow(['Max Utility', f"{stats['max']:.6f}"])
+            writer.writerow(['Min Utility', f"{stats['min']:.6f}"])
+            writer.writerow(['Average Utility', f"{stats['avg']:.6f}"])
+            writer.writerow(['Range', f"{stats['range']:.6f}"])
+
+        return output.getvalue()
+
+    finally:
+        db.close()
+
+
+# Legacy function - kept for backward compatibility
 def export_session_csv(completion_token: str) -> Optional[str]:
     """
     Export complete session data to CSV string (LILO rankings if available).
+    This is a legacy function that now calls export_lilo_full_csv.
 
     Args:
         completion_token: Completion token for the session
@@ -361,53 +580,4 @@ def export_session_csv(completion_token: str) -> Optional[str]:
     Returns:
         CSV string or None if session not found
     """
-    db = SessionLocal()
-    try:
-        comp_token = db.query(CompletionToken).filter(CompletionToken.token == completion_token).first()
-        if not comp_token:
-            return None
-
-        session_id = comp_token.session_id
-
-        # Try to get LILO rankings first
-        lilo = db.query(LILOSession).filter(
-            or_(LILOSession.completion_token == completion_token, LILOSession.session_id == session_id)
-        ).first()
-
-        if lilo:
-            rankings = db.query(LILOFinalRanking).filter(
-                LILOFinalRanking.lilo_session_id == lilo.id
-            ).order_by(LILOFinalRanking.rank).all()
-
-            if rankings:
-                import csv
-                from io import StringIO
-
-                output = StringIO()
-                writer = csv.writer(output)
-
-                writer.writerow([
-                    'Rank', 'Utility Score', 'Price', 'Duration (min)', 'Stops',
-                    'Departure Time', 'Arrival Time', 'Airline', 'Flight ID'
-                ])
-
-                for ranking in rankings:
-                    flight = ranking.flight_data
-                    writer.writerow([
-                        ranking.rank,
-                        f"{ranking.utility_score:.6f}",
-                        flight.get('price', 'N/A'),
-                        flight.get('duration_min', 'N/A'),
-                        flight.get('stops', 'N/A'),
-                        flight.get('departure_time', 'N/A'),
-                        flight.get('arrival_time', 'N/A'),
-                        flight.get('airline', 'N/A'),
-                        flight.get('id', 'N/A')
-                    ])
-
-                return output.getvalue()
-
-        return None
-
-    finally:
-        db.close()
+    return export_lilo_full_csv(completion_token)

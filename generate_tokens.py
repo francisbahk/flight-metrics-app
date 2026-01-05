@@ -70,7 +70,7 @@ def generate_access_tokens(count: int = 100) -> list:
         db.close()
 
 
-def print_tokens_as_urls(tokens: list, base_url: str = "https://flight-metrics-app.streamlit.app"):
+def print_tokens_as_urls(tokens: list, base_url: str = "https://listen-cornell3.streamlit.app"):
     """
     Print tokens as full URLs that participants can use.
 
@@ -83,7 +83,7 @@ def print_tokens_as_urls(tokens: list, base_url: str = "https://flight-metrics-a
     print("="*80 + "\n")
 
     for i, token in enumerate(tokens, 1):
-        url = f"{base_url}/?token={token}"
+        url = f"{base_url}/?id={token}"
         print(f"{i:3d}. {url}")
 
     print("\n" + "="*80)
@@ -99,14 +99,14 @@ def save_tokens_to_file(tokens: list, filename: str = "access_tokens.txt"):
         tokens: List of tokens
         filename: Output filename
     """
-    base_url = "https://flight-metrics-app.streamlit.app"
+    base_url = "https://listen-cornell3.streamlit.app"
 
     with open(filename, 'w') as f:
         f.write("Flight App - Participant Access URLs\n")
         f.write("="*80 + "\n\n")
 
         for i, token in enumerate(tokens, 1):
-            url = f"{base_url}/?token={token}"
+            url = f"{base_url}/?id={token}"
             f.write(f"{i:3d}. {url}\n")
 
         f.write("\n" + "="*80 + "\n")
