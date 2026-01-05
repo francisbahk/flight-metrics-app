@@ -2145,6 +2145,10 @@ if st.session_state.all_flights:
             # LILO PREFERENCE LEARNING SECTION (between initial ranking and cross-validation)
             # ============================================================================
             if not st.session_state.get('lilo_completed'):
+                # DEBUG: Check session state at start of LILO section
+                print(f"[LILO DEBUG] Entering LILO section - all_flights exists: {bool(st.session_state.get('all_flights'))}, count: {len(st.session_state.get('all_flights', []))}")
+                print(f"[LILO DEBUG] Entering LILO section - lilo_round: {st.session_state.get('lilo_round', 'NOT SET')}, search_id: {st.session_state.get('search_id', 'NOT SET')}")
+
                 # Hide survey content on LILO page
                 st.markdown("""
                 <style>
@@ -2297,6 +2301,10 @@ if st.session_state.all_flights:
 
                 # Check if we need to run iteration (all questions answered for current round)
                 if current_idx >= len(questions) and current_round < 2:
+                    # DEBUG: Check session state before iteration
+                    print(f"[LILO DEBUG] Before iteration - all_flights exists: {bool(st.session_state.get('all_flights'))}, count: {len(st.session_state.get('all_flights', []))}")
+                    print(f"[LILO DEBUG] Before iteration - all_flights_data exists: {bool(st.session_state.get('all_flights_data'))}, count: {len(st.session_state.get('all_flights_data', []))}")
+
                     # Add loading message to chat
                     loading_msg = "Analyzing your preferences..." if current_round == 0 else "Refining flight options..."
                     render_chat_message(loading_msg, is_bot=True)
@@ -2362,6 +2370,10 @@ if st.session_state.all_flights:
                                     'is_bot': True,
                                     'flights': [flights[0], flights[1]]
                                 })
+
+                            # DEBUG: Check session state before rerun
+                            print(f"[LILO DEBUG] Before rerun - all_flights exists: {bool(st.session_state.get('all_flights'))}, count: {len(st.session_state.get('all_flights', []))}")
+                            print(f"[LILO DEBUG] Before rerun - lilo_round: {st.session_state.lilo_round}, search_id: {st.session_state.get('search_id')}")
 
                             st.rerun()
                     except Exception as e:
