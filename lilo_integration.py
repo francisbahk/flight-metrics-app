@@ -328,19 +328,39 @@ class StreamlitLILOBridge:
                 print(f"[LILO DEBUG] Question {i+1}: {q[:150]}...")
         else:
             print("[LILO ERROR] ⚠️  NO QUESTIONS GENERATED!")
-            print("[LILO ERROR] This is likely due to:")
-            print("[LILO ERROR]   1. Gemini API rate limiting or quota issues")
-            print("[LILO ERROR]   2. LLM returning invalid JSON format")
-            print("[LILO ERROR]   3. LLM returning fewer questions than requested")
-            print("[LILO ERROR]   4. API key missing or invalid")
+
+            # Build detailed error message for UI display
+            error_details = [
+                "LILO INITIALIZATION FAILED - Diagnostic Information:",
+                "",
+                "Configuration:",
+                f"  • Session ID: {session_id}",
+                f"  • Questions requested (bs_feedback): {optimizer.cfg.bs_feedback}",
+                f"  • LLM model: {optimizer.cfg.uprox_llm_model}",
+                f"  • API key present: {bool(self.api_key)}",
+                f"  • Include goals: {optimizer.cfg.include_goals}",
+                "",
+                "Environment:",
+                f"  • y_names: {optimizer.env.y_names}",
+                f"  • Goal message: {optimizer.env.get_goal_message()}",
+                "",
+                "Likely Causes:",
+                "  1. Gemini API rate limiting or quota exceeded",
+                "  2. Invalid or missing GEMINI_API_KEY",
+                "  3. LLM returning invalid JSON format",
+                "  4. LLM returning fewer than 2 questions",
+                "",
+                "Check the server logs for detailed LLM response info.",
+                "If using Streamlit Cloud, check app logs at:",
+                "https://share.streamlit.io/[your-app]/logs"
+            ]
+
+            error_message = "\n".join(error_details)
+            print(error_message)
             print("[LILO DEBUG] ==================== get_initial_questions() END ====================")
 
-            # RAISE ERROR - do NOT use fallback questions
-            raise RuntimeError(
-                "LILO failed to generate initial questions. "
-                "Check logs above for details. Possible causes: "
-                "Gemini API quota exceeded, invalid API key, or LLM response format error."
-            )
+            # RAISE ERROR with detailed diagnostics
+            raise RuntimeError(error_message)
 
         print("[LILO DEBUG] ==================== get_initial_questions() END ====================")
 

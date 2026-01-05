@@ -9,6 +9,13 @@ font = "sans serif"
 headless = true
 port = 8501
 enableCORS = false
+maxMessageSize = 200
+enableWebsocketCompression = false
+# Disable file watcher to prevent session resets
+fileWatcherType = "none"
 
 [browser]
 gatherUsageStats = false
+# Disable server reconnection timeout - keeps session alive longer
+serverAddress = "localhost"
+serverPort = 8501
