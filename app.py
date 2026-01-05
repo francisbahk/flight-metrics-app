@@ -1007,19 +1007,17 @@ if st.session_state.get('show_admin', False):
             if detail['search']:
                 st.markdown("### ✈️ Flight Search")
                 search = detail['search']
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Route", f"{search['origin']} → {search['destination']}")
-                with col2:
-                    st.metric("Search Method", search['search_method'])
-                with col3:
-                    st.metric("Flights Found", search['flights_count'])
+
+                # Extract origin/destination from JSON fields
+                origin_str = str(search['origin'][0]) if search['origin'] and isinstance(search['origin'], list) and len(search['origin']) > 0 else str(search['origin']) if search['origin'] else 'N/A'
+                dest_str = str(search['destination'][0]) if search['destination'] and isinstance(search['destination'], list) and len(search['destination']) > 0 else str(search['destination']) if search['destination'] else 'N/A'
+
+                st.metric("Route", f"{origin_str} → {dest_str}")
 
                 with st.expander("Search Details"):
                     st.markdown(f"**User Prompt:** {search['prompt']}")
-                    st.text(f"Departure: {search['departure_date']}")
-                    if search['return_date']:
-                        st.text(f"Return: {search['return_date']}")
+                    st.text(f"Search ID: {search['search_id']}")
+                    st.text(f"Departure: {search.get('departure_date', 'N/A')}")
                     st.text(f"Searched at: {search['created_at'].strftime('%Y-%m-%d %H:%M:%S')}")
 
                 st.markdown("---")
@@ -1029,11 +1027,9 @@ if st.session_state.get('show_admin', False):
                 st.markdown(f"### 🎯 User Manual Rankings ({len(detail['user_rankings'])} flights)")
                 with st.expander("View All User Rankings"):
                     for ranking in detail['user_rankings'][:10]:
-                        flight = ranking['flight_data']
                         st.text(
-                            f"#{ranking['rank']}: ${flight.get('price')} | "
-                            f"{flight.get('duration_min')}min | {flight.get('stops')} stops | "
-                            f"{flight.get('airline', 'N/A')[:40]}"
+                            f"Rank #{ranking['rank']}: Flight ID {ranking['flight_id']} | "
+                            f"Ranked at: {ranking['created_at'].strftime('%Y-%m-%d %H:%M:%S')}"
                         )
                     if len(detail['user_rankings']) > 10:
                         st.caption(f"... and {len(detail['user_rankings']) - 10} more")
@@ -1042,27 +1038,19 @@ if st.session_state.get('show_admin', False):
 
             # 3. CROSS-VALIDATION
             if detail['cross_validation']:
-                st.markdown(f"### ✅ Cross-Validation ({len(detail['cross_validation'])} comparisons)")
-                cv_correct = sum(1 for cv in detail['cross_validation'] if cv['user_selected'])
+                st.markdown(f"### ✅ Cross-Validation ({len(detail['cross_validation'])} reviews)")
                 cv_total = len(detail['cross_validation'])
-                cv_accuracy = (cv_correct / cv_total * 100) if cv_total > 0 else 0
 
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Total Comparisons", cv_total)
-                with col2:
-                    st.metric("Matches Ranking", cv_correct)
-                with col3:
-                    st.metric("Accuracy", f"{cv_accuracy:.1f}%")
+                st.metric("Total Cross-Validation Reviews", cv_total)
 
                 with st.expander("View Cross-Validation Details"):
                     for i, cv in enumerate(detail['cross_validation'], 1):
-                        icon = "✅" if cv['user_selected'] else "❌"
-                        flight = cv['flight_data']
-                        st.text(
-                            f"{icon} #{i}: ${flight.get('price')} | "
-                            f"{flight.get('duration_min')}min | {flight.get('stops')} stops"
-                        )
+                        st.markdown(f"**Review #{i}**")
+                        st.text(f"Reviewed Session: {cv['reviewed_session_id'][:30]}...")
+                        st.text(f"Reviewed Prompt: {cv['reviewed_prompt'][:80]}...")
+                        st.text(f"Selected {len(cv.get('selected_flight_ids', []))} flights")
+                        st.text(f"Reviewed at: {cv['created_at'].strftime('%Y-%m-%d %H:%M:%S')}")
+                        st.markdown("---")
 
                 st.markdown("---")
 
@@ -1194,11 +1182,14 @@ if st.session_state.get('show_admin', False):
                         # Show what data exists
                         data_indicators = []
                         if sess['has_search']:
-                            data_indicators.append(f"✈️ Search ({sess['origin']} → {sess['destination']})")
+                            # Extract origin/destination from JSON fields
+                            origin_str = str(sess['origin'][0]) if sess['origin'] and isinstance(sess['origin'], list) and len(sess['origin']) > 0 else str(sess['origin'])[:20] if sess['origin'] else 'N/A'
+                            dest_str = str(sess['destination'][0]) if sess['destination'] and isinstance(sess['destination'], list) and len(sess['destination']) > 0 else str(sess['destination'])[:20] if sess['destination'] else 'N/A'
+                            data_indicators.append(f"✈️ Search ({origin_str} → {dest_str})")
                         if sess['has_survey']:
                             data_indicators.append(f"📝 Survey (satisfaction: {sess['survey_satisfaction']}/5)")
                         if sess['has_cv']:
-                            data_indicators.append(f"✅ Cross-Val ({sess['cv_count']} comparisons)")
+                            data_indicators.append(f"✅ Cross-Val ({sess['cv_count']} reviews)")
                         if sess['has_lilo']:
                             lilo_status = "✅" if sess['lilo_completed'] else "⏳"
                             data_indicators.append(f"{lilo_status} LILO ({sess['lilo_rankings']} flights ranked)")
