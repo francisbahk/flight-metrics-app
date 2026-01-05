@@ -3507,7 +3507,7 @@ if st.session_state.all_flights:
                             'additional_comments': additional_comments if additional_comments else None
                         }
 
-                        # Save to database
+                        # Save to database (REQUIRED - don't allow continuation if save fails)
                         try:
                             from backend.db import save_survey_response
                             success = save_survey_response(
@@ -3521,16 +3521,18 @@ if st.session_state.all_flights:
                                 st.success("✅ Thank you for your feedback!")
                                 st.rerun()
                             else:
-                                st.error("⚠️ Failed to save survey response. Please try again.")
+                                st.error("⚠️ Failed to save survey response to database. Please try again.")
+                                st.info("If this persists, please contact the research team.")
                         except Exception as e:
                             # Show actual error for debugging
-                            st.error(f"⚠️ Failed to save survey response: {str(e)}")
+                            st.error(f"⚠️ Database Error: {str(e)}")
                             import traceback
-                            print(f"[SURVEY ERROR] {traceback.format_exc()}")
-                            # Still mark as completed so user can continue
-                            st.session_state.survey_completed = True
-                            st.warning("Your responses were recorded but database save failed. Continuing anyway...")
-                            st.rerun()
+                            error_details = traceback.format_exc()
+                            print(f"[SURVEY ERROR] {error_details}")
+                            # Show error details in expandable section
+                            with st.expander("Technical Details (for debugging)"):
+                                st.code(error_details)
+                            st.info("Please contact the research team with the error above.")
 
                 # Close survey div
                 st.markdown('</div>', unsafe_allow_html=True)
