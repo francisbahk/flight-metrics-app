@@ -210,7 +210,8 @@ class StreamlitLILOBridge:
     """
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+        # Use GOOGLE_API_KEY (preferred by google-genai SDK) or fallback to GEMINI_API_KEY
+        self.api_key = api_key or os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
         self.sessions: Dict[str, 'LILOSession'] = {}
 
     def create_session(
