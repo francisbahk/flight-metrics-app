@@ -24,18 +24,26 @@ def get_all_sessions_summary() -> List[Dict]:
     try:
         # Get all searches (this includes both completed and in-progress sessions)
         try:
+            # Try ordering by created_at DESC
             searches = db.query(Search).order_by(desc(Search.created_at)).all()
         except Exception as e:
-            print(f"Error querying searches: {e}")
-            # Fall back to completion tokens only
-            completion_tokens = db.query(CompletionToken).order_by(desc(CompletionToken.created_at)).all()
-            searches = []
-            for comp_token in completion_tokens:
-                search = db.query(Search).filter(
-                    Search.session_id == comp_token.session_id
-                ).first()
-                if search:
-                    searches.append(search)
+            print(f"Error querying searches with ORDER BY: {e}")
+            # Fallback 1: Try without ordering
+            try:
+                searches = db.query(Search).all()
+                # Sort in Python instead
+                searches = sorted(searches, key=lambda s: s.created_at, reverse=True)
+            except Exception as e2:
+                print(f"Error querying searches without ORDER BY: {e2}")
+                # Fallback 2: Get completion tokens first
+                completion_tokens = db.query(CompletionToken).order_by(desc(CompletionToken.created_at)).all()
+                searches = []
+                for comp_token in completion_tokens:
+                    search = db.query(Search).filter(
+                        Search.session_id == comp_token.session_id
+                    ).first()
+                    if search:
+                        searches.append(search)
 
         summaries = []
         seen_sessions = set()  # Track unique sessions
@@ -63,11 +71,11 @@ def get_all_sessions_summary() -> List[Dict]:
             # Get cross-validation count
             if token:
                 cv_count = db.query(CrossValidation).filter(
-                    or_(CrossValidation.completion_token == token, CrossValidation.session_id == session_id)
+                    or_(CrossValidation.reviewer_token == token, CrossValidation.reviewer_session_id == session_id)
                 ).count()
             else:
                 cv_count = db.query(CrossValidation).filter(
-                    CrossValidation.session_id == session_id
+                    CrossValidation.reviewer_session_id == session_id
                 ).count()
 
             # Get LILO session
@@ -105,9 +113,9 @@ def get_all_sessions_summary() -> List[Dict]:
                 'has_survey': survey is not None,
                 'has_cv': cv_count > 0,
                 'has_lilo': lilo is not None,
-                'search_prompt': search.prompt,
-                'origin': search.origin,
-                'destination': search.destination,
+                'search_prompt': search.user_prompt,
+                'origin': search.parsed_origins,
+                'destination': search.parsed_destinations,
                 'survey_satisfaction': survey.satisfaction if survey else None,
                 'cv_count': cv_count,
                 'lilo_messages': lilo_messages,
@@ -170,27 +178,25 @@ def get_complete_session_detail(identifier: str) -> Optional[Dict]:
         if search:
             result['search'] = {
                 'search_id': search.search_id,
-                'origin': search.origin,
-                'destination': search.destination,
+                'origin': search.parsed_origins,
+                'destination': search.parsed_destinations,
                 'departure_date': search.departure_date,
-                'return_date': search.return_date,
-                'prompt': search.prompt,
-                'search_method': search.search_method,
-                'flights_count': search.flights_count,
+                'prompt': search.user_prompt,
                 'created_at': search.created_at
             }
         else:
             result['search'] = None
 
         # 2. Get user rankings
+        # UserRanking doesn't have completion_token or session_id directly, need to join through search
         rankings = db.query(UserRanking).filter(
-            or_(UserRanking.completion_token == completion_token, UserRanking.session_id == session_id)
-        ).order_by(UserRanking.rank_position).all()
+            UserRanking.search_id == search.search_id
+        ).order_by(UserRanking.user_rank).all() if search else []
 
         result['user_rankings'] = [{
-            'rank': r.rank_position,
-            'flight_data': r.flight_data,
-            'created_at': r.created_at
+            'rank': r.user_rank,
+            'flight_id': r.flight_id,
+            'created_at': r.submitted_at
         } for r in rankings]
 
         # 3. Get survey response
@@ -221,13 +227,14 @@ def get_complete_session_detail(identifier: str) -> Optional[Dict]:
 
         # 4. Get cross-validation results
         cv_results = db.query(CrossValidation).filter(
-            or_(CrossValidation.completion_token == completion_token, CrossValidation.session_id == session_id)
+            or_(CrossValidation.reviewer_token == completion_token, CrossValidation.reviewer_session_id == session_id)
         ).all()
 
         result['cross_validation'] = [{
-            'flight_id': cv.flight_id,
-            'flight_data': cv.flight_data,
-            'user_selected': cv.user_selected,
+            'reviewed_prompt': cv.reviewed_prompt,
+            'reviewed_session_id': cv.reviewed_session_id,
+            'selected_flight_ids': cv.selected_flight_ids,
+            'selected_flights_data': cv.selected_flights_data,
             'created_at': cv.created_at
         } for cv in cv_results]
 
