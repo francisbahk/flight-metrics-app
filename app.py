@@ -2004,20 +2004,13 @@ if st.session_state.all_flights:
                 key="edited_prompt"
             )
 
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                if st.button("✏️ Update Prompt", use_container_width=True):
+            # Single button - automatically saves any edits
+            if st.button("✅ Confirm & Submit Final Results", type="primary", use_container_width=True):
+                # Update prompt if edited
+                if edited_prompt != st.session_state.get('original_prompt', ''):
                     st.session_state.original_prompt = edited_prompt
-                    st.success("✅ Prompt updated!")
-                    st.rerun()
-
-            with col2:
-                if st.button("✅ Confirm & Submit Final Results", type="primary", use_container_width=True):
-                    # Update prompt if edited
-                    if edited_prompt != st.session_state.get('original_prompt', ''):
-                        st.session_state.original_prompt = edited_prompt
-                    st.session_state.review_confirmed = True
-                    st.rerun()
+                st.session_state.review_confirmed = True
+                st.rerun()
 
             st.stop()  # Stop here until user confirms
 
