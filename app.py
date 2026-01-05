@@ -2189,16 +2189,20 @@ if st.session_state.all_flights:
                         )
                         st.session_state.lilo_session_id = session.session_id
 
-                        # Save LILO session to database
-                        from backend.db import save_lilo_session
-                        lilo_db_id = save_lilo_session(
-                            session_id=session.session_id,
-                            search_id=st.session_state.get('search_id'),
-                            completion_token=st.session_state.get('token'),
-                            num_iterations=2,
-                            questions_per_round=2
-                        )
-                        st.session_state.lilo_db_session_id = lilo_db_id
+                        # Save LILO session to database (non-critical - won't block LILO startup)
+                        try:
+                            from backend.db import save_lilo_session
+                            lilo_db_id = save_lilo_session(
+                                session_id=session.session_id,
+                                search_id=st.session_state.get('search_id'),
+                                completion_token=st.session_state.get('token'),
+                                num_iterations=2,
+                                questions_per_round=2
+                            )
+                            st.session_state.lilo_db_session_id = lilo_db_id
+                        except Exception as db_err:
+                            print(f"⚠️ Non-critical: Failed to save LILO session to database: {db_err}")
+                            st.session_state.lilo_db_session_id = None
 
                         # Step 3: Initialize state
                         status_text.text("Initializing conversation...")
@@ -2331,17 +2335,21 @@ if st.session_state.all_flights:
                             st.session_state.lilo_questions = next_questions
                             st.session_state.lilo_current_question_idx = 0
 
-                            # Save iteration data to database
-                            from backend.db import save_lilo_iteration
-                            if st.session_state.get('lilo_db_session_id'):
-                                save_lilo_iteration(
-                                    lilo_session_id=st.session_state.lilo_db_session_id,
-                                    iteration_number=current_round,
-                                    user_responses=st.session_state.lilo_answers,
-                                    flights_shown=flights,
-                                    utility_params=None,  # Will be extracted later
-                                    acquisition_values=None
-                                )
+                            # Save iteration data to database (non-blocking - errors won't break LILO)
+                            try:
+                                from backend.db import save_lilo_iteration
+                                if st.session_state.get('lilo_db_session_id'):
+                                    save_lilo_iteration(
+                                        lilo_session_id=st.session_state.lilo_db_session_id,
+                                        iteration_number=current_round,
+                                        user_responses=st.session_state.lilo_answers,
+                                        flights_shown=flights,
+                                        utility_params=None,  # Will be extracted later
+                                        acquisition_values=None
+                                    )
+                            except Exception as db_err:
+                                print(f"⚠️ Non-critical: Failed to save iteration to database: {db_err}")
+                                # Continue anyway - database save is not critical for user experience
 
                             st.session_state.lilo_answers = {}
                             st.session_state.lilo_round += 1
@@ -2365,40 +2373,41 @@ if st.session_state.all_flights:
                 elif current_idx >= len(questions) and current_round == 2:
                     # Save final iteration and compute rankings (do this ONCE)
                     if not st.session_state.get('lilo_data_saved'):
-                        from backend.db import save_lilo_iteration, save_lilo_final_rankings, save_lilo_chat_transcript, complete_lilo_session
+                        # Wrap all database operations in try-except to prevent breaking LILO
+                        try:
+                            from backend.db import save_lilo_iteration, save_lilo_final_rankings, save_lilo_chat_transcript, complete_lilo_session
 
-                        lilo_db_id = st.session_state.get('lilo_db_session_id')
-                        if lilo_db_id:
-                            # Save final iteration (round 2)
-                            save_lilo_iteration(
-                                lilo_session_id=lilo_db_id,
-                                iteration_number=2,
-                                user_responses=st.session_state.lilo_answers,
-                                flights_shown=[],
-                                utility_params=None,
-                                acquisition_values=None
-                            )
+                            lilo_db_id = st.session_state.get('lilo_db_session_id')
+                            if lilo_db_id:
+                                # Save final iteration (round 2)
+                                save_lilo_iteration(
+                                    lilo_session_id=lilo_db_id,
+                                    iteration_number=2,
+                                    user_responses=st.session_state.lilo_answers,
+                                    flights_shown=[],
+                                    utility_params=None,
+                                    acquisition_values=None
+                                )
 
-                            # Save complete chat transcript
-                            # Add metadata for rounds/indices
-                            chat_with_metadata = []
-                            msg_idx = 0
-                            current_chat_round = 0
-                            for msg in st.session_state.lilo_chat_history:
-                                chat_with_metadata.append({
-                                    'text': msg.get('text', ''),
-                                    'is_bot': msg.get('is_bot', False),
-                                    'round': current_chat_round,
-                                    'index': msg_idx,
-                                    'flight_a': msg.get('flights', [None])[0] if msg.get('flights') else None,
-                                    'flight_b': msg.get('flights', [None, None])[1] if msg.get('flights') and len(msg.get('flights')) > 1 else None
-                                })
-                                msg_idx += 1
+                                # Save complete chat transcript
+                                # Add metadata for rounds/indices
+                                chat_with_metadata = []
+                                msg_idx = 0
+                                current_chat_round = 0
+                                for msg in st.session_state.lilo_chat_history:
+                                    chat_with_metadata.append({
+                                        'text': msg.get('text', ''),
+                                        'is_bot': msg.get('is_bot', False),
+                                        'round': current_chat_round,
+                                        'index': msg_idx,
+                                        'flight_a': msg.get('flights', [None])[0] if msg.get('flights') else None,
+                                        'flight_b': msg.get('flights', [None, None])[1] if msg.get('flights') and len(msg.get('flights')) > 1 else None
+                                    })
+                                    msg_idx += 1
 
-                            save_lilo_chat_transcript(lilo_db_id, chat_with_metadata)
+                                save_lilo_chat_transcript(lilo_db_id, chat_with_metadata)
 
-                            # Compute final rankings
-                            try:
+                                # Compute final rankings
                                 with st.spinner("Computing final flight rankings..."):
                                     all_flights = st.session_state.get('all_flights_data', [])
                                     ranked_flights = st.session_state.lilo_bridge.compute_final_rankings(
@@ -2415,10 +2424,11 @@ if st.session_state.all_flights:
 
                                     print(f"✓ LILO data saved: session {lilo_db_id}, {len(ranked_flights)} flights ranked")
 
-                            except Exception as e:
-                                print(f"⚠️ Error computing final rankings: {e}")
-                                import traceback
-                                traceback.print_exc()
+                        except Exception as e:
+                            print(f"⚠️ Non-critical: Failed to save LILO data to database: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            # Continue anyway - LILO can complete without database saves
 
                         st.session_state.lilo_data_saved = True
 
