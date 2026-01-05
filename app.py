@@ -2512,15 +2512,6 @@ if st.session_state.all_flights:
                         status_text.text("Generating initial questions...")
                         progress_bar.progress(90)
                         initial_questions = bridge.get_initial_questions(session.session_id)
-
-                        # CRITICAL FIX: Ensure we have questions (fallback if LLM fails)
-                        if not initial_questions or len(initial_questions) == 0:
-                            print("[LILO WARNING] get_initial_questions() returned empty list, using fallback questions")
-                            initial_questions = [
-                                "What factors are most important to you when choosing a flight? (e.g., price, duration, departure time, number of stops)",
-                                "Are there any specific constraints or preferences you have for this trip?"
-                            ]
-
                         st.session_state.lilo_questions = initial_questions
                         st.session_state.lilo_answers = {}  # Store answers
 
