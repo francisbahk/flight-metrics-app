@@ -327,20 +327,20 @@ class StreamlitLILOBridge:
             for i, q in enumerate(questions):
                 print(f"[LILO DEBUG] Question {i+1}: {q[:150]}...")
         else:
-            print("[LILO WARNING] ⚠️  NO QUESTIONS GENERATED!")
-            print("[LILO WARNING] This is likely due to:")
-            print("[LILO WARNING]   1. Gemini API rate limiting or quota issues")
-            print("[LILO WARNING]   2. LLM returning invalid JSON format")
-            print("[LILO WARNING]   3. LLM returning fewer questions than requested")
-            print("[LILO WARNING] Falling back to manually crafted initial questions...")
+            print("[LILO ERROR] ⚠️  NO QUESTIONS GENERATED!")
+            print("[LILO ERROR] This is likely due to:")
+            print("[LILO ERROR]   1. Gemini API rate limiting or quota issues")
+            print("[LILO ERROR]   2. LLM returning invalid JSON format")
+            print("[LILO ERROR]   3. LLM returning fewer questions than requested")
+            print("[LILO ERROR]   4. API key missing or invalid")
+            print("[LILO DEBUG] ==================== get_initial_questions() END ====================")
 
-            # CRITICAL: DO NOT return empty list - this would skip Round 1!
-            # Instead, use manually crafted questions that align with LILO's goals
-            questions = [
-                f"What are your priorities when choosing a flight? Please rank the importance of these factors: price (${optimizer.env.param_mins.get('price', 0):.0f}-${optimizer.env.param_maxs.get('price', 1000):.0f}), duration ({optimizer.env.param_mins.get('duration_min', 0):.0f}-{optimizer.env.param_maxs.get('duration_min', 500):.0f} min), number of stops ({int(optimizer.env.param_mins.get('stops', 0))}-{int(optimizer.env.param_maxs.get('stops', 3))}), departure time, and arrival time.",
-                "Are there any specific constraints or deal-breakers for your flight? For example: maximum price, must be direct flight, specific time windows for departure/arrival, etc."
-            ]
-            print(f"[LILO DEBUG] Using {len(questions)} fallback questions")
+            # RAISE ERROR - do NOT use fallback questions
+            raise RuntimeError(
+                "LILO failed to generate initial questions. "
+                "Check logs above for details. Possible causes: "
+                "Gemini API quota exceeded, invalid API key, or LLM response format error."
+            )
 
         print("[LILO DEBUG] ==================== get_initial_questions() END ====================")
 
