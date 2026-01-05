@@ -550,23 +550,55 @@ def get_questions(
     response = None
     it = 0
     questions = []
+
+    print(f"[get_questions DEBUG] Generating {n_questions} questions (attempt 1/{3})")
+    print(f"[get_questions DEBUG] Prompt length: {len(prompt)} chars")
+    print(f"[get_questions DEBUG] Has exp_df data: {len(exp_df) > 0}")
+
     while response is None and it < 3:
-        response = asyncio.run(
-            llm_client.get_llm_response(prompt, kwargs={"max_tokens": 10000})
-        )[0]
+        print(f"[get_questions DEBUG] === Attempt {it+1}/3 ===")
+        try:
+            llm_response_list = asyncio.run(
+                llm_client.get_llm_response(prompt, kwargs={"max_tokens": 10000})
+            )
+            response = llm_response_list[0] if llm_response_list else None
+
+            print(f"[get_questions DEBUG] LLM response received: {bool(response)}")
+            if response:
+                print(f"[get_questions DEBUG] Response length: {len(response)} chars")
+                print(f"[get_questions DEBUG] Response preview: {response[:200]}...")
+        except Exception as e:
+            print(f"[get_questions ERROR] LLM call failed: {e}")
+            import traceback
+            traceback.print_exc()
+            response = None
+            it += 1
+            continue
+
         q_dict = extract_json_from_text(response)
         if q_dict is None:
-            print("JSON parsing error, raw response:")
+            print("[get_questions WARNING] JSON parsing failed!")
+            print("Raw response:")
             print(response)
+        else:
+            print(f"[get_questions DEBUG] JSON parsed successfully: {len(q_dict)} questions found")
+            print(f"[get_questions DEBUG] Required: {n_questions}, Found: {len(q_dict)}")
+
         if q_dict is not None and len(q_dict) >= n_questions:
             questions = []
             for q in q_dict.values():
                 questions.append(q)
             questions = questions[:n_questions]
+            print(f"[get_questions DEBUG] ✓ Successfully generated {len(questions)} questions")
         else:
+            if q_dict is not None:
+                print(f"[get_questions WARNING] Not enough questions ({len(q_dict)} < {n_questions}), retrying...")
             response = None
 
         it += 1
+
+    if not questions:
+        print(f"[get_questions ERROR] Failed to generate questions after {it} attempts")
 
     return questions
 

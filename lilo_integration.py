@@ -294,23 +294,55 @@ class StreamlitLILOBridge:
 
         optimizer = session.optimizer
 
-        print("[LILO DEBUG] Attempting to generate LLM questions...")
-        # Generate initial goal questions (trial_index=-1 means initialization)
-        questions = get_questions(
-            exp_df=pd.DataFrame(),  # Empty - no experiments yet
-            context_df=pd.DataFrame(),  # Empty - no feedback yet
-            env=optimizer.env,
-            selected_arm_index_ls=[],
-            n_questions=optimizer.cfg.bs_feedback,
-            llm_client=optimizer.uprox_client,
-            include_goals=optimizer.cfg.include_goals,
-            pre_select_data=False,
-            prompt_type="pairwise"
-        )
+        print("[LILO DEBUG] ==================== get_initial_questions() START ====================")
+        print(f"[LILO DEBUG] Session ID: {session_id}")
+        print(f"[LILO DEBUG] n_questions (bs_feedback): {optimizer.cfg.bs_feedback}")
+        print(f"[LILO DEBUG] include_goals: {optimizer.cfg.include_goals}")
+        print(f"[LILO DEBUG] LLM model: {optimizer.cfg.uprox_llm_model}")
+        print(f"[LILO DEBUG] API key present: {bool(self.api_key)}")
+        print(f"[LILO DEBUG] Environment y_names: {optimizer.env.y_names}")
+        print(f"[LILO DEBUG] Goal message: {optimizer.env.get_goal_message()}")
 
-        print(f"[LILO DEBUG] LLM generated {len(questions) if questions else 0} questions")
+        # Generate initial goal questions (trial_index=-1 means initialization)
+        try:
+            questions = get_questions(
+                exp_df=pd.DataFrame(),  # Empty - no experiments yet
+                context_df=pd.DataFrame(),  # Empty - no feedback yet
+                env=optimizer.env,
+                selected_arm_index_ls=[],
+                n_questions=optimizer.cfg.bs_feedback,
+                llm_client=optimizer.uprox_client,
+                include_goals=optimizer.cfg.include_goals,
+                pre_select_data=False,
+                prompt_type="pairwise"
+            )
+        except Exception as e:
+            print(f"[LILO ERROR] get_questions() raised exception: {e}")
+            import traceback
+            traceback.print_exc()
+            questions = None
+
+        print(f"[LILO DEBUG] Result: {len(questions) if questions else 0} questions generated")
         if questions and len(questions) > 0:
-            print(f"[LILO DEBUG] First question: {questions[0][:100]}...")
+            for i, q in enumerate(questions):
+                print(f"[LILO DEBUG] Question {i+1}: {q[:150]}...")
+        else:
+            print("[LILO WARNING] ⚠️  NO QUESTIONS GENERATED!")
+            print("[LILO WARNING] This is likely due to:")
+            print("[LILO WARNING]   1. Gemini API rate limiting or quota issues")
+            print("[LILO WARNING]   2. LLM returning invalid JSON format")
+            print("[LILO WARNING]   3. LLM returning fewer questions than requested")
+            print("[LILO WARNING] Falling back to manually crafted initial questions...")
+
+            # CRITICAL: DO NOT return empty list - this would skip Round 1!
+            # Instead, use manually crafted questions that align with LILO's goals
+            questions = [
+                f"What are your priorities when choosing a flight? Please rank the importance of these factors: price (${optimizer.env.param_mins.get('price', 0):.0f}-${optimizer.env.param_maxs.get('price', 1000):.0f}), duration ({optimizer.env.param_mins.get('duration_min', 0):.0f}-{optimizer.env.param_maxs.get('duration_min', 500):.0f} min), number of stops ({int(optimizer.env.param_mins.get('stops', 0))}-{int(optimizer.env.param_maxs.get('stops', 3))}), departure time, and arrival time.",
+                "Are there any specific constraints or deal-breakers for your flight? For example: maximum price, must be direct flight, specific time windows for departure/arrival, etc."
+            ]
+            print(f"[LILO DEBUG] Using {len(questions)} fallback questions")
+
+        print("[LILO DEBUG] ==================== get_initial_questions() END ====================")
 
         return questions
 
