@@ -15,39 +15,45 @@ import json
 
 def get_all_sessions_summary() -> List[Dict]:
     """
-    Get summary of all complete research sessions (grouped by completion token).
+    Get summary of all research sessions (both completed and in-progress).
 
     Returns:
         List of session summary dicts with key metrics from all stages
     """
     db = SessionLocal()
     try:
-        # Get all completion tokens
-        completion_tokens = db.query(CompletionToken).order_by(desc(CompletionToken.created_at)).all()
+        # Get all searches (this includes both completed and in-progress sessions)
+        searches = db.query(Search).order_by(desc(Search.created_at)).all()
 
         summaries = []
-        for comp_token in completion_tokens:
-            token = comp_token.token
-            session_id = comp_token.session_id
+        seen_sessions = set()  # Track unique sessions
 
-            # Get search data
-            search = db.query(Search).filter(
-                or_(Search.completion_token == token, Search.session_id == session_id)
-            ).first()
+        for search in searches:
+            session_id = search.session_id
+            token = search.completion_token
+
+            # Skip if we've already processed this session
+            session_key = token if token else session_id
+            if session_key in seen_sessions:
+                continue
+            seen_sessions.add(session_key)
 
             # Get survey
             survey = db.query(SurveyResponse).filter(
-                or_(SurveyResponse.completion_token == token, SurveyResponse.session_id == session_id)
+                or_(SurveyResponse.completion_token == token, SurveyResponse.session_id == session_id) if token
+                else SurveyResponse.session_id == session_id
             ).first()
 
             # Get cross-validation count
             cv_count = db.query(CrossValidation).filter(
-                or_(CrossValidation.completion_token == token, CrossValidation.session_id == session_id)
+                or_(CrossValidation.completion_token == token, CrossValidation.session_id == session_id) if token
+                else CrossValidation.session_id == session_id
             ).count()
 
             # Get LILO session
             lilo = db.query(LILOSession).filter(
-                or_(LILOSession.completion_token == token, LILOSession.session_id == session_id)
+                or_(LILOSession.completion_token == token, LILOSession.session_id == session_id) if token
+                else LILOSession.session_id == session_id
             ).first()
 
             # Count LILO data if exists
@@ -61,17 +67,23 @@ def get_all_sessions_summary() -> List[Dict]:
                     LILOFinalRanking.lilo_session_id == lilo.id
                 ).count()
 
+            # Get completion info
+            comp_token = db.query(CompletionToken).filter(
+                CompletionToken.token == token
+            ).first() if token else None
+
             summaries.append({
-                'completion_token': token,
+                'completion_token': token or 'In Progress',
                 'session_id': session_id,
-                'completed_at': comp_token.created_at,
-                'has_search': search is not None,
+                'completed_at': comp_token.created_at if comp_token else search.created_at,
+                'is_completed': comp_token is not None,
+                'has_search': True,  # Always true since we're querying from searches
                 'has_survey': survey is not None,
                 'has_cv': cv_count > 0,
                 'has_lilo': lilo is not None,
-                'search_prompt': search.prompt if search else None,
-                'origin': search.origin if search else None,
-                'destination': search.destination if search else None,
+                'search_prompt': search.prompt,
+                'origin': search.origin,
+                'destination': search.destination,
                 'survey_satisfaction': survey.satisfaction if survey else None,
                 'cv_count': cv_count,
                 'lilo_messages': lilo_messages,
@@ -85,30 +97,40 @@ def get_all_sessions_summary() -> List[Dict]:
         db.close()
 
 
-def get_complete_session_detail(completion_token: str) -> Optional[Dict]:
+def get_complete_session_detail(identifier: str) -> Optional[Dict]:
     """
     Get complete detailed information about a research session.
     Includes search, rankings, survey, cross-validation, and LILO data.
 
     Args:
-        completion_token: Completion token for the session
+        identifier: Completion token or session_id
 
     Returns:
         Detailed session dict with all data, or None if not found
     """
     db = SessionLocal()
     try:
-        # Get completion token record
-        comp_token = db.query(CompletionToken).filter(CompletionToken.token == completion_token).first()
+        # Try to find by completion token first
+        comp_token = db.query(CompletionToken).filter(CompletionToken.token == identifier).first()
 
-        if not comp_token:
-            return None
+        if comp_token:
+            session_id = comp_token.session_id
+            completion_token = identifier
+            completed_at = comp_token.created_at
+        else:
+            # Try to find by session_id
+            search = db.query(Search).filter(Search.session_id == identifier).first()
+            if not search:
+                return None
+            session_id = identifier
+            completion_token = search.completion_token or 'In Progress'
+            completed_at = search.created_at
 
-        session_id = comp_token.session_id
         result = {
             'completion_token': completion_token,
             'session_id': session_id,
-            'completed_at': comp_token.created_at
+            'completed_at': completed_at,
+            'is_completed': comp_token is not None
         }
 
         # 1. Get flight search data

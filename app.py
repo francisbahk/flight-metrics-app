@@ -995,9 +995,11 @@ if st.session_state.get('show_admin', False):
             st.error("❌ Session not found")
         else:
             # Session header
-            st.markdown(f"## Complete Session: `{detail['completion_token']}`")
+            status_badge = "✅ Completed" if detail['is_completed'] else "⏳ In Progress"
+            st.markdown(f"## Session: `{detail['completion_token']}` {status_badge}")
             st.caption(f"Session ID: {detail['session_id']}")
-            st.caption(f"Completed: {detail['completed_at'].strftime('%Y-%m-%d %H:%M:%S')}")
+            date_label = "Completed" if detail['is_completed'] else "Started"
+            st.caption(f"{date_label}: {detail['completed_at'].strftime('%Y-%m-%d %H:%M:%S')}")
 
             st.markdown("---")
 
@@ -1208,9 +1210,10 @@ if st.session_state.get('show_admin', False):
                             st.caption(f"Prompt: {sess['search_prompt'][:80]}...")
 
                     with col2:
-                        # View details button
-                        if st.button("View Details", key=f"view_{sess['completion_token']}"):
-                            st.session_state.selected_session_token = sess['completion_token']
+                        # View details button - use session_id for in-progress, token for completed
+                        identifier = sess['completion_token'] if sess['is_completed'] else sess['session_id']
+                        if st.button("View Details", key=f"view_{sess['session_id']}"):
+                            st.session_state.selected_session_token = identifier
                             st.rerun()
 
                     st.markdown("---")
@@ -2716,20 +2719,17 @@ if st.session_state.all_flights:
                         key=f"lilo_chat_input_{current_round}_{current_idx}"
                     )
 
-                    if answer:
-                        if len(answer.strip()) >= 10:
-                            # Add Q&A to chat history (DON'T clear between rounds!)
-                            st.session_state.lilo_chat_history.append({'text': current_question, 'is_bot': True})
-                            st.session_state.lilo_chat_history.append({'text': answer, 'is_bot': False})
+                    if answer and answer.strip():
+                        # Add Q&A to chat history (DON'T clear between rounds!)
+                        st.session_state.lilo_chat_history.append({'text': current_question, 'is_bot': True})
+                        st.session_state.lilo_chat_history.append({'text': answer, 'is_bot': False})
 
-                            # Save answer
-                            st.session_state.lilo_answers[f"q{current_idx}"] = answer
+                        # Save answer
+                        st.session_state.lilo_answers[f"q{current_idx}"] = answer
 
-                            # Move to next question
-                            st.session_state.lilo_current_question_idx += 1
-                            st.rerun()
-                        else:
-                            st.error("Please provide an answer with at least 10 characters")
+                        # Move to next question
+                        st.session_state.lilo_current_question_idx += 1
+                        st.rerun()
 
                 st.markdown('</div>', unsafe_allow_html=True)
 

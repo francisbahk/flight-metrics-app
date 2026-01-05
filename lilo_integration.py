@@ -294,59 +294,24 @@ class StreamlitLILOBridge:
 
         optimizer = session.optimizer
 
-        # Multiple sets of fallback questions for variation
-        import random
-        fallback_sets = [
-            [
-                "What is your primary goal for this flight? (e.g., minimize cost, minimize travel time, maximize comfort, avoid early departures)",
-                "How do you feel about connecting flights? Would you prefer direct flights even if they cost more, or are you okay with layovers to save money?"
-            ],
-            [
-                "What matters most to you when choosing a flight: price, duration, departure time, or number of stops?",
-                "Are you willing to trade convenience (like direct flights or better times) for cost savings?"
-            ],
-            [
-                "If you had to prioritize between saving money and saving time on your flight, which would you choose and why?",
-                "How important are departure and arrival times to you compared to the overall price of the flight?"
-            ],
-            [
-                "What would make you choose one flight over another if the prices were similar?",
-                "How much extra would you be willing to pay to avoid layovers or get better flight times?"
-            ]
-        ]
-        fallback_questions = random.choice(fallback_sets)
-        print(f"[LILO DEBUG] Using fallback set: {fallback_questions[0][:50]}...")
+        print("[LILO DEBUG] Attempting to generate LLM questions...")
+        # Generate initial goal questions (trial_index=-1 means initialization)
+        questions = get_questions(
+            exp_df=pd.DataFrame(),  # Empty - no experiments yet
+            context_df=pd.DataFrame(),  # Empty - no feedback yet
+            env=optimizer.env,
+            selected_arm_index_ls=[],
+            n_questions=optimizer.cfg.bs_feedback,
+            llm_client=optimizer.uprox_client,
+            include_goals=optimizer.cfg.include_goals,
+            pre_select_data=False,
+            prompt_type="pairwise"
+        )
 
-        try:
-            print("[LILO DEBUG] Attempting to generate LLM questions...")
-            # Generate initial goal questions (trial_index=-1 means initialization)
-            questions = get_questions(
-                exp_df=pd.DataFrame(),  # Empty - no experiments yet
-                context_df=pd.DataFrame(),  # Empty - no feedback yet
-                env=optimizer.env,
-                selected_arm_index_ls=[],
-                n_questions=optimizer.cfg.bs_feedback,
-                llm_client=optimizer.uprox_client,
-                include_goals=optimizer.cfg.include_goals,
-                pre_select_data=False,
-                prompt_type="pairwise"
-            )
+        print(f"[LILO DEBUG] LLM generated {len(questions) if questions else 0} questions")
+        if questions and len(questions) > 0:
+            print(f"[LILO DEBUG] First question: {questions[0][:100]}...")
 
-            # If LLM returns empty or fails, use fallback
-            # Check if questions list is empty OR contains only empty/whitespace strings
-            if not questions or len(questions) == 0 or all(not q or not q.strip() for q in questions):
-                print("[LILO DEBUG] LLM returned no/empty questions, using fallback")
-                questions = fallback_questions
-            else:
-                print(f"[LILO DEBUG] LLM generated {len(questions)} questions successfully")
-                print(f"[LILO DEBUG] First question: {questions[0][:100]}...")
-
-        except Exception as e:
-            print(f"[LILO DEBUG] Error generating LILO questions: {e}")
-            print("[LILO DEBUG] Using fallback questions")
-            questions = fallback_questions
-
-        print(f"[LILO DEBUG] Returning {len(questions)} questions")
         return questions
 
     def run_iteration(
