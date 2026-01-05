@@ -16,31 +16,42 @@ import json
 def get_all_sessions_summary() -> List[Dict]:
     """
     Get summary of all research sessions (both completed and in-progress).
+    Filters out data before January 1, 2026 and DEMO sessions.
 
     Returns:
         List of session summary dicts with key metrics from all stages
     """
     db = SessionLocal()
     try:
+        # Filter cutoff date: January 1, 2026
+        cutoff_date = datetime(2026, 1, 1)
+
         # Get all searches (this includes both completed and in-progress sessions)
         try:
-            # Try ordering by created_at DESC
-            searches = db.query(Search).order_by(desc(Search.created_at)).all()
+            # Try ordering by created_at DESC with date filter
+            searches = db.query(Search).filter(
+                Search.created_at >= cutoff_date
+            ).order_by(desc(Search.created_at)).all()
         except Exception as e:
             print(f"Error querying searches with ORDER BY: {e}")
             # Fallback 1: Try without ordering
             try:
-                searches = db.query(Search).all()
+                searches = db.query(Search).filter(
+                    Search.created_at >= cutoff_date
+                ).all()
                 # Sort in Python instead
                 searches = sorted(searches, key=lambda s: s.created_at, reverse=True)
             except Exception as e2:
                 print(f"Error querying searches without ORDER BY: {e2}")
                 # Fallback 2: Get completion tokens first
-                completion_tokens = db.query(CompletionToken).order_by(desc(CompletionToken.created_at)).all()
+                completion_tokens = db.query(CompletionToken).filter(
+                    CompletionToken.created_at >= cutoff_date
+                ).order_by(desc(CompletionToken.created_at)).all()
                 searches = []
                 for comp_token in completion_tokens:
                     search = db.query(Search).filter(
-                        Search.session_id == comp_token.session_id
+                        Search.session_id == comp_token.session_id,
+                        Search.created_at >= cutoff_date
                     ).first()
                     if search:
                         searches.append(search)
@@ -51,6 +62,10 @@ def get_all_sessions_summary() -> List[Dict]:
         for search in searches:
             session_id = search.session_id
             token = search.completion_token
+
+            # Skip DEMO sessions
+            if token == "DEMO":
+                continue
 
             # Skip if we've already processed this session
             session_key = token if token else session_id
@@ -138,6 +153,7 @@ def get_complete_session_detail(identifier: str) -> Optional[Dict]:
     """
     Get complete detailed information about a research session.
     Includes search, rankings, survey, cross-validation, and LILO data.
+    Filters out DEMO sessions and data before January 1, 2026.
 
     Args:
         identifier: Completion token or session_id
@@ -147,8 +163,18 @@ def get_complete_session_detail(identifier: str) -> Optional[Dict]:
     """
     db = SessionLocal()
     try:
+        # Filter out DEMO sessions
+        if identifier == "DEMO":
+            return None
+
+        # Filter cutoff date: January 1, 2026
+        cutoff_date = datetime(2026, 1, 1)
+
         # Try to find by completion token first
-        comp_token = db.query(CompletionToken).filter(CompletionToken.token == identifier).first()
+        comp_token = db.query(CompletionToken).filter(
+            CompletionToken.token == identifier,
+            CompletionToken.created_at >= cutoff_date
+        ).first()
 
         if comp_token:
             session_id = comp_token.session_id
@@ -156,12 +182,19 @@ def get_complete_session_detail(identifier: str) -> Optional[Dict]:
             completed_at = comp_token.created_at
         else:
             # Try to find by session_id
-            search = db.query(Search).filter(Search.session_id == identifier).first()
+            search = db.query(Search).filter(
+                Search.session_id == identifier,
+                Search.created_at >= cutoff_date
+            ).first()
             if not search:
                 return None
             session_id = identifier
             completion_token = search.completion_token or 'In Progress'
             completed_at = search.created_at
+
+            # Additional check: skip DEMO completion tokens
+            if completion_token == "DEMO":
+                return None
 
         result = {
             'completion_token': completion_token,
