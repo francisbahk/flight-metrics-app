@@ -963,11 +963,258 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # Show inline admin if requested
 if st.session_state.get('show_admin', False):
-    st.markdown("### Admin Panel")
-    st.markdown("Admin functionality here...")
+    st.markdown("### 🔧 Admin Panel - Complete Research Data")
+
+    # Import admin utilities
+    from admin_utils import get_all_sessions_summary, get_complete_session_detail, export_session_csv
+
+    # Back button
     if st.button("← Back to Main"):
         st.session_state.show_admin = False
+        st.session_state.selected_session_token = None
         st.rerun()
+
+    st.markdown("---")
+
+    # Check if viewing specific session detail
+    if st.session_state.get('selected_session_token'):
+        token = st.session_state.selected_session_token
+
+        # Back to list button
+        if st.button("← Back to Sessions List"):
+            st.session_state.selected_session_token = None
+            st.rerun()
+
+        st.markdown("---")
+
+        # Get detailed session data
+        with st.spinner("Loading complete session data..."):
+            detail = get_complete_session_detail(token)
+
+        if not detail:
+            st.error("❌ Session not found")
+        else:
+            # Session header
+            st.markdown(f"## Complete Session: `{detail['completion_token']}`")
+            st.caption(f"Session ID: {detail['session_id']}")
+            st.caption(f"Completed: {detail['completed_at'].strftime('%Y-%m-%d %H:%M:%S')}")
+
+            st.markdown("---")
+
+            # 1. FLIGHT SEARCH DATA
+            if detail['search']:
+                st.markdown("### ✈️ Flight Search")
+                search = detail['search']
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Route", f"{search['origin']} → {search['destination']}")
+                with col2:
+                    st.metric("Search Method", search['search_method'])
+                with col3:
+                    st.metric("Flights Found", search['flights_count'])
+
+                with st.expander("Search Details"):
+                    st.markdown(f"**User Prompt:** {search['prompt']}")
+                    st.text(f"Departure: {search['departure_date']}")
+                    if search['return_date']:
+                        st.text(f"Return: {search['return_date']}")
+                    st.text(f"Searched at: {search['created_at'].strftime('%Y-%m-%d %H:%M:%S')}")
+
+                st.markdown("---")
+
+            # 2. USER RANKINGS
+            if detail['user_rankings']:
+                st.markdown(f"### 🎯 User Manual Rankings ({len(detail['user_rankings'])} flights)")
+                with st.expander("View All User Rankings"):
+                    for ranking in detail['user_rankings'][:10]:
+                        flight = ranking['flight_data']
+                        st.text(
+                            f"#{ranking['rank']}: ${flight.get('price')} | "
+                            f"{flight.get('duration_min')}min | {flight.get('stops')} stops | "
+                            f"{flight.get('airline', 'N/A')[:40]}"
+                        )
+                    if len(detail['user_rankings']) > 10:
+                        st.caption(f"... and {len(detail['user_rankings']) - 10} more")
+
+                st.markdown("---")
+
+            # 3. CROSS-VALIDATION
+            if detail['cross_validation']:
+                st.markdown(f"### ✅ Cross-Validation ({len(detail['cross_validation'])} comparisons)")
+                cv_correct = sum(1 for cv in detail['cross_validation'] if cv['user_selected'])
+                cv_total = len(detail['cross_validation'])
+                cv_accuracy = (cv_correct / cv_total * 100) if cv_total > 0 else 0
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Comparisons", cv_total)
+                with col2:
+                    st.metric("Matches Ranking", cv_correct)
+                with col3:
+                    st.metric("Accuracy", f"{cv_accuracy:.1f}%")
+
+                with st.expander("View Cross-Validation Details"):
+                    for i, cv in enumerate(detail['cross_validation'], 1):
+                        icon = "✅" if cv['user_selected'] else "❌"
+                        flight = cv['flight_data']
+                        st.text(
+                            f"{icon} #{i}: ${flight.get('price')} | "
+                            f"{flight.get('duration_min')}min | {flight.get('stops')} stops"
+                        )
+
+                st.markdown("---")
+
+            # 4. SURVEY RESPONSE
+            if detail['survey']:
+                st.markdown("### 📝 Survey Response")
+                survey = detail['survey']
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Satisfaction", f"{survey['satisfaction']}/5")
+                with col2:
+                    st.metric("Ease of Use", f"{survey['ease_of_use']}/5")
+                with col3:
+                    st.metric("Would Use Again", survey['would_use_again'])
+
+                with st.expander("Full Survey Responses"):
+                    st.markdown(f"**Search Method:** {survey['search_method']}")
+                    st.markdown(f"**Understood Ranking:** {survey['understood_ranking']}/5")
+                    st.markdown(f"**Flights Matched Expectations:** {survey['flights_matched']}/5")
+                    st.markdown(f"**Compared to Other Tools:** {survey['compared_to_others']}/5")
+                    if survey['helpful_features']:
+                        st.markdown(f"**Helpful Features:** {', '.join(survey['helpful_features'])}")
+                    if survey['encountered_issues'] == 'Yes' and survey['issues_description']:
+                        st.markdown(f"**Issues:** {survey['issues_description']}")
+                    if survey['confusing_frustrating']:
+                        st.markdown(f"**Confusing/Frustrating:** {survey['confusing_frustrating']}")
+                    if survey['missing_features']:
+                        st.markdown(f"**Missing Features:** {survey['missing_features']}")
+                    if survey['would_use_again_reason']:
+                        st.markdown(f"**Reason:** {survey['would_use_again_reason']}")
+                    if survey['additional_comments']:
+                        st.markdown(f"**Additional Comments:** {survey['additional_comments']}")
+
+                st.markdown("---")
+
+            # 5. LILO DATA
+            if detail['lilo']:
+                lilo = detail['lilo']
+                st.markdown("### 🤖 LILO (Language-Informed Latent Optimization)")
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Iterations", lilo['num_iterations'])
+                with col2:
+                    st.metric("Questions/Round", lilo['questions_per_round'])
+                with col3:
+                    status = "✅ Complete" if lilo['completed_at'] else "⏳ In Progress"
+                    st.metric("Status", status)
+
+                # Utility Statistics
+                if lilo['rankings']['utility_stats']:
+                    st.markdown("#### 📊 Learned Utility Function")
+                    stats = lilo['rankings']['utility_stats']
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Max", f"{stats['max']:.4f}")
+                    with col2:
+                        st.metric("Min", f"{stats['min']:.4f}")
+                    with col3:
+                        st.metric("Avg", f"{stats['avg']:.4f}")
+                    with col4:
+                        st.metric("Range", f"{stats['range']:.4f}")
+
+                # Chat Transcript
+                if lilo['chat_transcript']:
+                    st.markdown("#### 💬 LILO Chat Transcript")
+                    for round_num in sorted(lilo['chat_transcript'].keys()):
+                        with st.expander(f"Round {round_num} ({len(lilo['chat_transcript'][round_num])} messages)"):
+                            for msg in lilo['chat_transcript'][round_num]:
+                                speaker = "🤖" if msg['is_bot'] else "👤"
+                                st.markdown(f"{speaker} {msg['text']}")
+
+                # Top Rankings
+                if lilo['rankings']['top_10']:
+                    st.markdown(f"#### 🏆 Top 10 Flights by LILO Utility ({lilo['rankings']['total']} total)")
+                    import pandas as pd
+                    top_data = []
+                    for r in lilo['rankings']['top_10']:
+                        flight = r['flight_data']
+                        top_data.append({
+                            'Rank': r['rank'],
+                            'Utility': f"{r['utility_score']:.4f}",
+                            'Price': flight.get('price'),
+                            'Duration': flight.get('duration_min'),
+                            'Stops': flight.get('stops'),
+                            'Airline': flight.get('airline', 'N/A')[:30]
+                        })
+                    st.dataframe(pd.DataFrame(top_data), use_container_width=True, hide_index=True)
+
+            # Export button
+            st.markdown("---")
+            st.markdown("### 📥 Export Data")
+            if st.button("Download LILO Rankings as CSV", type="primary"):
+                csv_data = export_session_csv(token)
+                if csv_data:
+                    st.download_button(
+                        label="💾 Download CSV",
+                        data=csv_data,
+                        file_name=f"session_{detail['completion_token']}.csv",
+                        mime="text/csv"
+                    )
+                else:
+                    st.info("No LILO rankings available for export")
+
+    else:
+        # Show list of all sessions
+        st.markdown("## All Research Sessions")
+
+        with st.spinner("Loading sessions..."):
+            sessions = get_all_sessions_summary()
+
+        if not sessions:
+            st.info("No sessions found in database.")
+        else:
+            st.markdown(f"**Total Sessions:** {len(sessions)}")
+            st.markdown("---")
+
+            # Display each session as a card
+            for sess in sessions:
+                with st.container():
+                    col1, col2 = st.columns([3, 1])
+
+                    with col1:
+                        # Session header
+                        st.markdown(f"### 📊 Token: `{sess['completion_token']}`")
+                        st.caption(f"Completed: {sess['completed_at'].strftime('%Y-%m-%d %H:%M')}")
+
+                        # Show what data exists
+                        data_indicators = []
+                        if sess['has_search']:
+                            data_indicators.append(f"✈️ Search ({sess['origin']} → {sess['destination']})")
+                        if sess['has_survey']:
+                            data_indicators.append(f"📝 Survey (satisfaction: {sess['survey_satisfaction']}/5)")
+                        if sess['has_cv']:
+                            data_indicators.append(f"✅ Cross-Val ({sess['cv_count']} comparisons)")
+                        if sess['has_lilo']:
+                            lilo_status = "✅" if sess['lilo_completed'] else "⏳"
+                            data_indicators.append(f"{lilo_status} LILO ({sess['lilo_rankings']} flights ranked)")
+
+                        for indicator in data_indicators:
+                            st.text(indicator)
+
+                        if sess['search_prompt']:
+                            st.caption(f"Prompt: {sess['search_prompt'][:80]}...")
+
+                    with col2:
+                        # View details button
+                        if st.button("View Details", key=f"view_{sess['completion_token']}"):
+                            st.session_state.selected_session_token = sess['completion_token']
+                            st.rerun()
+
+                    st.markdown("---")
+
     st.stop()
 
 # Initialize interactive demo/tutorial mode
