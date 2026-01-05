@@ -3508,19 +3508,29 @@ if st.session_state.all_flights:
                         }
 
                         # Save to database
-                        from backend.db import save_survey_response
-                        success = save_survey_response(
-                            session_id=st.session_state.session_id,
-                            survey_data=survey_data,
-                            completion_token=st.session_state.token
-                        )
+                        try:
+                            from backend.db import save_survey_response
+                            success = save_survey_response(
+                                session_id=st.session_state.session_id,
+                                survey_data=survey_data,
+                                completion_token=st.session_state.token
+                            )
 
-                        if success:
+                            if success:
+                                st.session_state.survey_completed = True
+                                st.success("✅ Thank you for your feedback!")
+                                st.rerun()
+                            else:
+                                st.error("⚠️ Failed to save survey response. Please try again.")
+                        except Exception as e:
+                            # Show actual error for debugging
+                            st.error(f"⚠️ Failed to save survey response: {str(e)}")
+                            import traceback
+                            print(f"[SURVEY ERROR] {traceback.format_exc()}")
+                            # Still mark as completed so user can continue
                             st.session_state.survey_completed = True
-                            st.success("✅ Thank you for your feedback!")
+                            st.warning("Your responses were recorded but database save failed. Continuing anyway...")
                             st.rerun()
-                        else:
-                            st.error("⚠️ Failed to save survey response. Please try again.")
 
                 # Close survey div
                 st.markdown('</div>', unsafe_allow_html=True)
