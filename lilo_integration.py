@@ -305,6 +305,7 @@ class StreamlitLILOBridge:
         print(f"[LILO DEBUG] Goal message: {optimizer.env.get_goal_message()}")
 
         # Generate initial goal questions (trial_index=-1 means initialization)
+        llm_exception = None
         try:
             questions = get_questions(
                 exp_df=pd.DataFrame(),  # Empty - no experiments yet
@@ -321,6 +322,7 @@ class StreamlitLILOBridge:
             print(f"[LILO ERROR] get_questions() raised exception: {e}")
             import traceback
             traceback.print_exc()
+            llm_exception = e  # Capture exception for UI display
             questions = None
 
         print(f"[LILO DEBUG] Result: {len(questions) if questions else 0} questions generated")
@@ -345,16 +347,24 @@ class StreamlitLILOBridge:
                 f"  • y_names: {optimizer.env.y_names}",
                 f"  • Goal message: {optimizer.env.get_goal_message()}",
                 "",
+            ]
+
+            # Add actual exception details if available
+            if llm_exception:
+                error_details.extend([
+                    "🔴 ACTUAL ERROR FROM LLM:",
+                    f"  • Error Type: {type(llm_exception).__name__}",
+                    f"  • Error Message: {str(llm_exception)}",
+                    "",
+                ])
+
+            error_details.extend([
                 "Likely Causes:",
                 "  1. Gemini API rate limiting or quota exceeded",
-                "  2. Invalid or missing GEMINI_API_KEY",
+                "  2. Invalid or missing GOOGLE_API_KEY",
                 "  3. LLM returning invalid JSON format",
                 "  4. LLM returning fewer than 2 questions",
-                "",
-                "Check the server logs for detailed LLM response info.",
-                "If using Streamlit Cloud, check app logs at:",
-                "https://share.streamlit.io/[your-app]/logs"
-            ]
+            ])
 
             error_message = "\n".join(error_details)
             print(error_message)
