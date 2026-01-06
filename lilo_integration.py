@@ -253,8 +253,8 @@ class StreamlitLILOBridge:
             "init_method": "random",
             "use_prior_knowledge": False,
             "num_llm_samples": 2,
-            "uprox_llm_model": "gemini/gemini-2.0-flash-exp",
-            "hf_llm_model": "gemini/gemini-2.0-flash-exp",
+            "uprox_llm_model": "gemini/gemini-1.5-flash",
+            "hf_llm_model": "gemini/gemini-1.5-flash",
             "api_key": self.api_key,
             "feedback_acquisition_method": "none",  # No active learning for feedback
             "pairwise_pref_model_input_type": "y"
