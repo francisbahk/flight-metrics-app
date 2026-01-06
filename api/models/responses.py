@@ -24,9 +24,10 @@ class RankingResponse(BaseModel):
 class LILOInitResponse(BaseModel):
     """LILO initialization response"""
     session_id: str
-    round_number: int = 1
-    flights_shown: List[Dict]
-    message: str = "Round 1: Rank these flights and provide feedback"
+    round_number: int = 0
+    flights_shown: List[Dict] = []
+    questions: Optional[List[str]] = None
+    message: str = "Answer these questions to help us understand your preferences"
 
 
 class LILORoundResponse(BaseModel):

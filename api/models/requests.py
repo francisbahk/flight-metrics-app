@@ -30,8 +30,9 @@ class LILORoundRequest(BaseModel):
     """Submit LILO round feedback"""
     session_id: str
     round_number: int
-    user_rankings: List[int] = Field(..., description="Indices of flights user ranked (in order)")
-    user_feedback: str = Field(..., description="Natural language feedback")
+    user_rankings: List[int] = Field(default=[], description="Indices of flights user ranked (in order)")
+    user_feedback: str = Field(default="", description="Natural language feedback")
+    question_answers: Optional[Dict[str, str]] = Field(default=None, description="Answers to questions (question -> answer mapping)")
 
 
 class LILOFinalRequest(BaseModel):

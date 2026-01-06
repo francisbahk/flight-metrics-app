@@ -12,13 +12,13 @@ from pathlib import Path
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from backend.lilo import LILOOptimizer
-from backend.db import SessionLocal, LILOSession, LILORound
+from lilo_integration import StreamlitLILOBridge
+from backend.db import SessionLocal, LILOSession, LILOIteration
 
 router = APIRouter()
 
-# In-memory storage for active LILO sessions (could use Redis in production)
-active_sessions: Dict[str, LILOOptimizer] = {}
+# Global LILO bridge (manages all sessions internally)
+lilo_bridge = StreamlitLILOBridge()
 
 
 # New request models for Gemini-powered LILO
@@ -38,31 +38,24 @@ class RankWithFeedbackRequest(BaseModel):
 @router.post("/init", response_model=LILOInitResponse)
 async def initialize_lilo(request: LILOInitRequest):
     """
-    Initialize LILO session.
-
-    Returns 15 diverse flights for Round 1.
+    Initialize LILO session and get initial preference questions.
     """
     try:
-        # Create LILO optimizer
-        optimizer = LILOOptimizer()
-        optimizer.all_flights = request.flights
-
-        # Select Round 1 candidates (15 diverse flights)
-        flights_shown = optimizer.select_candidates(
-            all_flights=request.flights,
-            round_num=1,
-            n_candidates=15
+        # Create LILO session using language_bo_code
+        session = lilo_bridge.create_session(
+            session_id=request.session_id,
+            flights_data=request.flights
         )
 
-        # Store optimizer in memory
-        active_sessions[request.session_id] = optimizer
+        # Get initial questions
+        questions = lilo_bridge.get_initial_questions(request.session_id)
 
         # Save to database
         db = SessionLocal()
         try:
             lilo_session = LILOSession(
                 session_id=request.session_id,
-                user_id=None,  # Set from frontend if needed
+                user_id=None,
                 num_rounds=0
             )
             db.add(lilo_session)
@@ -72,9 +65,10 @@ async def initialize_lilo(request: LILOInitRequest):
 
         return LILOInitResponse(
             session_id=request.session_id,
-            round_number=1,
-            flights_shown=flights_shown,
-            message="Round 1: Select and rank your top 5 flights, then provide feedback"
+            round_number=0,
+            flights_shown=[],  # No flights shown yet, just questions
+            questions=questions,
+            message="Please answer these questions to help us understand your preferences"
         )
 
     except Exception as e:
@@ -84,76 +78,54 @@ async def initialize_lilo(request: LILOInitRequest):
 @router.post("/round", response_model=LILORoundResponse)
 async def submit_lilo_round(request: LILORoundRequest):
     """
-    Submit LILO round feedback and get next round (or finish).
+    Submit LILO round feedback and get next round.
 
-    Round 1: User ranks + feedback → Return Round 2 flights + questions
-    Round 2: User ranks + feedback → Return final message
+    Expects question_answers (Dict[str, str]) mapping questions to user's answers.
     """
     try:
-        # Get optimizer from memory
-        optimizer = active_sessions.get(request.session_id)
-        if not optimizer:
+        # Check if session exists
+        if request.session_id not in lilo_bridge.sessions:
             raise HTTPException(status_code=404, detail="LILO session not found")
 
-        # Get all flights
-        all_flights = optimizer.all_flights
-
-        # Run this round
-        round_result = optimizer.run_round(
-            all_flights=all_flights,
-            round_num=request.round_number,
-            user_rankings=request.user_rankings,
-            user_feedback=request.user_feedback,
-            n_candidates=15
+        # Run iteration with user's question answers
+        user_feedback = request.question_answers or {}
+        flights_to_show, next_questions = lilo_bridge.run_iteration(
+            session_id=request.session_id,
+            user_feedback=user_feedback
         )
 
         # Save round to database
         db = SessionLocal()
         try:
-            lilo_round = LILORound(
+            lilo_iteration = LILOIteration(
                 session_id=request.session_id,
-                round_number=request.round_number,
-                flights_shown=round_result['flights_shown'],
-                user_rankings=request.user_rankings,
-                user_feedback=request.user_feedback,
-                generated_questions=round_result.get('questions'),
-                extracted_preferences=None  # Could extract from optimizer
+                iteration_number=request.round_number,
+                flights_shown=flights_to_show,
+                user_feedback=str(user_feedback),
+                generated_questions=next_questions
             )
-            db.add(lilo_round)
+            db.add(lilo_iteration)
 
             # Update session
             session = db.query(LILOSession).filter_by(session_id=request.session_id).first()
             if session:
                 session.num_rounds = request.round_number
-                session.feedback_summary = round_result.get('feedback_summary')
 
             db.commit()
         finally:
             db.close()
 
-        # Determine if this is the final round
+        # LILO has 2 iterations - if we just completed iteration 2, it's final
         is_final = request.round_number >= 2
 
-        if is_final:
-            # Round 2 complete - ready for final ranking
-            return LILORoundResponse(
-                session_id=request.session_id,
-                round_number=request.round_number,
-                flights_shown=round_result['flights_shown'],
-                questions=[],
-                feedback_summary=round_result.get('feedback_summary'),
-                is_final_round=True
-            )
-        else:
-            # Round 1 complete - show Round 2 flights
-            return LILORoundResponse(
-                session_id=request.session_id,
-                round_number=request.round_number + 1,
-                flights_shown=round_result['flights_shown'],
-                questions=round_result.get('questions', []),
-                feedback_summary=round_result.get('feedback_summary'),
-                is_final_round=False
-            )
+        return LILORoundResponse(
+            session_id=request.session_id,
+            round_number=request.round_number,
+            flights_shown=flights_to_show,
+            questions=next_questions if not is_final else [],
+            feedback_summary="",
+            is_final_round=is_final
+        )
 
     except HTTPException:
         raise
@@ -169,19 +141,23 @@ async def get_lilo_final_ranking(request: LILOFinalRequest):
     Returns top 10 flights ranked by learned utility function.
     """
     try:
-        # Get optimizer from memory
-        optimizer = active_sessions.get(request.session_id)
-        if not optimizer:
+        # Check if session exists
+        if request.session_id not in lilo_bridge.sessions:
             raise HTTPException(status_code=404, detail="LILO session not found")
 
-        # Get final ranking
-        final_rankings = optimizer.get_final_ranking(
-            all_flights=optimizer.all_flights,
-            top_k=10
+        # Get session to access all flights
+        session_obj = lilo_bridge.sessions[request.session_id]
+        all_flights = session_obj.flights_data
+
+        # Compute final rankings
+        ranked_results = lilo_bridge.compute_final_rankings(
+            session_id=request.session_id,
+            all_flights=all_flights
         )
 
-        # Get utility scores
-        utility_scores = optimizer.estimate_utilities(optimizer.all_flights)
+        # Extract top 10 flights and their scores
+        final_rankings = [r['flight'] for r in ranked_results[:10]]
+        utility_scores = [r['utility_score'] for r in ranked_results]
 
         # Save final results to database
         db = SessionLocal()
@@ -195,14 +171,14 @@ async def get_lilo_final_ranking(request: LILOFinalRequest):
             db.close()
 
         # Clean up session from memory
-        if request.session_id in active_sessions:
-            del active_sessions[request.session_id]
+        if request.session_id in lilo_bridge.sessions:
+            del lilo_bridge.sessions[request.session_id]
 
         return LILOFinalResponse(
             session_id=request.session_id,
             final_rankings=final_rankings,
-            utility_scores=utility_scores,  # All flights
-            feedback_summary=optimizer.feedback_summary
+            utility_scores=utility_scores,
+            feedback_summary=""
         )
 
     except HTTPException:
