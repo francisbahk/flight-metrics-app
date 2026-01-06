@@ -550,6 +550,7 @@ def get_questions(
     response = None
     it = 0
     questions = []
+    all_responses = []  # Track all LLM responses for debugging
 
     print(f"[get_questions DEBUG] Generating {n_questions} questions (attempt 1/{3})")
     print(f"[get_questions DEBUG] Prompt length: {len(prompt)} chars")
@@ -568,6 +569,7 @@ def get_questions(
             if response:
                 print(f"[get_questions DEBUG] Response length: {len(response)} chars")
                 print(f"[get_questions DEBUG] Response preview: {response[:200]}...")
+                all_responses.append(response)  # Store for error reporting
         except Exception as e:
             print(f"[get_questions ERROR] LLM call failed: {e}")
             import traceback
@@ -606,11 +608,21 @@ def get_questions(
             raise last_exception
         else:
             # LLM calls succeeded but returned invalid/insufficient responses
-            raise RuntimeError(
-                f"Failed to generate {n_questions} questions after {it} attempts. "
-                "LLM may be returning invalid JSON or insufficient number of questions. "
-                "Check [get_questions DEBUG] logs above for LLM response details."
-            )
+            error_parts = [
+                f"Failed to generate {n_questions} questions after {it} attempts.",
+                "LLM returned responses but they could not be parsed into valid questions.",
+                "",
+                "ACTUAL LLM RESPONSES:",
+            ]
+            for i, resp in enumerate(all_responses, 1):
+                error_parts.append(f"\n--- Attempt {i} ---")
+                error_parts.append(resp[:500] if len(resp) > 500 else resp)
+
+            error_parts.append("\n\nREQUIRED FORMAT:")
+            error_parts.append('Responses must contain a ```json code block with format:')
+            error_parts.append('{\"q1\": \"question text\", \"q2\": \"question text\"}')
+
+            raise RuntimeError("\n".join(error_parts))
 
     return questions
 

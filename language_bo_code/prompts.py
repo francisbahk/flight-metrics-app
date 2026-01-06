@@ -457,7 +457,7 @@ In order to better understand the decision maker's utility function you want to 
 
 Provide a list of questions you would ask the decision maker to better understand their internal utility model.
 
-Return your final answer a a json file with the following format containing exactly {n_questions} most important questions. Do not forget the ```json header:
+Return your final answer as a json file with the following format containing exactly {n_questions} most important questions. Do not forget the ```json header:
 ```json
 {{
     "q1" : <question1>,
@@ -495,7 +495,7 @@ Your questions can be either general or referring to specific outcomes. For inst
 When referring to specific outcomes, always state the arm_index involved.
 Your questions should help you predict the probability of the decision maker being satisfied with the experimental outcomes provided above.
 
-Return your final answer a a json file with the following format containing exactly {n_questions} most important questions. Do not forget the ```json header:
+Return your final answer as a json file with the following format containing exactly {n_questions} most important questions. Do not forget the ```json header:
 ```json
 {{
     "q1" : <question1>,
@@ -533,7 +533,7 @@ Your questions can be either general or referring to specific outcomes. For inst
 When referring to specific outcomes, always state the arm_index involved.
 Your questions should help you predict pairwise preferences between any two experimental outcomes from the set of experimental outcomes provided above.
 
-Return your final answer a a json file with the following format containing exactly {n_questions} most important questions. Do not forget the ```json header:
+Return your final answer as a json file with the following format containing exactly {n_questions} most important questions. Do not forget the ```json header:
 ```json
 {{
     "q1" : <question1>,

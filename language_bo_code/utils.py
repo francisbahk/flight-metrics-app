@@ -39,19 +39,43 @@ def extract_json_from_text(text: str) -> Optional[dict]:
     Returns:
         The parsed Python dict, or None if not found or invalid.
     """
-    # Regex to match ```json ... ```
+    # First try: Regex to match ```json ... ```
     pattern = r"```json\s*([\s\S]*?)\s*```"
     matches = re.findall(pattern, text, re.IGNORECASE)
-    if not matches:
-        return None
-    for match in matches:
-        try:
-            # Remove leading/trailing whitespace
-            json_str = match.strip()
-            json_str = escape_unescaped_backslashes(json_str)
-            return json.loads(json_str)
-        except json.JSONDecodeError:
-            continue
+    if matches:
+        for match in matches:
+            try:
+                # Remove leading/trailing whitespace
+                json_str = match.strip()
+                json_str = escape_unescaped_backslashes(json_str)
+                return json.loads(json_str)
+            except json.JSONDecodeError:
+                continue
+
+    # Second try: Look for any code block (``` ... ```)
+    pattern = r"```\s*([\s\S]*?)\s*```"
+    matches = re.findall(pattern, text, re.IGNORECASE)
+    if matches:
+        for match in matches:
+            try:
+                json_str = match.strip()
+                json_str = escape_unescaped_backslashes(json_str)
+                return json.loads(json_str)
+            except json.JSONDecodeError:
+                continue
+
+    # Third try: Look for JSON object pattern {... } in the text
+    pattern = r"\{[\s\S]*\}"
+    matches = re.findall(pattern, text)
+    if matches:
+        for match in matches:
+            try:
+                json_str = match.strip()
+                json_str = escape_unescaped_backslashes(json_str)
+                return json.loads(json_str)
+            except json.JSONDecodeError:
+                continue
+
     return None
 
 
