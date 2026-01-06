@@ -78,7 +78,11 @@ class LLMClient:
                     retry_count += 1
                     if retry_count >= MAX_RETRY:
                         print(f"Error after {MAX_RETRY} retries: {e}")
-                        responses.append("")
+                        # Don't swallow the exception - raise it so caller can see what went wrong
+                        raise RuntimeError(
+                            f"Gemini API failed after {MAX_RETRY} retries. "
+                            f"Last error: {type(e).__name__}: {str(e)}"
+                        ) from e
                     else:
                         wait_time = 2 ** retry_count + random.random()
                         print(f"Error: {e}. Retrying in {wait_time:.2f}s...")
