@@ -16,7 +16,8 @@ class LLMClient:
         model: str = "gemini-1.5-flash",  # Use stable model by default
     ):
         # Use environment variable if api_key not provided
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        # Check GOOGLE_API_KEY first (preferred by google-genai SDK)
+        self.api_key = api_key or os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise ValueError(
                 "No API key provided. Set GEMINI_API_KEY or GOOGLE_API_KEY environment variable, "
