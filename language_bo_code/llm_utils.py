@@ -13,7 +13,7 @@ class LLMClient:
     def __init__(
         self,
         api_key: str = "",
-        model: str = "gemini-2.0-flash-exp",
+        model: str = "gemini-1.5-flash",  # Use stable model by default
     ):
         # Use environment variable if api_key not provided
         self.api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -25,11 +25,11 @@ class LLMClient:
 
         # Map common model names to Gemini models
         model_mapping = {
-            "llama3.3-70b-instruct": "gemini-2.0-flash-exp",
+            "llama3.3-70b-instruct": "gemini-1.5-flash",  # Use stable model
             "llama3.1-405b-instruct": "gemini-1.5-pro",
             "gpt-4": "gemini-1.5-pro",
-            "gpt-3.5-turbo": "gemini-2.0-flash-exp",
-            "gemini-1.5-flash": "gemini-2.0-flash-exp",  # Redirect old model
+            "gpt-3.5-turbo": "gemini-1.5-flash",  # Use stable model
+            # Removed redirect for gemini-1.5-flash - let it use the actual stable model
         }
         self.model = model_mapping.get(model, model)
 
