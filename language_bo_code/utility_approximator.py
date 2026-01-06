@@ -604,6 +604,13 @@ def get_questions(
         # Re-raise the last exception so caller can see what went wrong
         if last_exception:
             raise last_exception
+        else:
+            # LLM calls succeeded but returned invalid/insufficient responses
+            raise RuntimeError(
+                f"Failed to generate {n_questions} questions after {it} attempts. "
+                "LLM may be returning invalid JSON or insufficient number of questions. "
+                "Check [get_questions DEBUG] logs above for LLM response details."
+            )
 
     return questions
 
