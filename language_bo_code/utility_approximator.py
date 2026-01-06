@@ -555,6 +555,7 @@ def get_questions(
     print(f"[get_questions DEBUG] Prompt length: {len(prompt)} chars")
     print(f"[get_questions DEBUG] Has exp_df data: {len(exp_df) > 0}")
 
+    last_exception = None  # Track the last exception for error reporting
     while response is None and it < 3:
         print(f"[get_questions DEBUG] === Attempt {it+1}/3 ===")
         try:
@@ -571,6 +572,7 @@ def get_questions(
             print(f"[get_questions ERROR] LLM call failed: {e}")
             import traceback
             traceback.print_exc()
+            last_exception = e  # Store for later
             response = None
             it += 1
             continue
@@ -599,6 +601,9 @@ def get_questions(
 
     if not questions:
         print(f"[get_questions ERROR] Failed to generate questions after {it} attempts")
+        # Re-raise the last exception so caller can see what went wrong
+        if last_exception:
+            raise last_exception
 
     return questions
 
