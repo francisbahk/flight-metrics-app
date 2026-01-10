@@ -284,6 +284,27 @@ class StreamlitLILOBridge:
         self.sessions[session_id] = session
         return session
 
+    def _simplify_question(self, question: str, flights_shown: List[Dict]) -> str:
+        """
+        Simplify technical LILO questions into user-friendly ones.
+
+        Converts questions like:
+        "Comparing arm_index 1_3 with price 0.103533..."
+        Into:
+        "Would you prefer Flight A ($250, direct) or Flight B ($180, 1 stop)?"
+        """
+        # If question mentions "arm_index", try to simplify
+        if "arm_index" in question.lower() or "arm_" in question:
+            # Just ask for general feedback instead
+            return "Based on the flights shown, what matters most to you right now: lower price, fewer stops, or better departure times?"
+
+        # If question has normalized values (0.0-1.0 range), simplify
+        if any(f"0.{i}" in question for i in range(10)):
+            return "Which of the flights shown best matches your preferences, and why?"
+
+        # Otherwise return as-is
+        return question
+
     def get_initial_questions(self, session_id: str) -> List[str]:
         """
         Get initial goal-understanding questions before showing any flights.
@@ -442,9 +463,15 @@ class StreamlitLILOBridge:
             if flight:
                 flights_to_show.append(flight)
 
+        # 7. Simplify technical questions into user-friendly ones
+        simplified_questions = [
+            self._simplify_question(q, flights_to_show)
+            for q in next_questions
+        ]
+
         session.current_iteration += 1
 
-        return flights_to_show, next_questions
+        return flights_to_show, simplified_questions
 
     def compute_final_rankings(
         self,
