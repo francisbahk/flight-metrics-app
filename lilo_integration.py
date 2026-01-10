@@ -284,25 +284,71 @@ class StreamlitLILOBridge:
         self.sessions[session_id] = session
         return session
 
-    def _simplify_question(self, question: str, flights_shown: List[Dict]) -> str:
+    def _denormalize_value(self, normalized_val: float, param_name: str, env: FlightEnvironment) -> str:
+        """Convert normalized value (0-1) back to readable format."""
+        min_val = env.param_mins[param_name]
+        max_val = env.param_maxs[param_name]
+        actual_val = normalized_val * (max_val - min_val) + min_val
+
+        if param_name == "price":
+            return f"${actual_val:.0f}"
+        elif param_name == "duration_min":
+            hours = int(actual_val // 60)
+            mins = int(actual_val % 60)
+            return f"{hours}h {mins}m"
+        elif param_name == "stops":
+            return f"{int(actual_val)} stop{'s' if int(actual_val) != 1 else ''}"
+        elif param_name in ["departure_hour", "arrival_hour"]:
+            hour = int(actual_val)
+            minute = int((actual_val - hour) * 60)
+            return f"{hour:02d}:{minute:02d}"
+        else:
+            return f"{actual_val:.2f}"
+
+    def _translate_question(self, question: str, session) -> str:
         """
-        Simplify technical LILO questions into user-friendly ones.
+        Translate technical variable names to readable format.
 
-        Converts questions like:
-        "Comparing arm_index 1_3 with price 0.103533..."
-        Into:
-        "Would you prefer Flight A ($250, direct) or Flight B ($180, 1 stop)?"
+        Converts:
+        - "arm_index 1_3" → "Flight 3"
+        - "price 0.103533" → "price $250"
+        - Does NOT change the question structure or semantic content
         """
-        # If question mentions "arm_index", try to simplify
-        if "arm_index" in question.lower() or "arm_" in question:
-            # Just ask for general feedback instead
-            return "Based on the flights shown, what matters most to you right now: lower price, fewer stops, or better departure times?"
+        import re
 
-        # If question has normalized values (0.0-1.0 range), simplify
-        if any(f"0.{i}" in question for i in range(10)):
-            return "Which of the flights shown best matches your preferences, and why?"
+        env = session.env
 
-        # Otherwise return as-is
+        # Replace arm_index references: "arm_index 1_3" → "Flight 3"
+        def replace_arm_index(match):
+            arm_str = match.group(1)
+            # Extract the flight number (e.g., "1_3" → "3")
+            parts = arm_str.split('_')
+            if len(parts) >= 2:
+                flight_num = int(parts[1]) + 1  # +1 for human-readable numbering
+                return f"Flight {flight_num}"
+            return f"Flight {arm_str}"
+
+        question = re.sub(r'arm_index (\d+_\d+)', replace_arm_index, question)
+        question = re.sub(r'arm_(\d+_\d+)', replace_arm_index, question)
+        question = re.sub(r'arm (\d+_\d+)', replace_arm_index, question)
+
+        # Replace normalized values with readable ones
+        # Pattern: "price of 0.103533" or "price: 0.103533"
+        for param_name in ["price", "duration", "stops", "departure hour", "arrival hour"]:
+            # Find patterns like "price of 0.123" or "price: 0.123"
+            pattern = rf'{param_name}[:\s]+of\s+(0\.\d+)'
+            def replace_value(match):
+                norm_val = float(match.group(1))
+                readable = self._denormalize_value(norm_val, param_name.replace(" ", "_").replace("duration", "duration_min"), env)
+                return f"{param_name} of {readable}"
+            question = re.sub(pattern, replace_value, question, flags=re.IGNORECASE)
+
+        # Replace variable names
+        question = question.replace("y_names", "flight attributes")
+        question = question.replace("decision maker", "you")
+        question = question.replace("DM", "you")
+        question = question.replace("experimental outcomes", "flights")
+
         return question
 
     def get_initial_questions(self, session_id: str) -> List[str]:
@@ -463,15 +509,15 @@ class StreamlitLILOBridge:
             if flight:
                 flights_to_show.append(flight)
 
-        # 7. Simplify technical questions into user-friendly ones
-        simplified_questions = [
-            self._simplify_question(q, flights_to_show)
+        # 7. Translate technical variable names to readable format
+        translated_questions = [
+            self._translate_question(q, session)
             for q in next_questions
         ]
 
         session.current_iteration += 1
 
-        return flights_to_show, simplified_questions
+        return flights_to_show, translated_questions
 
     def compute_final_rankings(
         self,
