@@ -125,9 +125,11 @@ class FlightEnvironment(SimulEnvironment):
         Returns normalized parameters.
         """
         np.random.seed(seed)
-        indices = np.random.choice(len(self.all_flights), size=N, replace=False)
+        # Limit N to available flights
+        actual_N = min(N, len(self.all_flights))
+        indices = np.random.choice(len(self.all_flights), size=actual_N, replace=False)
 
-        x = np.zeros((N, self.n_var))
+        x = np.zeros((actual_N, self.n_var))
         for i, idx in enumerate(indices):
             params = self.flight_params[idx]
             # Normalize to [0, 1]
