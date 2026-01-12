@@ -540,6 +540,8 @@ if 'cross_validation_completed' not in st.session_state:
     st.session_state.cross_validation_completed = False
 if 'survey_completed' not in st.session_state:
     st.session_state.survey_completed = False
+if 'completion_page_dismissed' not in st.session_state:
+    st.session_state.completion_page_dismissed = False
 # Filter state
 if 'filter_airlines' not in st.session_state:
     st.session_state.filter_airlines = []
@@ -2398,39 +2400,6 @@ if st.session_state.all_flights:
         if st.session_state.get('search_id'):
             st.success(f"✅ All rankings submitted successfully! (Search ID: {st.session_state.search_id})")
 
-            # Provide CSV downloads
-            st.markdown("### 📥 Download Your Rankings")
-
-            if has_return:
-                col_csv1, col_csv2 = st.columns(2)
-                with col_csv1:
-                    if st.session_state.get('csv_data_outbound'):
-                        st.download_button(
-                            label="📄 Download Outbound Rankings CSV",
-                            data=st.session_state.csv_data_outbound,
-                            file_name=f"outbound_rankings_{st.session_state.search_id}.csv",
-                            mime="text/csv",
-                            use_container_width=True
-                        )
-                with col_csv2:
-                    if st.session_state.get('csv_data_return'):
-                        st.download_button(
-                            label="📄 Download Return Rankings CSV",
-                            data=st.session_state.csv_data_return,
-                            file_name=f"return_rankings_{st.session_state.search_id}.csv",
-                            mime="text/csv",
-                            use_container_width=True
-                        )
-            else:
-                if st.session_state.get('csv_data_outbound'):
-                    st.download_button(
-                        label="📄 Download Rankings CSV",
-                        data=st.session_state.csv_data_outbound,
-                        file_name=f"flight_rankings_{st.session_state.search_id}.csv",
-                        mime="text/csv",
-                        use_container_width=True
-                    )
-
             # ============================================================================
             # LILO PREFERENCE LEARNING SECTION (between initial ranking and cross-validation)
             # ============================================================================
@@ -3219,17 +3188,6 @@ if st.session_state.all_flights:
                             position: relative;
                             z-index: 1000;
                         }
-                        /* Match checkbox styling to main website */
-                        .cross-validation-section .stCheckbox {
-                            font-size: 14px !important;
-                        }
-                        .cross-validation-section .stCheckbox > label {
-                            font-size: 14px !important;
-                        }
-                        .cross-validation-section .stCheckbox input[type="checkbox"] {
-                            width: 16px !important;
-                            height: 16px !important;
-                        }
                     </style>
                     """, unsafe_allow_html=True)
 
@@ -3412,40 +3370,26 @@ if st.session_state.all_flights:
                                 col1, col2 = st.columns([1, 5])
 
                                 with col1:
-                                    # Use button instead of checkbox for more reliable state management
-                                    # Add custom CSS for compact button styling
-                                    st.markdown("""
-                                        <style>
-                                        /* Make selection buttons compact like checkboxes */
-                                        div[data-testid="column"] button[kind="primary"],
-                                        div[data-testid="column"] button[kind="secondary"] {
-                                            padding: 0.25rem 0.5rem !important;
-                                            font-size: 1.2rem !important;
-                                            min-height: 2rem !important;
-                                            height: 2rem !important;
-                                        }
-                                        </style>
-                                    """, unsafe_allow_html=True)
+                                    # Use checkbox to match original flight selection interface
+                                    checkbox_key = f"cv_chk_{idx}_v{st.session_state.cv_checkbox_version}"
+                                    selected = st.checkbox(
+                                        "Select flight",
+                                        value=is_selected,
+                                        key=checkbox_key,
+                                        label_visibility="collapsed",
+                                        disabled=(not is_selected and len(st.session_state.cross_val_selected_flights) >= 5)
+                                    )
 
-                                    button_label = "✓" if is_selected else "☐"
-                                    button_type = "primary" if is_selected else "secondary"
-                                    button_key = f"cv_btn_{idx}_{flight_unique_key}".replace(':', '').replace('-', '').replace('+', '').replace(' ', '')
-
-                                    disabled = (not is_selected and len(st.session_state.cross_val_selected_flights) >= 5)
-
-                                    if st.button(button_label, key=button_key, type=button_type,
-                                                disabled=disabled, use_container_width=True):
-                                        if is_selected:
-                                            # Deselect
-                                            st.session_state.cross_val_selected_flights = [
-                                                f for f in st.session_state.cross_val_selected_flights
-                                                if f"{f['id']}_{f['departure_time']}" != flight_unique_key
-                                            ]
-                                        else:
-                                            # Select
-                                            if len(st.session_state.cross_val_selected_flights) < 5:
-                                                st.session_state.cross_val_selected_flights.append(flight)
-                                        st.rerun()
+                                    if selected and not is_selected:
+                                        # Add to selected flights
+                                        if len(st.session_state.cross_val_selected_flights) < 5:
+                                            st.session_state.cross_val_selected_flights.append(flight)
+                                    elif not selected and is_selected:
+                                        # Deselect - remove from selected flights
+                                        st.session_state.cross_val_selected_flights = [
+                                            f for f in st.session_state.cross_val_selected_flights
+                                            if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                                        ]
 
                                 with col2:
                                     dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
@@ -3590,6 +3534,42 @@ if st.session_state.all_flights:
                     /* Hide content between "How to Use" and "Search Flights" on survey page */
                     .hideable-survey-content {
                         display: none !important;
+                    }
+
+                    /* Make survey radio buttons bigger and easier to click */
+                    .survey-section .stRadio > div {
+                        gap: 0.75rem !important;
+                    }
+                    .survey-section .stRadio label {
+                        background-color: #f0f2f6 !important;
+                        padding: 1rem 1.5rem !important;
+                        border-radius: 8px !important;
+                        border: 2px solid #e0e0e0 !important;
+                        cursor: pointer !important;
+                        transition: all 0.2s ease !important;
+                        font-size: 1rem !important;
+                        min-width: 120px !important;
+                        text-align: center !important;
+                        display: inline-block !important;
+                    }
+                    .survey-section .stRadio label:hover {
+                        background-color: #e8eaf0 !important;
+                        border-color: #4F8BF9 !important;
+                        transform: translateY(-2px) !important;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+                    }
+                    .survey-section .stRadio label[data-selected="true"] {
+                        background-color: #4F8BF9 !important;
+                        color: white !important;
+                        border-color: #4F8BF9 !important;
+                        font-weight: 600 !important;
+                    }
+
+                    /* Make submit button bigger */
+                    .survey-section button[kind="primary"] {
+                        padding: 1rem 2rem !important;
+                        font-size: 1.2rem !important;
+                        min-height: 60px !important;
                     }
                 </style>
                 <script>
@@ -3824,8 +3804,86 @@ if st.session_state.all_flights:
                 # Close survey div
                 st.markdown('</div>', unsafe_allow_html=True)
 
+            # Show completion page with CSV download after survey
+            if (st.session_state.get('cross_validation_completed') and
+                st.session_state.get('survey_completed') and
+                not st.session_state.get('completion_page_dismissed')):
+
+                # Hide all previous content
+                st.markdown("""
+                <style>
+                    /* Hide all content above completion page */
+                    .main > div:not(:last-child) {
+                        display: none !important;
+                    }
+                </style>
+                """, unsafe_allow_html=True)
+
+                st.markdown("---")
+                st.markdown("# 🎉 Thank You for Participating!")
+                st.markdown("---")
+
+                st.markdown("""
+                Thank you for completing our flight search study! Your feedback is invaluable
+                to our research on AI-powered preference learning systems.
+
+                **Your session has been saved successfully.**
+                """)
+
+                st.markdown("### 📥 Download Your Complete Session Data")
+                st.markdown("You can download a comprehensive CSV file containing all your session data:")
+
+                # Generate comprehensive CSV
+                token = st.session_state.get('token')
+                if token:
+                    try:
+                        from export_session_data import export_session_to_csv
+                        import io
+
+                        # Generate CSV in memory
+                        csv_file = export_session_to_csv(token, output_file=None)
+
+                        # Read the CSV file
+                        if csv_file:
+                            with open(csv_file, 'r', encoding='utf-8') as f:
+                                csv_data = f.read()
+
+                            # Provide download button
+                            st.download_button(
+                                label="📄 Download Complete Session Data (CSV)",
+                                data=csv_data,
+                                file_name=f"session_data_{token}.csv",
+                                mime="text/csv",
+                                use_container_width=True
+                            )
+
+                            st.success("✅ Your session data is ready for download!")
+
+                            # Clean up temp file
+                            import os
+                            if os.path.exists(csv_file):
+                                os.remove(csv_file)
+                        else:
+                            st.warning("⚠️ Could not generate CSV. Session may be incomplete.")
+
+                    except Exception as e:
+                        st.error(f"⚠️ Error generating CSV: {str(e)}")
+                        import traceback
+                        print(f"[CSV ERROR] {traceback.format_exc()}")
+
+                st.markdown("---")
+
+                # Button to proceed to end session
+                if st.button("Continue →", type="primary", use_container_width=True):
+                    st.session_state.completion_page_dismissed = True
+                    st.rerun()
+
             # Show countdown if both cross-validation and survey completed
-            if st.session_state.get('cross_validation_completed') and st.session_state.get('survey_completed') and st.session_state.get('countdown_started') and not st.session_state.get('countdown_completed'):
+            if (st.session_state.get('cross_validation_completed') and
+                st.session_state.get('survey_completed') and
+                st.session_state.get('completion_page_dismissed') and
+                st.session_state.get('countdown_started') and
+                not st.session_state.get('countdown_completed')):
                 import time
                 st.info("📋 Please note your Search ID above. This session will end in:")
 
@@ -3875,6 +3933,7 @@ if st.session_state.all_flights:
                     st.session_state.cross_val_data = None
                     st.session_state.cross_val_selected = []
                     st.session_state.survey_completed = False
+                    st.session_state.completion_page_dismissed = False
 
                     st.info("🔄 Refresh the page to start a new search!")
                     st.stop()
@@ -3919,6 +3978,7 @@ if st.session_state.all_flights:
                 st.session_state.search_id = None
                 st.session_state.db_save_error = None
                 st.session_state.survey_completed = False
+                st.session_state.completion_page_dismissed = False
                 st.session_state.cross_validation_completed = False
                 st.session_state.cross_val_data = None
                 st.session_state.cross_val_selected_flights = []

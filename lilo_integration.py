@@ -284,44 +284,20 @@ class StreamlitLILOBridge:
         self.sessions[session_id] = session
         return session
 
-    def _denormalize_value(self, normalized_val: float, param_name: str, env: FlightEnvironment) -> str:
-        """Convert normalized value (0-1) back to readable format."""
-        min_val = env.param_mins[param_name]
-        max_val = env.param_maxs[param_name]
-        actual_val = normalized_val * (max_val - min_val) + min_val
-
-        if param_name == "price":
-            return f"${actual_val:.0f}"
-        elif param_name == "duration_min":
-            hours = int(actual_val // 60)
-            mins = int(actual_val % 60)
-            return f"{hours}h {mins}m"
-        elif param_name == "stops":
-            return f"{int(actual_val)} stop{'s' if int(actual_val) != 1 else ''}"
-        elif param_name in ["departure_hour", "arrival_hour"]:
-            hour = int(actual_val)
-            minute = int((actual_val - hour) * 60)
-            return f"{hour:02d}:{minute:02d}"
-        else:
-            return f"{actual_val:.2f}"
-
     def _translate_question(self, question: str, session) -> str:
         """
-        Translate technical variable names to readable format.
+        Translate technical variable names to readable format and replace
+        utility weights with actual flight metrics.
 
         Converts:
-        - "arm_index 1_3" → "Flight 3"
-        - "price 0.103533" → "price $250"
-        - Does NOT change the question structure or semantic content
+        - "Flight 1 (price=0.616, ...)" → "Flight 1 (price=$450, duration=2h 30m, ...)"
+        - Uses actual flight data, not denormalized weights
         """
         import re
-
-        env = session.env
 
         # Replace arm_index references: "arm_index 1_3" → "Flight 3"
         def replace_arm_index(match):
             arm_str = match.group(1)
-            # Extract the flight number (e.g., "1_3" → "3")
             parts = arm_str.split('_')
             if len(parts) >= 2:
                 flight_num = int(parts[1]) + 1  # +1 for human-readable numbering
@@ -332,16 +308,65 @@ class StreamlitLILOBridge:
         question = re.sub(r'arm_(\d+_\d+)', replace_arm_index, question)
         question = re.sub(r'arm (\d+_\d+)', replace_arm_index, question)
 
-        # Replace normalized values with readable ones
-        # Pattern: "price of 0.103533" or "price: 0.103533"
-        for param_name in ["price", "duration", "stops", "departure hour", "arrival hour"]:
-            # Find patterns like "price of 0.123" or "price: 0.123"
-            pattern = rf'{param_name}[:\s]+of\s+(0\.\d+)'
-            def replace_value(match):
-                norm_val = float(match.group(1))
-                readable = self._denormalize_value(norm_val, param_name.replace(" ", "_").replace("duration", "duration_min"), env)
-                return f"{param_name} of {readable}"
-            question = re.sub(pattern, replace_value, question, flags=re.IGNORECASE)
+        # Get the last shown flights from optimizer's experimental data
+        optimizer = session.optimizer
+        last_flights = []
+
+        # Try to get flights from the most recent iteration stored in session
+        # The optimizer tracks which flights were shown in exp_df
+        if hasattr(optimizer, 'exp_df') and optimizer.exp_df is not None and len(optimizer.exp_df) > 0:
+            # Get the last N rows (most recent iteration)
+            # Typically shows 5 flights per iteration
+            n_recent = min(5, len(optimizer.exp_df))
+            recent_x = optimizer.exp_df.iloc[-n_recent:][session.env.x_names].values
+
+            # Find actual flights matching these parameters
+            for x_row in recent_x:
+                flight = session.env.find_matching_flight(x_row)
+                if flight:
+                    last_flights.append(flight)
+
+        # Replace parenthetical weight data with actual flight metrics
+        # Pattern: "Flight N (price=0.123, duration=0.456, ...)"
+        def replace_flight_data(match):
+            flight_label = match.group(1)  # "Flight 1", "Flight 2", etc.
+
+            # Extract flight number
+            flight_num_match = re.search(r'Flight\s+(\d+)', flight_label)
+            if not flight_num_match:
+                return match.group(0)  # Return unchanged if can't parse
+
+            flight_idx = int(flight_num_match.group(1)) - 1  # 0-indexed
+
+            # Get the actual flight data
+            if 0 <= flight_idx < len(last_flights):
+                flight = last_flights[flight_idx]
+
+                # Format actual flight metrics
+                price_str = f"${flight.get('price', 0):.0f}"
+
+                duration_min = flight.get('duration_min', 0)
+                hours = int(duration_min // 60)
+                mins = int(duration_min % 60)
+                duration_str = f"{hours}h {mins}m" if hours > 0 else f"{mins}m"
+
+                stops = flight.get('stops', 0)
+                stops_str = "Direct" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
+
+                dept_time = flight.get('departure_time', '')[:5] if flight.get('departure_time') else 'N/A'
+                arr_time = flight.get('arrival_time', '')[:5] if flight.get('arrival_time') else 'N/A'
+
+                # Build replacement string
+                return f"{flight_label} (price={price_str}, duration={duration_str}, stops={stops_str}, depart={dept_time}, arrive={arr_time})"
+
+            return match.group(0)  # Return unchanged if flight not found
+
+        # Match "Flight N (...)" pattern
+        question = re.sub(
+            r'(Flight\s+\d+)\s*\([^)]+\)',
+            replace_flight_data,
+            question
+        )
 
         # Replace variable names
         question = question.replace("y_names", "flight attributes")
@@ -443,6 +468,15 @@ class StreamlitLILOBridge:
             raise RuntimeError(error_message)
 
         print("[LILO DEBUG] ==================== get_initial_questions() END ====================")
+
+        # Translate questions to show actual flight metrics instead of weights
+        session = self.sessions.get(session_id)
+        if session:
+            translated_questions = [
+                self._translate_question(q, session)
+                for q in questions
+            ]
+            return translated_questions
 
         return questions
 

@@ -166,6 +166,27 @@ async def get_lilo_final_ranking(request: LILOFinalRequest):
             if session:
                 session.final_utility_scores = utility_scores
                 session.completed_at = db.func.now()
+
+                # Save utility function parameters to last iteration
+                last_iteration = db.query(LILOIteration).filter_by(
+                    lilo_session_id=session.id
+                ).order_by(LILOIteration.iteration_number.desc()).first()
+
+                if last_iteration:
+                    # Extract utility model info from LILO session
+                    lilo_session_obj = lilo_bridge.sessions.get(request.session_id)
+                    if lilo_session_obj and lilo_session_obj.optimizer:
+                        optimizer = lilo_session_obj.optimizer
+
+                        # Save utility scores as utility function representation
+                        utility_func_data = {
+                            'utility_scores_sample': utility_scores[:10],  # Top 10 utilities
+                            'num_trials': optimizer.trial_index if hasattr(optimizer, 'trial_index') else None,
+                            'model_type': 'pairwise_preference',
+                        }
+
+                        last_iteration.utility_function_params = utility_func_data
+
             db.commit()
         finally:
             db.close()
