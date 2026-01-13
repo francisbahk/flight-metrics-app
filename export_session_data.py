@@ -80,9 +80,10 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
             ).order_by(LILOChatMessage.round_number, LILOChatMessage.message_index).all()
 
             # Match questions with user responses by looking at adjacent messages
+            # A question is a bot message that contains '?' (anywhere) and is followed by a user response
             for i, msg in enumerate(all_chat_messages):
-                # If this is a bot message that's a question
-                if msg.is_bot == 1 and msg.message_text.strip().endswith('?'):
+                # If this is a bot message that contains a question mark
+                if msg.is_bot == 1 and '?' in msg.message_text:
                     # Look for the next user message as the answer
                     for j in range(i + 1, len(all_chat_messages)):
                         next_msg = all_chat_messages[j]
