@@ -944,11 +944,14 @@ components.html("""
 st.info("**Note:** This website is part of a pilot data-collection study. The information collected will be used to improve flight search tools.")
 
 # TOKEN VALIDATION CHECK
-# Special handling for DEMO token
-if st.session_state.token and st.session_state.token.upper() == "DEMO":
-    # Bypass validation for DEMO token
+# Special handling for DEMO and DATA tokens
+if st.session_state.token and st.session_state.token.upper() in ["DEMO", "DATA"]:
+    # Bypass validation for special tokens
     st.session_state.token_valid = True
-    st.info(f"🎯 **Demo Mode** - Explore the flight search tool freely!")
+    if st.session_state.token.upper() == "DEMO":
+        st.info(f"🎯 **Demo Mode** - Explore the flight search tool freely!")
+    else:
+        st.info(f"📊 **Data Collection Mode** - Unlimited submissions enabled!")
 elif not st.session_state.token:
     st.error("❌ **Access Denied: No Token Provided**")
     st.warning("This study requires a unique access token. Please use the link provided to you by the researchers, or use `?id=DEMO` for demo mode.")
@@ -4029,8 +4032,8 @@ if st.session_state.all_flights:
                 countdown_placeholder.markdown("### ⏱️ 0 seconds")
                 progress_placeholder.progress(1.0)
 
-                # Mark token as used NOW (unless it's the DEMO token)
-                if st.session_state.token != "DEMO":
+                # Mark token as used NOW (unless it's a special token like DEMO or DATA)
+                if st.session_state.token.upper() not in ["DEMO", "DATA"]:
                     from backend.db import mark_token_used
                     mark_token_used(st.session_state.token)
 
@@ -4042,10 +4045,13 @@ if st.session_state.all_flights:
                     st.info("This link can no longer be used. To participate again, please request a new token from the research team.")
                     st.stop()
                 else:
-                    # DEMO token - allow continued use
+                    # Special tokens (DEMO/DATA) - allow continued use
                     st.session_state.countdown_completed = True
-                    st.success("✅ Thank you! You can continue using this demo link to submit more rankings.")
-                    st.info("💡 This is a DEMO token - you can use it as many times as you want!")
+                    st.success("✅ Thank you! You can continue using this link to submit more rankings.")
+                    if st.session_state.token.upper() == "DEMO":
+                        st.info("💡 This is a DEMO token - you can use it as many times as you want!")
+                    else:
+                        st.info("📊 This is a DATA collection token - you can use it for unlimited submissions!")
 
                     # Clear the submission states to allow new submission
                     st.session_state.outbound_submitted = False
