@@ -8,7 +8,7 @@ import os
 from typing import Dict, List, Optional, Tuple
 import pandas as pd
 import numpy as np
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 # LILO imports from language_bo_code
@@ -291,9 +291,10 @@ class StreamlitLILOBridge:
 
         Converts:
         - "Flight 1 (price=0.616, ...)" → "Flight 1 (price=$450, duration=2h 30m, ...)"
-        - Uses actual flight data, not denormalized weights
+        - Uses actual flight data from the most recently shown flights
         """
         import re
+        from datetime import datetime
 
         # Replace arm_index references: "arm_index 1_3" → "Flight 3"
         def replace_arm_index(match):
@@ -308,23 +309,8 @@ class StreamlitLILOBridge:
         question = re.sub(r'arm_(\d+_\d+)', replace_arm_index, question)
         question = re.sub(r'arm (\d+_\d+)', replace_arm_index, question)
 
-        # Get the last shown flights from optimizer's experimental data
-        optimizer = session.optimizer
-        last_flights = []
-
-        # Try to get flights from the most recent iteration stored in session
-        # The optimizer tracks which flights were shown in exp_df
-        if hasattr(optimizer, 'exp_df') and optimizer.exp_df is not None and len(optimizer.exp_df) > 0:
-            # Get the last N rows (most recent iteration)
-            # Typically shows 5 flights per iteration
-            n_recent = min(5, len(optimizer.exp_df))
-            recent_x = optimizer.exp_df.iloc[-n_recent:][session.env.x_names].values
-
-            # Find actual flights matching these parameters
-            for x_row in recent_x:
-                flight = session.env.find_matching_flight(x_row)
-                if flight:
-                    last_flights.append(flight)
+        # Use the flights stored in session.last_shown_flights
+        last_flights = session.last_shown_flights if hasattr(session, 'last_shown_flights') else []
 
         # Replace parenthetical weight data with actual flight metrics
         # Pattern: "Flight N (price=0.123, duration=0.456, ...)"
@@ -353,8 +339,21 @@ class StreamlitLILOBridge:
                 stops = flight.get('stops', 0)
                 stops_str = "Direct" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
 
-                dept_time = flight.get('departure_time', '')[:5] if flight.get('departure_time') else 'N/A'
-                arr_time = flight.get('arrival_time', '')[:5] if flight.get('arrival_time') else 'N/A'
+                # Format times properly - extract time portion from ISO format
+                def format_time(time_str):
+                    if not time_str:
+                        return 'N/A'
+                    try:
+                        # Parse ISO format like "2026-01-27T17:17:00"
+                        if 'T' in time_str:
+                            time_part = time_str.split('T')[1].split('.')[0]  # Get HH:MM:SS
+                            return time_part[:5]  # Return HH:MM
+                        return time_str[:5]
+                    except:
+                        return 'N/A'
+
+                dept_time = format_time(flight.get('departure_time', ''))
+                arr_time = format_time(flight.get('arrival_time', ''))
 
                 # Build replacement string
                 return f"{flight_label} (price={price_str}, duration={duration_str}, stops={stops_str}, depart={dept_time}, arrive={arr_time})"
@@ -543,6 +542,9 @@ class StreamlitLILOBridge:
             if flight:
                 flights_to_show.append(flight)
 
+        # Store flights for question translation
+        session.last_shown_flights = flights_to_show
+
         # 7. Translate technical variable names to readable format
         translated_questions = [
             self._translate_question(q, session)
@@ -668,3 +670,4 @@ class LILOSession:
     env: FlightEnvironment
     current_iteration: int
     flights_data: List[Dict]
+    last_shown_flights: List[Dict] = field(default_factory=list)  # Track flights shown in most recent iteration

@@ -79,12 +79,11 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                 lilo_session_id=lilo_session.id
             ).order_by(LILOIteration.iteration_number).all()
 
-            # Get ALL round 0 bot questions
+            # Get ALL bot questions from all rounds
             chat_messages = db.query(LILOChatMessage).filter_by(
                 lilo_session_id=lilo_session.id,
-                round_number=0,
                 is_bot=1
-            ).order_by(LILOChatMessage.message_index).all()
+            ).order_by(LILOChatMessage.round_number, LILOChatMessage.message_index).all()
 
             # Extract all questions (messages ending with '?')
             all_questions = [

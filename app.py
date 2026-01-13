@@ -646,12 +646,12 @@ st.markdown("""
 </style>
 <script>
     // Prevent scrolling when checkboxes are clicked
-    document.addEventListener('DOMContentLoaded', function() {
+    (function() {
         // Store current scroll position before any checkbox interaction
         let scrollPosition = 0;
 
-        // Observe for checkbox changes
-        const observer = new MutationObserver(function() {
+        // Function to attach scroll prevention to checkboxes
+        function attachScrollPrevention() {
             const checkboxes = document.querySelectorAll('input[type="checkbox"]');
             checkboxes.forEach(function(checkbox) {
                 if (!checkbox.hasAttribute('data-scroll-prevention')) {
@@ -668,15 +668,32 @@ st.markdown("""
                             window.scrollTo(0, scrollPosition);
                         }, 0);
                     });
+
+                    // Also prevent on click to handle first-time clicks
+                    checkbox.addEventListener('click', function() {
+                        setTimeout(function() {
+                            window.scrollTo(0, scrollPosition);
+                        }, 10);
+                    });
                 }
             });
-        });
+        }
 
+        // Run immediately to catch early checkboxes
+        attachScrollPrevention();
+
+        // Run after DOM is loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', attachScrollPrevention);
+        }
+
+        // Observe for dynamically added checkboxes
+        const observer = new MutationObserver(attachScrollPrevention);
         observer.observe(document.body, {
             childList: true,
             subtree: true
         });
-    });
+    })();
 </script>
 """, unsafe_allow_html=True)
 
@@ -2398,7 +2415,7 @@ if st.session_state.all_flights:
                 st.session_state.db_save_error = str(e)
 
         if st.session_state.get('search_id'):
-            st.success(f"✅ All rankings submitted successfully! (Search ID: {st.session_state.search_id})")
+            st.success("✅ All rankings submitted successfully!")
 
             # ============================================================================
             # LILO PREFERENCE LEARNING SECTION (between initial ranking and cross-validation)
@@ -2472,7 +2489,7 @@ if st.session_state.all_flights:
                         status_text.text("Initializing conversation...")
                         progress_bar.progress(75)
                         st.session_state.lilo_round = 0
-                        st.session_state.lilo_chat_history = []  # Chat message history
+                        st.session_state.lilo_chat_history = []  # Chat message history with round tracking
                         st.session_state.lilo_current_question_idx = 0  # Current question index
                         st.session_state.lilo_round1_flights = []
                         st.session_state.lilo_round2_flights = []
@@ -2568,7 +2585,7 @@ if st.session_state.all_flights:
                     # Add loading message to chat
                     loading_msg = "Analyzing your preferences..." if current_round == 0 else "Refining flight options..."
                     render_chat_message(loading_msg, is_bot=True)
-                    st.session_state.lilo_chat_history.append({'text': loading_msg, 'is_bot': True})
+                    st.session_state.lilo_chat_history.append({'text': loading_msg, 'is_bot': True, 'round': current_round})
 
                     # Run LILO iteration
                     try:
@@ -2628,7 +2645,8 @@ if st.session_state.all_flights:
                                 st.session_state.lilo_chat_history.append({
                                     'text': comparison_msg,
                                     'is_bot': True,
-                                    'flights': [flights[0], flights[1]]
+                                    'flights': [flights[0], flights[1]],
+                                    'round': current_round + 1  # +1 because we just incremented
                                 })
 
                             # DEBUG: Check session state before rerun
@@ -2665,12 +2683,11 @@ if st.session_state.all_flights:
                                 # Add metadata for rounds/indices
                                 chat_with_metadata = []
                                 msg_idx = 0
-                                current_chat_round = 0
                                 for msg in st.session_state.lilo_chat_history:
                                     chat_with_metadata.append({
                                         'text': msg.get('text', ''),
                                         'is_bot': msg.get('is_bot', False),
-                                        'round': current_chat_round,
+                                        'round': msg.get('round', 0),  # Use round from message, default to 0
                                         'index': msg_idx,
                                         'flight_a': msg.get('flights', [None])[0] if msg.get('flights') else None,
                                         'flight_b': msg.get('flights', [None, None])[1] if msg.get('flights') and len(msg.get('flights')) > 1 else None
@@ -2707,7 +2724,7 @@ if st.session_state.all_flights:
                     # Only add completion message once
                     completion_msg = "Perfect! I've learned your preferences. LILO is complete! ✅"
                     if not st.session_state.lilo_chat_history or st.session_state.lilo_chat_history[-1].get('text') != completion_msg:
-                        st.session_state.lilo_chat_history.append({'text': completion_msg, 'is_bot': True})
+                        st.session_state.lilo_chat_history.append({'text': completion_msg, 'is_bot': True, 'round': current_round})
 
                     render_chat_message(completion_msg, is_bot=True)
 
@@ -2729,23 +2746,51 @@ if st.session_state.all_flights:
                     current_question = questions[current_idx]
                     render_chat_message(current_question, is_bot=True)
 
-                    # Chat input with Enter key support
-                    answer = st.chat_input(
-                        "Type your answer and press Enter...",
-                        key=f"lilo_chat_input_{current_round}_{current_idx}"
-                    )
+                    # Check if we have a pending answer to confirm
+                    pending_answer_key = f"lilo_pending_answer_{current_round}_{current_idx}"
+                    if pending_answer_key not in st.session_state:
+                        st.session_state[pending_answer_key] = None
 
-                    if answer and answer.strip():
-                        # Add Q&A to chat history (DON'T clear between rounds!)
-                        st.session_state.lilo_chat_history.append({'text': current_question, 'is_bot': True})
-                        st.session_state.lilo_chat_history.append({'text': answer, 'is_bot': False})
+                    pending_answer = st.session_state[pending_answer_key]
 
-                        # Save answer
-                        st.session_state.lilo_answers[f"q{current_idx}"] = answer
+                    if pending_answer is not None:
+                        # Show the pending answer and ask for confirmation
+                        render_chat_message(pending_answer, is_bot=False)
 
-                        # Move to next question
-                        st.session_state.lilo_current_question_idx += 1
-                        st.rerun()
+                        col1, col2 = st.columns([1, 1])
+                        with col1:
+                            if st.button("✅ Confirm", key=f"confirm_{current_round}_{current_idx}", use_container_width=True, type="primary"):
+                                # Add Q&A to chat history with round tracking
+                                st.session_state.lilo_chat_history.append({'text': current_question, 'is_bot': True, 'round': current_round})
+                                st.session_state.lilo_chat_history.append({'text': pending_answer, 'is_bot': False, 'round': current_round})
+
+                                # Save answer
+                                st.session_state.lilo_answers[f"q{current_idx}"] = pending_answer
+
+                                # Clear pending answer
+                                st.session_state[pending_answer_key] = None
+
+                                # Move to next question
+                                st.session_state.lilo_current_question_idx += 1
+                                st.rerun()
+
+                        with col2:
+                            if st.button("✏️ Edit", key=f"edit_{current_round}_{current_idx}", use_container_width=True):
+                                # Clear pending answer to allow re-entry
+                                st.session_state[pending_answer_key] = None
+                                st.rerun()
+
+                    else:
+                        # Chat input with Enter key support
+                        answer = st.chat_input(
+                            "Type your answer and press Enter...",
+                            key=f"lilo_chat_input_{current_round}_{current_idx}"
+                        )
+
+                        if answer and answer.strip():
+                            # Store as pending answer for confirmation
+                            st.session_state[pending_answer_key] = answer
+                            st.rerun()
 
                 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -5023,7 +5068,7 @@ if st.session_state.all_flights:
                     st.session_state.csv_generated = True
                     st.session_state.search_id = search_id
                     st.session_state.countdown_started = True  # Start countdown phase
-                    st.success(f"✅ Rankings saved to database! Search ID: {search_id}")
+                    st.success("✅ Rankings saved to database!")
                     st.balloons()
                     st.rerun()
 

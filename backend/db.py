@@ -1108,6 +1108,7 @@ def save_survey_response(session_id: str, survey_data: Dict, completion_token: O
 def get_previous_search_for_validation(current_session_id: str) -> Optional[Dict]:
     """
     Get the most recent search (excluding current session) for cross-validation.
+    Only returns searches that have completed LILO sessions.
 
     Args:
         current_session_id: Current user's session ID to exclude
@@ -1118,14 +1119,17 @@ def get_previous_search_for_validation(current_session_id: str) -> Optional[Dict
     db = SessionLocal()
 
     try:
-        # Find most recent search that has flight data saved
-        search = db.query(Search).filter(
+        # Find most recent search that has flight data saved AND a completed LILO session
+        search = db.query(Search).join(
+            LILOSession, Search.search_id == LILOSession.search_id
+        ).filter(
             Search.session_id != current_session_id,
-            Search.listen_ranked_flights_json.isnot(None)
+            Search.listen_ranked_flights_json.isnot(None),
+            LILOSession.completed_at.isnot(None)  # Only completed LILO sessions
         ).order_by(Search.created_at.desc()).first()
 
         if not search:
-            print(f"✗ No previous search found for cross-validation")
+            print(f"✗ No completed previous search found for cross-validation")
             return None
 
         result = {
@@ -1135,7 +1139,7 @@ def get_previous_search_for_validation(current_session_id: str) -> Optional[Dict
             'flights': search.listen_ranked_flights_json
         }
 
-        print(f"✓ Found previous search for validation: session {search.session_id}")
+        print(f"✓ Found completed previous search for validation: session {search.session_id}")
         return result
 
     except Exception as e:
