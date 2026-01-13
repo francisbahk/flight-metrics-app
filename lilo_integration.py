@@ -367,32 +367,11 @@ class StreamlitLILOBridge:
             question
         )
 
-        # Replace variable names and technical terms
+        # Replace variable names
         question = question.replace("y_names", "flight attributes")
         question = question.replace("decision maker", "you")
         question = question.replace("DM", "you")
         question = question.replace("experimental outcomes", "flights")
-
-        # Remove/replace normalized terminology
-        question = re.sub(r'normalized price values?', 'prices', question, flags=re.IGNORECASE)
-        question = re.sub(r'normalized duration values?', 'flight durations', question, flags=re.IGNORECASE)
-        question = re.sub(r'normalized stops values?', 'number of stops', question, flags=re.IGNORECASE)
-        question = re.sub(r'normalized units?', 'difference', question, flags=re.IGNORECASE)
-        question = re.sub(r'\(in normalized units\)', '', question, flags=re.IGNORECASE)
-        question = re.sub(r'in normalized units', '', question, flags=re.IGNORECASE)
-
-        # Replace specific numeric patterns like "0.2 normalized units"
-        question = re.sub(r'(\d+\.?\d*)\s+normalized units?', r'\1', question, flags=re.IGNORECASE)
-
-        # Replace "Considering the normalized X in the table"
-        question = re.sub(r'Considering the normalized ([^,]+) in the table', r'Considering the \1', question, flags=re.IGNORECASE)
-
-        # Clean up any leftover "normalized" references
-        question = re.sub(r'\bnormalized\b', '', question, flags=re.IGNORECASE)
-
-        # Clean up extra spaces created by removals
-        question = re.sub(r'\s+', ' ', question)
-        question = question.strip()
 
         return question
 

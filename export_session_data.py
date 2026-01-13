@@ -74,40 +74,27 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
             lilo_question_texts = []
             lilo_responses = []
 
-            # Get iterations to get responses
+            # Get ALL chat messages ordered
+            all_chat_messages = db.query(LILOChatMessage).filter_by(
+                lilo_session_id=lilo_session.id
+            ).order_by(LILOChatMessage.round_number, LILOChatMessage.message_index).all()
+
+            # Match questions with user responses by looking at adjacent messages
+            for i, msg in enumerate(all_chat_messages):
+                # If this is a bot message that's a question
+                if msg.is_bot == 1 and msg.message_text.strip().endswith('?'):
+                    # Look for the next user message as the answer
+                    for j in range(i + 1, len(all_chat_messages)):
+                        next_msg = all_chat_messages[j]
+                        if next_msg.is_bot == 0:  # User response
+                            lilo_question_texts.append(msg.message_text)
+                            lilo_responses.append(next_msg.message_text)
+                            break
+
+            # Get iterations for utility function
             iterations = db.query(LILOIteration).filter_by(
                 lilo_session_id=lilo_session.id
             ).order_by(LILOIteration.iteration_number).all()
-
-            # Get ALL bot questions from all rounds
-            chat_messages = db.query(LILOChatMessage).filter_by(
-                lilo_session_id=lilo_session.id,
-                is_bot=1
-            ).order_by(LILOChatMessage.round_number, LILOChatMessage.message_index).all()
-
-            # Extract all questions (messages ending with '?')
-            all_questions = [
-                msg.message_text for msg in chat_messages
-                if msg.message_text.strip().endswith('?')
-            ]
-
-            question_idx = 0
-            # Match responses with questions
-            for it in iterations:
-                # Get responses in order for this iteration
-                for q_key in sorted(it.user_responses.keys()):
-                    answer = it.user_responses[q_key]
-
-                    # Get matching question text from round 0
-                    if question_idx < len(all_questions):
-                        question_text = all_questions[question_idx]
-                    else:
-                        # Fallback
-                        question_text = f"Question {question_idx + 1}"
-
-                    lilo_question_texts.append(question_text)
-                    lilo_responses.append(answer)
-                    question_idx += 1
 
             # Get utility function (from last iteration's params)
             utility_function = None
