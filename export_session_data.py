@@ -345,13 +345,16 @@ def export_simple_rankings_csv(token: str, output_file: str = None) -> str:
                     user_rankings[flight_id] = r.user_rank
 
             # Create one row per flight
-            for flight in all_flights:
+            # Only include prompt and id in the first row for this search
+            is_first_row_for_search = (len(all_rows) == 0 or all_rows[-1].get('prompt') != '')
+
+            for idx, flight in enumerate(all_flights):
                 flight_id = flight.get('id')
                 rank = user_rankings.get(flight_id, '')
 
                 row = {
-                    'prompt': prompt,
-                    'id': search_id,
+                    'prompt': prompt if idx == 0 else '',
+                    'id': search_id if idx == 0 else '',
                     'unique_id': flight_id,
                     'rank': rank,
                     'name': flight.get('airline', ''),
