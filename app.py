@@ -2749,47 +2749,41 @@ if st.session_state.all_flights:
                     # Check if we have a pending answer to confirm
                     pending_answer_key = f"lilo_pending_answer_{current_round}_{current_idx}"
                     if pending_answer_key not in st.session_state:
-                        st.session_state[pending_answer_key] = None
+                        st.session_state[pending_answer_key] = ""
 
                     pending_answer = st.session_state[pending_answer_key]
 
-                    if pending_answer is not None:
-                        # Show the pending answer and ask for confirmation
-                        render_chat_message(pending_answer, is_bot=False)
+                    # Show text area with the answer (editable) and confirm button
+                    col1, col2 = st.columns([4, 1])
 
-                        col1, col2 = st.columns([1, 1])
-                        with col1:
-                            if st.button("✅ Confirm", key=f"confirm_{current_round}_{current_idx}", use_container_width=True, type="primary"):
-                                # Add Q&A to chat history with round tracking
-                                st.session_state.lilo_chat_history.append({'text': current_question, 'is_bot': True, 'round': current_round})
-                                st.session_state.lilo_chat_history.append({'text': pending_answer, 'is_bot': False, 'round': current_round})
-
-                                # Save answer
-                                st.session_state.lilo_answers[f"q{current_idx}"] = pending_answer
-
-                                # Clear pending answer
-                                st.session_state[pending_answer_key] = None
-
-                                # Move to next question
-                                st.session_state.lilo_current_question_idx += 1
-                                st.rerun()
-
-                        with col2:
-                            if st.button("✏️ Edit", key=f"edit_{current_round}_{current_idx}", use_container_width=True):
-                                # Clear pending answer to allow re-entry
-                                st.session_state[pending_answer_key] = None
-                                st.rerun()
-
-                    else:
-                        # Chat input with Enter key support
-                        answer = st.chat_input(
-                            "Type your answer and press Enter...",
-                            key=f"lilo_chat_input_{current_round}_{current_idx}"
+                    with col1:
+                        # Text area that keeps the pending answer and is always editable
+                        answer_text = st.text_area(
+                            "Your answer:",
+                            value=pending_answer,
+                            height=100,
+                            key=f"lilo_answer_text_{current_round}_{current_idx}",
+                            placeholder="Type your answer here..."
                         )
+                        # Update pending answer in session state
+                        st.session_state[pending_answer_key] = answer_text
 
-                        if answer and answer.strip():
-                            # Store as pending answer for confirmation
-                            st.session_state[pending_answer_key] = answer
+                    with col2:
+                        st.write("")  # Spacing
+                        st.write("")  # Spacing
+                        if st.button("📤 Send", key=f"send_{current_round}_{current_idx}", use_container_width=True, type="primary", disabled=not answer_text.strip()):
+                            # Add Q&A to chat history with round tracking
+                            st.session_state.lilo_chat_history.append({'text': current_question, 'is_bot': True, 'round': current_round})
+                            st.session_state.lilo_chat_history.append({'text': answer_text, 'is_bot': False, 'round': current_round})
+
+                            # Save answer
+                            st.session_state.lilo_answers[f"q{current_idx}"] = answer_text
+
+                            # Clear pending answer
+                            st.session_state[pending_answer_key] = ""
+
+                            # Move to next question
+                            st.session_state.lilo_current_question_idx += 1
                             st.rerun()
 
                 st.markdown('</div>', unsafe_allow_html=True)
