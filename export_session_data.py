@@ -114,26 +114,35 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                 if fr.rank <= 5:
                     lilo_rankings[flight_id] = fr.rank
 
-            # Get cross validation data - OTHERS ranking THIS user's prompt
-            # We want to find who reviewed THIS session's flights
-            cross_vals = db.query(CrossValidation).filter_by(
-                reviewed_session_id=search.session_id
-            ).all()
+            # Get cross validation data - what THIS user ranked (someone else's prompt)
+            # Find what prompt THIS user reviewed
+            cross_val = db.query(CrossValidation).filter_by(
+                reviewer_session_id=search.session_id
+            ).first()
 
-            cv_prompt = search.user_prompt  # This user's prompt that others ranked
-            cv_token = search.session_id  # This user's token
-            cv_flights = all_flights  # Use this session's flights
+            cv_prompt = None
+            cv_token = None
+            cv_flights = []
             cv_rankings = {}  # flight_id -> rank
 
-            # Aggregate rankings from all reviewers (could be multiple people ranking same prompt)
-            if cross_vals:
-                # Use the first cross-validation ranking available
-                # (In practice, typically one person reviews one prompt)
-                cross_val = cross_vals[0]
+            if cross_val:
+                cv_prompt = cross_val.reviewed_prompt  # The OTHER person's prompt
+                cv_token = cross_val.reviewed_session_id  # The OTHER person's token
+
+                # Get rankings THIS user gave (selected_flights_data has the top 5 in ranked order)
                 if cross_val.selected_flights_data:
                     for rank, flight in enumerate(cross_val.selected_flights_data, 1):
                         flight_id = flight.get('id')
                         cv_rankings[flight_id] = rank
+
+                # Get ALL flights from the reviewed session
+                reviewed_search = db.query(Search).filter(
+                    (Search.session_id == cv_token) | (Search.completion_token == cv_token)
+                ).first()
+
+                if reviewed_search:
+                    # Get all flights from that OTHER session
+                    cv_flights = reviewed_search.listen_ranked_flights_json or reviewed_search.amadeus_flights_json or []
 
             # Get survey responses
             survey = db.query(SurveyResponse).filter_by(
