@@ -2364,6 +2364,52 @@ if st.session_state.all_flights:
                 elif not st.session_state.selected_flights:
                     st.session_state.db_save_error = "No selected flights available"
                 else:
+                    # For DATA token, delete all previous submissions to allow overwriting
+                    if st.session_state.token.upper() == "DATA":
+                        from backend.db import SessionLocal, Search, FlightCSV, UserRanking, FlightShown, LILOSession, LILOIteration, LILOChatMessage, LILOFinalRanking, CrossValidation, SurveyResponse
+                        db = SessionLocal()
+                        try:
+                            # Find all previous searches for this token
+                            previous_searches = db.query(Search).filter(
+                                (Search.session_id == st.session_state.token) | (Search.completion_token == st.session_state.token)
+                            ).all()
+
+                            for search in previous_searches:
+                                # Delete related LILO data
+                                lilo_sessions = db.query(LILOSession).filter_by(search_id=search.search_id).all()
+                                for lilo_session in lilo_sessions:
+                                    db.query(LILOChatMessage).filter_by(lilo_session_id=lilo_session.id).delete()
+                                    db.query(LILOIteration).filter_by(lilo_session_id=lilo_session.id).delete()
+                                    db.query(LILOFinalRanking).filter_by(lilo_session_id=lilo_session.id).delete()
+                                    db.delete(lilo_session)
+
+                                # Delete cross-validation data
+                                db.query(CrossValidation).filter_by(reviewer_session_id=search.session_id).delete()
+                                db.query(CrossValidation).filter_by(reviewed_session_id=search.session_id).delete()
+
+                                # Delete survey data
+                                db.query(SurveyResponse).filter_by(session_id=search.session_id).delete()
+
+                                # Delete rankings and flights
+                                rankings = db.query(UserRanking).filter_by(search_id=search.search_id).all()
+                                for ranking in rankings:
+                                    db.query(FlightShown).filter_by(id=ranking.flight_id).delete()
+                                    db.delete(ranking)
+
+                                # Delete CSV records
+                                db.query(FlightCSV).filter_by(search_id=search.search_id).delete()
+
+                                # Delete the search itself
+                                db.delete(search)
+
+                            db.commit()
+                            print(f"[DEBUG] Deleted all previous DATA token submissions")
+                        except Exception as e:
+                            db.rollback()
+                            print(f"[DEBUG] Error deleting previous DATA submissions: {str(e)}")
+                        finally:
+                            db.close()
+
                     # Save outbound data
                     search_id = save_search_and_csv(
                         session_id=st.session_state.session_id,
@@ -5123,6 +5169,52 @@ if st.session_state.all_flights:
                 try:
                     from backend.db import save_search_and_csv, SessionLocal, FlightCSV
                     import traceback
+
+                    # For DATA token, delete all previous submissions to allow overwriting
+                    if st.session_state.token.upper() == "DATA":
+                        from backend.db import Search, UserRanking, FlightShown, LILOSession, LILOIteration, LILOChatMessage, LILOFinalRanking, CrossValidation, SurveyResponse
+                        db = SessionLocal()
+                        try:
+                            # Find all previous searches for this token
+                            previous_searches = db.query(Search).filter(
+                                (Search.session_id == st.session_state.token) | (Search.completion_token == st.session_state.token)
+                            ).all()
+
+                            for search in previous_searches:
+                                # Delete related LILO data
+                                lilo_sessions = db.query(LILOSession).filter_by(search_id=search.search_id).all()
+                                for lilo_session in lilo_sessions:
+                                    db.query(LILOChatMessage).filter_by(lilo_session_id=lilo_session.id).delete()
+                                    db.query(LILOIteration).filter_by(lilo_session_id=lilo_session.id).delete()
+                                    db.query(LILOFinalRanking).filter_by(lilo_session_id=lilo_session.id).delete()
+                                    db.delete(lilo_session)
+
+                                # Delete cross-validation data
+                                db.query(CrossValidation).filter_by(reviewer_session_id=search.session_id).delete()
+                                db.query(CrossValidation).filter_by(reviewed_session_id=search.session_id).delete()
+
+                                # Delete survey data
+                                db.query(SurveyResponse).filter_by(session_id=search.session_id).delete()
+
+                                # Delete rankings and flights
+                                rankings = db.query(UserRanking).filter_by(search_id=search.search_id).all()
+                                for ranking in rankings:
+                                    db.query(FlightShown).filter_by(id=ranking.flight_id).delete()
+                                    db.delete(ranking)
+
+                                # Delete CSV records
+                                db.query(FlightCSV).filter_by(search_id=search.search_id).delete()
+
+                                # Delete the search itself
+                                db.delete(search)
+
+                            db.commit()
+                            print(f"[DEBUG] Deleted all previous DATA token submissions (dual panel)")
+                        except Exception as e:
+                            db.rollback()
+                            print(f"[DEBUG] Error deleting previous DATA submissions (dual panel): {str(e)}")
+                        finally:
+                            db.close()
 
                     # Save outbound as primary
                     search_id = save_search_and_csv(
