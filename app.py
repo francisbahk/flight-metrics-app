@@ -3901,17 +3901,39 @@ if st.session_state.all_flights:
                 **Your session has been saved successfully.**
                 """)
 
-                st.markdown("### 📥 Download Your Complete Session Data")
-                st.markdown("You can download a comprehensive CSV file containing all your session data:")
+                st.markdown("### 📥 Download Your Session Data")
+                st.markdown("You can download your session data in two formats:")
 
-                # Generate comprehensive CSV
+                # Generate CSVs
                 token = st.session_state.get('token')
                 if token:
                     try:
-                        from export_session_data import export_session_to_csv
+                        from export_session_data import export_session_to_csv, export_simple_rankings_csv
                         import io
 
-                        # Generate CSV in memory
+                        # Generate simplified rankings CSV
+                        simple_csv_file = export_simple_rankings_csv(token, output_file=None)
+
+                        if simple_csv_file:
+                            with open(simple_csv_file, 'r', encoding='utf-8') as f:
+                                simple_csv_data = f.read()
+
+                            # Provide simplified download button
+                            st.download_button(
+                                label="📊 Download Rankings Only (Simple CSV)",
+                                data=simple_csv_data,
+                                file_name=f"rankings_{token}.csv",
+                                mime="text/csv",
+                                use_container_width=True,
+                                help="Contains: prompt, flights, and your rankings"
+                            )
+
+                            # Clean up temp file
+                            import os
+                            if os.path.exists(simple_csv_file):
+                                os.remove(simple_csv_file)
+
+                        # Generate comprehensive CSV
                         csv_file = export_session_to_csv(token, output_file=None)
 
                         # Read the CSV file
@@ -3921,11 +3943,12 @@ if st.session_state.all_flights:
 
                             # Provide download button
                             st.download_button(
-                                label="📄 Download Complete Session Data (CSV)",
+                                label="📄 Download Complete Session Data (Full CSV)",
                                 data=csv_data,
                                 file_name=f"session_data_{token}.csv",
                                 mime="text/csv",
-                                use_container_width=True
+                                use_container_width=True,
+                                help="Contains: rankings, LILO questions/responses, cross-validation, and survey"
                             )
 
                             st.success("✅ Your session data is ready for download!")

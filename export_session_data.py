@@ -293,6 +293,101 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
         db.close()
 
 
+def export_simple_rankings_csv(token: str, output_file: str = None) -> str:
+    """
+    Export simplified rankings data (prompt + ranked flights only).
+
+    Columns: prompt, id, unique_id, rank, name, origin, destination,
+             departure_time, arrival_time, stops, price, duration_min
+
+    Args:
+        token: Access token or completion token
+        output_file: Output CSV filename (default: {token}_rankings.csv)
+
+    Returns:
+        Path to generated CSV file
+    """
+    if not output_file:
+        output_file = f"{token}_rankings.csv"
+
+    db = SessionLocal()
+
+    try:
+        # Get all searches for this token
+        searches = db.query(Search).filter(
+            (Search.session_id == token) | (Search.completion_token == token)
+        ).all()
+
+        if not searches:
+            print(f"No data found for token {token}")
+            return None
+
+        all_rows = []
+
+        for search in searches:
+            search_id = search.search_id
+            prompt = search.user_prompt
+
+            # Get ALL flights
+            all_flights = search.listen_ranked_flights_json or search.amadeus_flights_json or []
+
+            if not all_flights:
+                print(f"No flight data found for search_id={search_id}")
+                continue
+
+            # Get user rankings (top 5)
+            user_rankings = {}  # flight_id -> rank
+            rankings = db.query(UserRanking).filter_by(search_id=search_id).all()
+            for r in rankings:
+                flight_shown = db.query(FlightShown).filter_by(id=r.flight_id).first()
+                if flight_shown:
+                    flight_id = flight_shown.flight_data.get('id')
+                    user_rankings[flight_id] = r.user_rank
+
+            # Create one row per flight
+            for flight in all_flights:
+                flight_id = flight.get('id')
+                rank = user_rankings.get(flight_id, '')
+
+                row = {
+                    'prompt': prompt,
+                    'id': search_id,
+                    'unique_id': flight_id,
+                    'rank': rank,
+                    'name': flight.get('airline', ''),
+                    'origin': flight.get('origin', ''),
+                    'destination': flight.get('destination', ''),
+                    'departure_time': flight.get('departure_time', ''),
+                    'arrival_time': flight.get('arrival_time', ''),
+                    'stops': flight.get('stops', ''),
+                    'price': flight.get('price', ''),
+                    'duration_min': flight.get('duration_min', ''),
+                }
+
+                all_rows.append(row)
+
+        # Write CSV
+        if all_rows:
+            fieldnames = [
+                'prompt', 'id', 'unique_id', 'rank', 'name', 'origin', 'destination',
+                'departure_time', 'arrival_time', 'stops', 'price', 'duration_min'
+            ]
+
+            with open(output_file, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(all_rows)
+
+            print(f"✓ Exported {len(all_rows)} rows to {output_file}")
+            return output_file
+        else:
+            print(f"No data to export for token {token}")
+            return None
+
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     import sys
 
