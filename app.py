@@ -2565,11 +2565,61 @@ if st.session_state.all_flights:
                     st.session_state.lilo_round = 0
 
                 # Display ALL chat history (persists across rounds)
-                for msg in st.session_state.lilo_chat_history:
+                for msg_idx, msg in enumerate(st.session_state.lilo_chat_history):
                     if msg.get('flights'):
                         # Show flight comparison
                         render_flight_comparison(msg['flights'][0], msg['flights'][1], "Option A", "Option B")
-                    render_chat_message(msg['text'], is_bot=msg['is_bot'])
+
+                    # For user messages, add an edit button
+                    if not msg.get('is_bot'):
+                        col1, col2 = st.columns([20, 1])
+                        with col1:
+                            render_chat_message(msg['text'], is_bot=False)
+                        with col2:
+                            # Check if this message is being edited
+                            edit_key = f"editing_msg_{msg_idx}"
+                            if edit_key not in st.session_state:
+                                st.session_state[edit_key] = False
+
+                            if st.button("✏️", key=f"edit_btn_{msg_idx}", help="Edit this answer"):
+                                st.session_state[edit_key] = not st.session_state[edit_key]
+                                st.rerun()
+
+                        # Show edit box if editing
+                        if st.session_state.get(edit_key, False):
+                            edited_text = st.text_area(
+                                "Edit your answer:",
+                                value=msg['text'],
+                                key=f"edit_area_{msg_idx}",
+                                height=100
+                            )
+                            col_save, col_cancel = st.columns([1, 1])
+                            with col_save:
+                                if st.button("💾 Save", key=f"save_{msg_idx}", use_container_width=True, type="primary"):
+                                    # Update the message in chat history
+                                    st.session_state.lilo_chat_history[msg_idx]['text'] = edited_text
+
+                                    # Also update in lilo_answers if this was a question response
+                                    # Find which question this was an answer to
+                                    question_num = None
+                                    for i in range(msg_idx - 1, -1, -1):
+                                        if st.session_state.lilo_chat_history[i].get('is_bot') and '?' in st.session_state.lilo_chat_history[i]['text']:
+                                            # Count how many questions before this one
+                                            question_count = sum(1 for m in st.session_state.lilo_chat_history[:i+1] if m.get('is_bot') and '?' in m['text'])
+                                            question_num = question_count - 1
+                                            break
+
+                                    if question_num is not None and f"q{question_num}" in st.session_state.lilo_answers:
+                                        st.session_state.lilo_answers[f"q{question_num}"] = edited_text
+
+                                    st.session_state[edit_key] = False
+                                    st.rerun()
+                            with col_cancel:
+                                if st.button("❌ Cancel", key=f"cancel_{msg_idx}", use_container_width=True):
+                                    st.session_state[edit_key] = False
+                                    st.rerun()
+                    else:
+                        render_chat_message(msg['text'], is_bot=True)
 
                 # Determine what to show next based on state
                 questions = st.session_state.get('lilo_questions', [])
