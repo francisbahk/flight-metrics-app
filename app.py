@@ -2784,16 +2784,49 @@ if st.session_state.all_flights:
 
                     # Complete LILO and move to cross-validation (skip animation for cleaner transition)
                     st.markdown("---")
-                    st.info("🎯 Thank you! Moving to the next section...")
+                    st.success("✅ LILO section completed!")
+
+                    # Offer simplified CSV download for rankings
+                    st.markdown("### 📥 Download Your Rankings")
+                    token = st.session_state.get('token')
+                    if token:
+                        try:
+                            from export_session_data import export_simple_rankings_csv
+
+                            # Generate simplified rankings CSV
+                            simple_csv_file = export_simple_rankings_csv(token, output_file=None)
+
+                            if simple_csv_file:
+                                with open(simple_csv_file, 'r', encoding='utf-8') as f:
+                                    simple_csv_data = f.read()
+
+                                # Provide simplified download button
+                                st.download_button(
+                                    label="📊 Download Rankings (CSV)",
+                                    data=simple_csv_data,
+                                    file_name=f"rankings_{token}.csv",
+                                    mime="text/csv",
+                                    use_container_width=True,
+                                    help="Contains: prompt, flights, and your rankings"
+                                )
+
+                                # Clean up temp file
+                                import os
+                                if os.path.exists(simple_csv_file):
+                                    os.remove(simple_csv_file)
+                        except Exception as e:
+                            st.error(f"⚠️ Error generating CSV: {str(e)}")
+
+                    st.markdown("---")
+                    st.info("🎯 Continue to the next section...")
 
                     # Mark LILO as completed and skip animation
                     st.session_state.lilo_completed = True
                     st.session_state.show_evaluation_animation = False
 
-                    # Small delay then rerun for smooth transition
-                    import time
-                    time.sleep(1)
-                    st.rerun()
+                    # Button to continue
+                    if st.button("Continue →", type="primary", use_container_width=True):
+                        st.rerun()
 
                 # Show current question
                 elif current_idx < len(questions):
