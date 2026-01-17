@@ -52,65 +52,35 @@ if not completed_sessions:
 st.markdown(f"**Total completed sessions:** {len(completed_sessions)}")
 st.markdown("---")
 
-# Create a table view of completed sessions
+# Simple list of sessions with download links
 for session in completed_sessions:
     token = session['completion_token']
     completed_at = session['completed_at'].strftime('%Y-%m-%d %H:%M:%S')
-    prompt = session.get('search_prompt', 'N/A')
 
-    # Create expander for each session
-    with st.expander(f"**{token}** - Completed: {completed_at}"):
-        # Session details
-        col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns([3, 1])
 
-        with col1:
-            st.markdown("**Prompt:**")
-            st.markdown(f"_{prompt[:100]}..._" if len(prompt) > 100 else f"_{prompt}_")
+    with col1:
+        st.markdown(f"**{token}** — {completed_at}")
 
-        with col2:
-            st.markdown("**Data Available:**")
-            if session.get('has_survey'):
-                st.markdown("✅ Survey")
-            if session.get('has_cv'):
-                st.markdown(f"✅ Cross-validation ({session['cv_count']})")
-            if session.get('lilo_completed'):
-                st.markdown(f"✅ LILO ({session['lilo_rankings']} rankings)")
-
-        with col3:
-            st.markdown("**Quality Metrics:**")
-            if session.get('survey_satisfaction'):
-                st.markdown(f"Satisfaction: {session['survey_satisfaction']}/5")
-
-        st.markdown("---")
-
-        # Download button
+    with col2:
         try:
-            # Generate CSV
             csv_file = export_session_to_csv(token, output_file=None)
-
             if csv_file:
-                # Read the CSV
                 with open(csv_file, 'r', encoding='utf-8') as f:
                     csv_data = f.read()
-
-                # Provide download
                 st.download_button(
-                    label="📥 Download Complete Session Data (CSV)",
+                    label="Download CSV",
                     data=csv_data,
                     file_name=f"session_data_{token}.csv",
                     mime="text/csv",
-                    use_container_width=True,
                     key=f"download_{token}"
                 )
-
-                # Clean up temp file
                 if os.path.exists(csv_file):
                     os.remove(csv_file)
             else:
-                st.warning("⚠️ Could not generate CSV for this session")
-
+                st.markdown("_No data_")
         except Exception as e:
-            st.error(f"⚠️ Error: {str(e)}")
+            st.markdown(f"_Error_")
 
 st.markdown("---")
 

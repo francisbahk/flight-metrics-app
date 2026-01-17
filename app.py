@@ -1806,6 +1806,142 @@ prompt = st.text_area(
     key="flight_prompt_input"
 )
 
+# Voice-to-text microphone button
+voice_to_text_html = """
+<style>
+    .voice-btn-container {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: -10px;
+        margin-bottom: 10px;
+    }
+    .voice-btn {
+        background: #f0f2f6;
+        border: 1px solid #ddd;
+        border-radius: 20px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+    .voice-btn:hover {
+        background: #e0e2e6;
+    }
+    .voice-btn.recording {
+        background: #ffebee;
+        border-color: #ef5350;
+        animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    .voice-btn-icon {
+        font-size: 16px;
+    }
+    .voice-status {
+        font-size: 12px;
+        color: #666;
+        margin-left: 10px;
+    }
+</style>
+<div class="voice-btn-container">
+    <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceRecording()">
+        <span class="voice-btn-icon">🎤</span>
+        <span id="voiceBtnText">Speak your prompt</span>
+    </button>
+    <span class="voice-status" id="voiceStatus"></span>
+</div>
+<script>
+    let recognition = null;
+    let isRecording = false;
+
+    function toggleVoiceRecording() {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            document.getElementById('voiceStatus').textContent = 'Speech recognition not supported in this browser';
+            return;
+        }
+
+        if (isRecording) {
+            stopRecording();
+        } else {
+            startRecording();
+        }
+    }
+
+    function startRecording() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        const btn = document.getElementById('voiceBtn');
+        const btnText = document.getElementById('voiceBtnText');
+        const status = document.getElementById('voiceStatus');
+
+        recognition.onstart = function() {
+            isRecording = true;
+            btn.classList.add('recording');
+            btnText.textContent = 'Stop recording';
+            status.textContent = 'Listening...';
+        };
+
+        recognition.onresult = function(event) {
+            // Find the Streamlit textarea
+            const textarea = window.parent.document.querySelector('textarea[aria-label="flight prompt input"]');
+            if (textarea) {
+                let finalTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    }
+                }
+                if (finalTranscript) {
+                    // Append to existing text
+                    const currentValue = textarea.value;
+                    const newValue = currentValue ? currentValue + ' ' + finalTranscript : finalTranscript;
+                    textarea.value = newValue;
+                    // Trigger input event to update Streamlit state
+                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                    status.textContent = 'Added: "' + finalTranscript.substring(0, 30) + (finalTranscript.length > 30 ? '..."' : '"');
+                }
+            }
+        };
+
+        recognition.onerror = function(event) {
+            status.textContent = 'Error: ' + event.error;
+            stopRecording();
+        };
+
+        recognition.onend = function() {
+            if (isRecording) {
+                // Restart if still supposed to be recording
+                recognition.start();
+            }
+        };
+
+        recognition.start();
+    }
+
+    function stopRecording() {
+        if (recognition) {
+            isRecording = false;
+            recognition.stop();
+            recognition = null;
+        }
+        const btn = document.getElementById('voiceBtn');
+        const btnText = document.getElementById('voiceBtnText');
+        btn.classList.remove('recording');
+        btnText.textContent = 'Speak your prompt';
+    }
+</script>
+"""
+components.html(voice_to_text_html, height=50)
+
 # Add ID dynamically to textarea container for tutorial
 st.markdown("""
 <script>
