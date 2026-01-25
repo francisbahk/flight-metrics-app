@@ -2521,34 +2521,11 @@ if st.session_state.all_flights:
                     # Show confirmation page before finalizing
                     if not st.session_state.get('lilo_answers_confirmed'):
                         st.markdown("### ✅ Review Your Answers")
-                        st.markdown("Please review your responses before proceeding. You can go back and edit any answer if needed.")
-                        st.markdown("---")
+                        st.markdown("Please review your responses before proceeding. You can go back and edit any answer if needed using the edit buttons (✏️) above.")
 
-                        # Display all Q&A pairs from chat history
-                        qa_pairs = []
-                        current_q = None
-                        for msg in st.session_state.lilo_chat_history:
-                            if msg.get('is_bot') and '?' in msg.get('text', ''):
-                                current_q = msg.get('text', '')
-                            elif not msg.get('is_bot') and current_q:
-                                qa_pairs.append((current_q, msg.get('text', '')))
-                                current_q = None
-
-                        for i, (q, a) in enumerate(qa_pairs, 1):
-                            with st.expander(f"Question {i}", expanded=False):
-                                st.markdown(f"**Q:** {q}")
-                                st.markdown(f"**Your answer:** {a}")
-
-                        st.markdown("---")
-                        st.warning("⚠️ Once you confirm, your answers will be saved and you cannot go back.")
-
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("✅ Confirm Answers", type="primary", use_container_width=True):
-                                st.session_state.lilo_answers_confirmed = True
-                                st.rerun()
-                        with col2:
-                            st.markdown("*Use the edit buttons (✏️) above to modify any answer*")
+                        if st.button("✅ Confirm Answers", type="primary", use_container_width=True):
+                            st.session_state.lilo_answers_confirmed = True
+                            st.rerun()
 
                     else:
                         # Answers confirmed - save final iteration and compute rankings

@@ -367,12 +367,15 @@ class StreamlitLILOBridge:
         question = re.sub(r'(?<!Flight )(?<!Flight)(\d+_\d+)', replace_standalone_arm, question)
 
         # Remove normalized weight values that the LLM may have included
-        # Pattern: (price: 0.xxx, duration: 0.xxx, stops: 0, departure_hour: 0.xxx, arrival_hour: 0.xxx)
+        # Various patterns: (price: 0.xxx, duration_min: 0.xxx, stops: N, departure_hour: 0.xxx, arrival_hour: 0.xxx)
+        # Make pattern flexible to catch variations
         question = re.sub(
-            r'\s*\(price:\s*[\d.]+,\s*duration:\s*[\d.]+,\s*stops:\s*[\d.]+,\s*departure_hour:\s*[\d.]+,\s*arrival_hour:\s*[\d.]+\)',
+            r'\s*\(price:\s*[\d.]+,\s*duration(?:_min)?:\s*[\d.]+,\s*stops:\s*[\d.]+,\s*departure_hour:\s*[\d.]+,\s*arrival_hour:\s*[\d.]+\)',
             '',
             question
         )
+        # Also remove "outcome" prefix before Flight references
+        question = re.sub(r'\boutcome\s+Flight\b', 'Flight', question)
 
         # Replace variable names
         question = question.replace("y_names", "flight attributes")
