@@ -1105,13 +1105,19 @@ def save_survey_response(session_id: str, survey_data: Dict, completion_token: O
         db.close()
 
 
-def get_previous_search_for_validation(current_session_id: str) -> Optional[Dict]:
+def get_previous_search_for_validation(current_session_id: str, current_token: str = None) -> Optional[Dict]:
     """
     Get the most recent search (excluding current session) for cross-validation.
     Only returns searches that have completed LILO sessions.
 
+    Implements separate queues by token type:
+    - DATA tokens only see prompts from other DATA sessions
+    - DEMO tokens only see prompts from other DEMO sessions
+    - Regular tokens only see prompts from regular (non-DATA, non-DEMO) sessions
+
     Args:
         current_session_id: Current user's session ID to exclude
+        current_token: Current user's token to determine queue type
 
     Returns:
         Dictionary with search data or None if no previous search found
@@ -1119,14 +1125,35 @@ def get_previous_search_for_validation(current_session_id: str) -> Optional[Dict
     db = SessionLocal()
 
     try:
-        # Find most recent search that has flight data saved AND a completed LILO session
-        search = db.query(Search).join(
+        # Build base query
+        query = db.query(Search).join(
             LILOSession, Search.search_id == LILOSession.search_id
         ).filter(
             Search.session_id != current_session_id,
             Search.listen_ranked_flights_json.isnot(None),
             LILOSession.completed_at.isnot(None)  # Only completed LILO sessions
-        ).order_by(Search.created_at.desc()).first()
+        )
+
+        # Apply token type filter for separate queues
+        if current_token:
+            token_upper = current_token.upper()
+            if token_upper == "DATA":
+                # DATA tokens only see other DATA prompts
+                query = query.filter(Search.completion_token.ilike("DATA"))
+                print(f"[CV] DATA token - filtering to DATA prompts only")
+            elif token_upper == "DEMO":
+                # DEMO tokens only see other DEMO prompts
+                query = query.filter(Search.completion_token.ilike("DEMO"))
+                print(f"[CV] DEMO token - filtering to DEMO prompts only")
+            else:
+                # Regular tokens exclude DATA and DEMO prompts
+                query = query.filter(
+                    ~Search.completion_token.ilike("DATA"),
+                    ~Search.completion_token.ilike("DEMO")
+                )
+                print(f"[CV] Regular token - excluding DATA/DEMO prompts")
+
+        search = query.order_by(Search.created_at.desc()).first()
 
         if not search:
             print(f"✗ No completed previous search found for cross-validation")

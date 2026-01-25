@@ -2212,6 +2212,28 @@ if st.session_state.all_flights:
         if st.session_state.get('search_id'):
             st.success("✅ All rankings submitted successfully!")
 
+            # Download Rankings CSV (on same page as LILO)
+            token = st.session_state.get('token')
+            if token:
+                try:
+                    from export_session_data import export_simple_rankings_csv
+                    simple_csv_file = export_simple_rankings_csv(token, output_file=None)
+                    if simple_csv_file:
+                        with open(simple_csv_file, 'r', encoding='utf-8') as f:
+                            simple_csv_data = f.read()
+                        st.download_button(
+                            label="📊 Download Your Rankings (CSV)",
+                            data=simple_csv_data,
+                            file_name=f"rankings_{token}.csv",
+                            mime="text/csv",
+                            help="Contains: prompt, flights, and your rankings"
+                        )
+                        import os
+                        if os.path.exists(simple_csv_file):
+                            os.remove(simple_csv_file)
+                except Exception as e:
+                    pass  # Silently fail - not critical
+
             st.markdown("---")
 
             # ============================================================================
@@ -3046,9 +3068,12 @@ if st.session_state.all_flights:
                     st.markdown("### 🤝 Help Validate Another Search")
                     st.markdown("*Before completing your session, please help us by ranking flights for another user's search*")
 
-                    # Fetch previous search for cross-validation
+                    # Fetch previous search for cross-validation (separate queues by token type)
                     if 'cross_val_data' not in st.session_state:
-                        st.session_state.cross_val_data = get_previous_search_for_validation(st.session_state.session_id)
+                        st.session_state.cross_val_data = get_previous_search_for_validation(
+                            st.session_state.session_id,
+                            st.session_state.get('token')
+                        )
                 except ImportError:
                     # Function not available yet (old deployment) - skip cross-validation
                     st.session_state.cross_validation_completed = True

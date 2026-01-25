@@ -223,7 +223,7 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
 
                 # Cross validation section
                 row['prompt_cross'] = cv_prompt if idx == 0 else ''
-                row['token_cross'] = cv_token if idx == 0 else ''
+                row['id_cross'] = cv_token if idx == 0 else ''
 
                 if idx < len(cv_flights):
                     cv_flight = cv_flights[idx]
@@ -269,7 +269,7 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                 'questions', 'responses', 'rank_lilo', 'utility_function',
 
                 # Cross validation section
-                'prompt_cross', 'token_cross',
+                'prompt_cross', 'id_cross',
                 'unique_id_cross', 'rank_cross', 'name_cross', 'origin_cross',
                 'destination_cross', 'departure_time_cross', 'arrival_time_cross',
                 'stops_cross', 'price_cross', 'duration_min_cross',

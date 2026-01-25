@@ -281,91 +281,90 @@ class StreamlitLILOBridge:
             flights_data=flights_data
         )
 
+        # Initialize arm_index → flight mapping (populated during iterations)
+        session.arm_index_to_flight = {}
+        session.last_shown_flights = []
+
         self.sessions[session_id] = session
         return session
 
     def _translate_question(self, question: str, session) -> str:
         """
-        Translate technical variable names to readable format and replace
-        utility weights with actual flight metrics.
+        Translate technical variable names to readable format.
+        Keeps arm indices (like 1_0, 2_0) and adds actual flight metrics.
 
-        Converts:
-        - "Flight 1 (price=0.616, ...)" → "Flight 1 (price=$450, duration=2h 30m, ...)"
-        - Uses actual flight data from the most recently shown flights
+        Example output:
+        "Comparing Flight 1_0 (price=$450, duration=2h 30m, stops=1, depart=08:00, arrive=12:30)
+         and Flight 1_1 (price=$380, duration=3h 15m, stops=0, depart=10:00, arrive=13:15)..."
         """
         import re
-        from datetime import datetime
 
-        # Replace arm_index references: "arm_index 1_3" → "Flight 3"
-        def replace_arm_index(match):
-            arm_str = match.group(1)
-            parts = arm_str.split('_')
-            if len(parts) >= 2:
-                flight_num = int(parts[1]) + 1  # +1 for human-readable numbering
-                return f"Flight {flight_num}"
+        # Get arm_index → flight mapping from session
+        arm_to_flight = getattr(session, 'arm_index_to_flight', {})
+
+        def format_flight_metrics(flight):
+            """Format flight as metrics string."""
+            if not flight:
+                return ""
+
+            price_str = f"${flight.get('price', 0):.0f}"
+
+            duration_min = flight.get('duration_min', 0)
+            hours = int(duration_min // 60)
+            mins = int(duration_min % 60)
+            duration_str = f"{hours}h {mins}m" if hours > 0 else f"{mins}m"
+
+            stops = flight.get('stops', 0)
+            stops_str = "direct" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
+
+            # Format times - extract time portion from ISO format
+            def format_time(time_str):
+                if not time_str:
+                    return 'N/A'
+                try:
+                    if 'T' in str(time_str):
+                        time_part = str(time_str).split('T')[1].split('.')[0]
+                        return time_part[:5]
+                    return str(time_str)[:5]
+                except:
+                    return 'N/A'
+
+            dept_time = format_time(flight.get('departure_time', ''))
+            arr_time = format_time(flight.get('arrival_time', ''))
+
+            return f"(price={price_str}, duration={duration_str}, stops={stops_str}, depart={dept_time}, arrive={arr_time})"
+
+        def replace_arm_with_metrics(match):
+            """Replace arm_index reference with Flight + arm_index + metrics."""
+            full_match = match.group(0)
+            arm_str = match.group(2)  # e.g., "1_0"
+
+            # Look up flight for this arm_index
+            flight = arm_to_flight.get(arm_str)
+            metrics = format_flight_metrics(flight) if flight else ""
+
+            # Return Flight arm_index with metrics
+            if metrics:
+                return f"Flight {arm_str} {metrics}"
             return f"Flight {arm_str}"
 
-        question = re.sub(r'arm_index (\d+_\d+)', replace_arm_index, question)
-        question = re.sub(r'arm_(\d+_\d+)', replace_arm_index, question)
-        question = re.sub(r'arm (\d+_\d+)', replace_arm_index, question)
+        # Replace various arm_index patterns and add metrics
+        # Patterns: "arm_index 1_0", "arm_1_0", "arm 1_0"
+        question = re.sub(r'(arm_index\s+)(\d+_\d+)', replace_arm_with_metrics, question)
+        question = re.sub(r'(arm_)(\d+_\d+)', replace_arm_with_metrics, question)
+        question = re.sub(r'(arm\s+)(\d+_\d+)', replace_arm_with_metrics, question)
 
-        # Use the flights stored in session.last_shown_flights
-        last_flights = session.last_shown_flights if hasattr(session, 'last_shown_flights') else []
+        # Also catch standalone references like "1_0" that weren't prefixed
+        def replace_standalone_arm(match):
+            arm_str = match.group(1)
+            flight = arm_to_flight.get(arm_str)
+            metrics = format_flight_metrics(flight) if flight else ""
+            if metrics:
+                return f"Flight {arm_str} {metrics}"
+            return f"Flight {arm_str}"
 
-        # Replace parenthetical weight data with actual flight metrics
-        # Pattern: "Flight N (price=0.123, duration=0.456, ...)"
-        def replace_flight_data(match):
-            flight_label = match.group(1)  # "Flight 1", "Flight 2", etc.
-
-            # Extract flight number
-            flight_num_match = re.search(r'Flight\s+(\d+)', flight_label)
-            if not flight_num_match:
-                return match.group(0)  # Return unchanged if can't parse
-
-            flight_idx = int(flight_num_match.group(1)) - 1  # 0-indexed
-
-            # Get the actual flight data
-            if 0 <= flight_idx < len(last_flights):
-                flight = last_flights[flight_idx]
-
-                # Format actual flight metrics
-                price_str = f"${flight.get('price', 0):.0f}"
-
-                duration_min = flight.get('duration_min', 0)
-                hours = int(duration_min // 60)
-                mins = int(duration_min % 60)
-                duration_str = f"{hours}h {mins}m" if hours > 0 else f"{mins}m"
-
-                stops = flight.get('stops', 0)
-                stops_str = "Direct" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
-
-                # Format times properly - extract time portion from ISO format
-                def format_time(time_str):
-                    if not time_str:
-                        return 'N/A'
-                    try:
-                        # Parse ISO format like "2026-01-27T17:17:00"
-                        if 'T' in time_str:
-                            time_part = time_str.split('T')[1].split('.')[0]  # Get HH:MM:SS
-                            return time_part[:5]  # Return HH:MM
-                        return time_str[:5]
-                    except:
-                        return 'N/A'
-
-                dept_time = format_time(flight.get('departure_time', ''))
-                arr_time = format_time(flight.get('arrival_time', ''))
-
-                # Build replacement string
-                return f"{flight_label} (price={price_str}, duration={duration_str}, stops={stops_str}, depart={dept_time}, arrive={arr_time})"
-
-            return match.group(0)  # Return unchanged if flight not found
-
-        # Match "Flight N (...)" pattern
-        question = re.sub(
-            r'(Flight\s+\d+)\s*\([^)]+\)',
-            replace_flight_data,
-            question
-        )
+        # Only replace standalone arm indices not already preceded by "Flight "
+        question = re.sub(r'(?<!Flight )(?<!Flight)(\d+_\d+)', replace_standalone_arm, question)
 
         # Replace variable names
         question = question.replace("y_names", "flight attributes")
@@ -544,6 +543,14 @@ class StreamlitLILOBridge:
 
         # Store flights for question translation
         session.last_shown_flights = flights_to_show
+
+        # Build arm_index → flight mapping for this iteration
+        # arm_index format is "{trial_index+1}_{flight_idx}" since update_exp_data used trial_index+1
+        if not hasattr(session, 'arm_index_to_flight'):
+            session.arm_index_to_flight = {}
+        for i, flight in enumerate(flights_to_show):
+            arm_idx = f"{trial_index + 1}_{i}"
+            session.arm_index_to_flight[arm_idx] = flight
 
         # 7. Translate technical variable names to readable format
         translated_questions = [
