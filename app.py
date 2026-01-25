@@ -967,332 +967,6 @@ else:
     # Show success message for valid token
     st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
-# Admin button at top right - plain text
-st.markdown("""
-<style>
-.admin-btn-fixed {
-    position: fixed !important;
-    top: 10px !important;
-    right: 20px !important;
-    z-index: 9999 !important;
-}
-</style>
-<div class="admin-btn-fixed">
-""", unsafe_allow_html=True)
-
-if st.button("Admin", type="secondary", key="admin_top_btn"):
-    # Inline admin page instead of separate page
-    st.session_state.show_admin = True
-    st.rerun()
-
-st.markdown('</div>', unsafe_allow_html=True)
-
-# Show inline admin if requested
-if st.session_state.get('show_admin', False):
-    st.markdown("### 🔧 Admin Panel - Complete Research Data")
-
-    # Import admin utilities
-    from admin_utils import get_all_sessions_summary, get_complete_session_detail, export_session_csv
-
-    # Back button
-    if st.button("← Back to Main"):
-        st.session_state.show_admin = False
-        st.session_state.selected_session_token = None
-        st.rerun()
-
-    st.markdown("---")
-
-    # Check if viewing specific session detail
-    if st.session_state.get('selected_session_token'):
-        token = st.session_state.selected_session_token
-
-        # Back to list button
-        if st.button("← Back to Sessions List"):
-            st.session_state.selected_session_token = None
-            st.rerun()
-
-        st.markdown("---")
-
-        # Get detailed session data
-        with st.spinner("Loading complete session data..."):
-            detail = get_complete_session_detail(token)
-
-        if not detail:
-            st.error("❌ Session not found")
-        else:
-            # Session header
-            status_badge = "✅ Completed" if detail['is_completed'] else "⏳ In Progress"
-            st.markdown(f"## Session: `{detail['completion_token']}` {status_badge}")
-            st.caption(f"Session ID: {detail['session_id']}")
-            date_label = "Completed" if detail['is_completed'] else "Started"
-            st.caption(f"{date_label}: {detail['completed_at'].strftime('%Y-%m-%d %H:%M:%S')}")
-
-            st.markdown("---")
-
-            # 1. FLIGHT SEARCH DATA
-            if detail['search']:
-                st.markdown("### ✈️ Flight Search")
-                search = detail['search']
-
-                # Extract origin/destination from JSON fields
-                origin_str = str(search['origin'][0]) if search['origin'] and isinstance(search['origin'], list) and len(search['origin']) > 0 else str(search['origin']) if search['origin'] else 'N/A'
-                dest_str = str(search['destination'][0]) if search['destination'] and isinstance(search['destination'], list) and len(search['destination']) > 0 else str(search['destination']) if search['destination'] else 'N/A'
-
-                st.metric("Route", f"{origin_str} → {dest_str}")
-
-                with st.expander("Search Details"):
-                    st.markdown(f"**User Prompt:** {search['prompt']}")
-                    st.text(f"Search ID: {search['search_id']}")
-                    st.text(f"Departure: {search.get('departure_date', 'N/A')}")
-                    st.text(f"Searched at: {search['created_at'].strftime('%Y-%m-%d %H:%M:%S')}")
-
-                st.markdown("---")
-
-            # 2. USER RANKINGS
-            if detail['user_rankings']:
-                st.markdown(f"### 🎯 User Manual Rankings ({len(detail['user_rankings'])} flights)")
-                with st.expander("View All User Rankings"):
-                    for ranking in detail['user_rankings'][:10]:
-                        st.text(
-                            f"Rank #{ranking['rank']}: Flight ID {ranking['flight_id']} | "
-                            f"Ranked at: {ranking['created_at'].strftime('%Y-%m-%d %H:%M:%S')}"
-                        )
-                    if len(detail['user_rankings']) > 10:
-                        st.caption(f"... and {len(detail['user_rankings']) - 10} more")
-
-                st.markdown("---")
-
-            # 3. CROSS-VALIDATION
-            if detail['cross_validation']:
-                st.markdown(f"### ✅ Cross-Validation ({len(detail['cross_validation'])} reviews)")
-                cv_total = len(detail['cross_validation'])
-
-                st.metric("Total Cross-Validation Reviews", cv_total)
-
-                with st.expander("View Cross-Validation Details"):
-                    for i, cv in enumerate(detail['cross_validation'], 1):
-                        st.markdown(f"**Review #{i}**")
-                        st.text(f"Reviewed Session: {cv['reviewed_session_id'][:30]}...")
-                        st.text(f"Reviewed Prompt: {cv['reviewed_prompt'][:80]}...")
-                        st.text(f"Selected {len(cv.get('selected_flight_ids', []))} flights")
-                        st.text(f"Reviewed at: {cv['created_at'].strftime('%Y-%m-%d %H:%M:%S')}")
-                        st.markdown("---")
-
-                st.markdown("---")
-
-            # 4. SURVEY RESPONSE
-            if detail['survey']:
-                st.markdown("### 📝 Survey Response")
-                survey = detail['survey']
-
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Satisfaction", f"{survey['satisfaction']}/5")
-                with col2:
-                    st.metric("Ease of Use", f"{survey['ease_of_use']}/5")
-                with col3:
-                    st.metric("Would Use Again", survey['would_use_again'])
-
-                with st.expander("Full Survey Responses"):
-                    st.markdown(f"**Search Method:** {survey['search_method']}")
-                    st.markdown(f"**Understood Ranking:** {survey['understood_ranking']}/5")
-                    st.markdown(f"**Flights Matched Expectations:** {survey['flights_matched']}/5")
-                    st.markdown(f"**Compared to Other Tools:** {survey['compared_to_others']}/5")
-                    if survey['helpful_features']:
-                        st.markdown(f"**Helpful Features:** {', '.join(survey['helpful_features'])}")
-                    if survey['encountered_issues'] == 'Yes' and survey['issues_description']:
-                        st.markdown(f"**Issues:** {survey['issues_description']}")
-                    if survey['confusing_frustrating']:
-                        st.markdown(f"**Confusing/Frustrating:** {survey['confusing_frustrating']}")
-                    if survey['missing_features']:
-                        st.markdown(f"**Missing Features:** {survey['missing_features']}")
-                    if survey['would_use_again_reason']:
-                        st.markdown(f"**Reason:** {survey['would_use_again_reason']}")
-                    if survey['additional_comments']:
-                        st.markdown(f"**Additional Comments:** {survey['additional_comments']}")
-
-                st.markdown("---")
-
-            # 5. LILO DATA
-            if detail['lilo']:
-                lilo = detail['lilo']
-                st.markdown("### 🤖 LILO (Language-Informed Latent Optimization)")
-
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Iterations", lilo['num_iterations'])
-                with col2:
-                    st.metric("Questions/Round", lilo['questions_per_round'])
-                with col3:
-                    status = "✅ Complete" if lilo['completed_at'] else "⏳ In Progress"
-                    st.metric("Status", status)
-
-                # Utility Statistics
-                if lilo['rankings']['utility_stats']:
-                    st.markdown("#### 📊 Learned Utility Function")
-                    stats = lilo['rankings']['utility_stats']
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Max", f"{stats['max']:.4f}")
-                    with col2:
-                        st.metric("Min", f"{stats['min']:.4f}")
-                    with col3:
-                        st.metric("Avg", f"{stats['avg']:.4f}")
-                    with col4:
-                        st.metric("Range", f"{stats['range']:.4f}")
-
-                # Chat Transcript
-                if lilo['chat_transcript']:
-                    st.markdown("#### 💬 LILO Chat Transcript")
-                    for round_num in sorted(lilo['chat_transcript'].keys()):
-                        with st.expander(f"Round {round_num} ({len(lilo['chat_transcript'][round_num])} messages)"):
-                            for msg in lilo['chat_transcript'][round_num]:
-                                speaker = "🤖" if msg['is_bot'] else "👤"
-                                st.markdown(f"{speaker} {msg['text']}")
-
-                # Top Rankings
-                if lilo['rankings']['top_10']:
-                    st.markdown(f"#### 🏆 Top 10 Flights by LILO Utility ({lilo['rankings']['total']} total)")
-                    import pandas as pd
-                    top_data = []
-                    for r in lilo['rankings']['top_10']:
-                        flight = r['flight_data']
-                        top_data.append({
-                            'Rank': r['rank'],
-                            'Utility': f"{r['utility_score']:.4f}",
-                            'Price': flight.get('price'),
-                            'Duration': flight.get('duration_min'),
-                            'Stops': flight.get('stops'),
-                            'Airline': flight.get('airline', 'N/A')[:30]
-                        })
-                    st.dataframe(pd.DataFrame(top_data), use_container_width=True, hide_index=True)
-
-            # Export buttons
-            st.markdown("---")
-            st.markdown("### 📥 Export Data")
-
-            from admin_utils import (
-                export_manual_rankings_csv,
-                export_cross_validation_csv,
-                export_survey_csv,
-                export_lilo_full_csv
-            )
-
-            col1, col2, col3, col4 = st.columns(4)
-
-            with col1:
-                if detail.get('user_rankings'):
-                    csv_data = export_manual_rankings_csv(token)
-                    if csv_data:
-                        st.download_button(
-                            label="📊 Manual Rankings",
-                            data=csv_data,
-                            file_name=f"manual_rankings_{detail['completion_token']}.csv",
-                            mime="text/csv",
-                            use_container_width=True
-                        )
-                else:
-                    st.button("📊 Manual Rankings", disabled=True, use_container_width=True)
-
-            with col2:
-                if detail.get('cross_validation'):
-                    csv_data = export_cross_validation_csv(token)
-                    if csv_data:
-                        st.download_button(
-                            label="✅ Cross-Validation",
-                            data=csv_data,
-                            file_name=f"cross_validation_{detail['completion_token']}.csv",
-                            mime="text/csv",
-                            use_container_width=True
-                        )
-                else:
-                    st.button("✅ Cross-Validation", disabled=True, use_container_width=True)
-
-            with col3:
-                if detail.get('survey'):
-                    csv_data = export_survey_csv(token)
-                    if csv_data:
-                        st.download_button(
-                            label="📝 Survey",
-                            data=csv_data,
-                            file_name=f"survey_{detail['completion_token']}.csv",
-                            mime="text/csv",
-                            use_container_width=True
-                        )
-                else:
-                    st.button("📝 Survey", disabled=True, use_container_width=True)
-
-            with col4:
-                if detail.get('lilo'):
-                    csv_data = export_lilo_full_csv(token)
-                    if csv_data:
-                        st.download_button(
-                            label="🤖 LILO Full Data",
-                            data=csv_data,
-                            file_name=f"lilo_full_{detail['completion_token']}.csv",
-                            mime="text/csv",
-                            use_container_width=True
-                        )
-                    else:
-                        st.button("🤖 LILO Full Data", disabled=True, use_container_width=True)
-                else:
-                    st.button("🤖 LILO Full Data", disabled=True, use_container_width=True)
-
-    else:
-        # Show list of all sessions
-        st.markdown("## All Research Sessions")
-
-        with st.spinner("Loading sessions..."):
-            sessions = get_all_sessions_summary()
-
-        if not sessions:
-            st.info("No sessions found in database.")
-        else:
-            st.markdown(f"**Total Sessions:** {len(sessions)}")
-            st.markdown("---")
-
-            # Display each session as a card
-            for sess in sessions:
-                with st.container():
-                    col1, col2 = st.columns([3, 1])
-
-                    with col1:
-                        # Session header
-                        st.markdown(f"### 📊 Token: `{sess['completion_token']}`")
-                        st.caption(f"Completed: {sess['completed_at'].strftime('%Y-%m-%d %H:%M')}")
-
-                        # Show what data exists
-                        data_indicators = []
-                        if sess['has_search']:
-                            # Extract origin/destination from JSON fields
-                            origin_str = str(sess['origin'][0]) if sess['origin'] and isinstance(sess['origin'], list) and len(sess['origin']) > 0 else str(sess['origin'])[:20] if sess['origin'] else 'N/A'
-                            dest_str = str(sess['destination'][0]) if sess['destination'] and isinstance(sess['destination'], list) and len(sess['destination']) > 0 else str(sess['destination'])[:20] if sess['destination'] else 'N/A'
-                            data_indicators.append(f"✈️ Search ({origin_str} → {dest_str})")
-                        if sess['has_survey']:
-                            data_indicators.append(f"📝 Survey (satisfaction: {sess['survey_satisfaction']}/5)")
-                        if sess['has_cv']:
-                            data_indicators.append(f"✅ Cross-Val ({sess['cv_count']} reviews)")
-                        if sess['has_lilo']:
-                            lilo_status = "✅" if sess['lilo_completed'] else "⏳"
-                            data_indicators.append(f"{lilo_status} LILO ({sess['lilo_rankings']} flights ranked)")
-
-                        for indicator in data_indicators:
-                            st.text(indicator)
-
-                        if sess['search_prompt']:
-                            st.caption(f"Prompt: {sess['search_prompt'][:80]}...")
-
-                    with col2:
-                        # View details button - use session_id for in-progress, token for completed
-                        identifier = sess['completion_token'] if sess['is_completed'] else sess['session_id']
-                        if st.button("View Details", key=f"view_{sess['session_id']}"):
-                            st.session_state.selected_session_token = identifier
-                            st.rerun()
-
-                    st.markdown("---")
-
-    st.stop()
-
 # Initialize interactive demo/tutorial mode
 init_demo_mode()
 
@@ -1814,6 +1488,7 @@ voice_to_text_html = """
         justify-content: flex-end;
         margin-top: -10px;
         margin-bottom: 10px;
+        align-items: center;
     }
     .voice-btn {
         background: #f0f2f6;
@@ -1846,6 +1521,10 @@ voice_to_text_html = """
         font-size: 12px;
         color: #666;
         margin-left: 10px;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 </style>
 <div class="voice-btn-container">
@@ -1858,6 +1537,13 @@ voice_to_text_html = """
 <script>
     let recognition = null;
     let isRecording = false;
+
+    // Helper to properly set textarea value in React/Streamlit
+    function setNativeValue(element, value) {
+        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+        valueSetter.call(element, value);
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+    }
 
     function toggleVoiceRecording() {
         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -1891,7 +1577,7 @@ voice_to_text_html = """
         };
 
         recognition.onresult = function(event) {
-            // Find the Streamlit textarea
+            // Find the Streamlit textarea in parent document
             const textarea = window.parent.document.querySelector('textarea[aria-label="flight prompt input"]');
             if (textarea) {
                 let finalTranscript = '';
@@ -1904,9 +1590,8 @@ voice_to_text_html = """
                     // Append to existing text
                     const currentValue = textarea.value;
                     const newValue = currentValue ? currentValue + ' ' + finalTranscript : finalTranscript;
-                    textarea.value = newValue;
-                    // Trigger input event to update Streamlit state
-                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                    // Use native setter to properly update React state
+                    setNativeValue(textarea, newValue);
                     status.textContent = 'Added: "' + finalTranscript.substring(0, 30) + (finalTranscript.length > 30 ? '..."' : '"');
                 }
             }
