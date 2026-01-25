@@ -2212,39 +2212,6 @@ if st.session_state.all_flights:
         if st.session_state.get('search_id'):
             st.success("✅ All rankings submitted successfully!")
 
-            # Download Rankings CSV
-            st.markdown("### 📥 Download Your Rankings")
-            st.markdown("You can download your prompt and ranked flights as a CSV:")
-
-            token = st.session_state.get('token')
-            if token:
-                try:
-                    from export_session_data import export_simple_rankings_csv
-
-                    # Generate simplified rankings CSV
-                    simple_csv_file = export_simple_rankings_csv(token, output_file=None)
-
-                    if simple_csv_file:
-                        with open(simple_csv_file, 'r', encoding='utf-8') as f:
-                            simple_csv_data = f.read()
-
-                        # Provide simplified download button
-                        st.download_button(
-                            label="📊 Download Rankings (CSV)",
-                            data=simple_csv_data,
-                            file_name=f"rankings_{token}.csv",
-                            mime="text/csv",
-                            use_container_width=True,
-                            help="Contains: prompt, flights, and your rankings"
-                        )
-
-                        # Clean up temp file
-                        import os
-                        if os.path.exists(simple_csv_file):
-                            os.remove(simple_csv_file)
-                except Exception as e:
-                    st.error(f"⚠️ Error generating CSV: {str(e)}")
-
             st.markdown("---")
 
             # ============================================================================
