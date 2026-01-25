@@ -57,85 +57,6 @@ def render_chat_message(message, is_bot=True):
         </div>
         """, unsafe_allow_html=True)
 
-def get_feature_color(value, min_val, max_val, reverse=False):
-    """Get color for feature comparison (green=better, red=worse)."""
-    if max_val == min_val:
-        return "#808080"  # Gray if same
-
-    # Normalize to 0-1
-    normalized = (value - min_val) / (max_val - min_val)
-
-    # Reverse for things where lower is better (price, duration)
-    if reverse:
-        normalized = 1 - normalized
-
-    # Interpolate between red and green
-    if normalized < 0.5:
-        # Red to yellow
-        r, g, b = 255, int(255 * (normalized * 2)), 0
-    else:
-        # Yellow to green
-        r, g, b = int(255 * (1 - (normalized - 0.5) * 2)), 255, 0
-
-    return f"rgb({r},{g},{b})"
-
-def render_flight_comparison(flight_a, flight_b, label_a="Flight A", label_b="Flight B"):
-    """Render two flights side-by-side with color-coded features."""
-    col1, col2 = st.columns(2)
-
-    # Extract features for comparison
-    features = {
-        'Price': (flight_a.get('price', 0), flight_b.get('price', 0), True),  # True = lower is better
-        'Duration': (flight_a.get('duration_min', 0), flight_b.get('duration_min', 0), True),
-        'Stops': (flight_a.get('stops', 0), flight_b.get('stops', 0), True),
-    }
-
-    with col1:
-        st.markdown(f"### {label_a}")
-        st.markdown(f"**{flight_a.get('airline', 'Unknown')}** {flight_a.get('flight_number', '')}")
-        st.markdown(f"{flight_a.get('origin', '')} → {flight_a.get('destination', '')}")
-        st.markdown(f"**Departs:** {flight_a.get('departure_time', 'N/A')}")
-        st.markdown(f"**Arrives:** {flight_a.get('arrival_time', 'N/A')}")
-
-        st.markdown("---")
-        for feature_name, (val_a, val_b, reverse) in features.items():
-            color = get_feature_color(val_a, min(val_a, val_b), max(val_a, val_b), reverse)
-            if feature_name == 'Price':
-                display_val = f"${val_a:.0f}"
-            elif feature_name == 'Duration':
-                display_val = f"{val_a//60}h {val_a%60}m"
-            else:
-                display_val = str(val_a)
-
-            st.markdown(f"""
-            <div style="background: {color}; padding: 8px; border-radius: 5px; margin: 5px 0;">
-                <strong>{feature_name}:</strong> {display_val}
-            </div>
-            """, unsafe_allow_html=True)
-
-    with col2:
-        st.markdown(f"### {label_b}")
-        st.markdown(f"**{flight_b.get('airline', 'Unknown')}** {flight_b.get('flight_number', '')}")
-        st.markdown(f"{flight_b.get('origin', '')} → {flight_b.get('destination', '')}")
-        st.markdown(f"**Departs:** {flight_b.get('departure_time', 'N/A')}")
-        st.markdown(f"**Arrives:** {flight_b.get('arrival_time', 'N/A')}")
-
-        st.markdown("---")
-        for feature_name, (val_a, val_b, reverse) in features.items():
-            color = get_feature_color(val_b, min(val_a, val_b), max(val_a, val_b), reverse)
-            if feature_name == 'Price':
-                display_val = f"${val_b:.0f}"
-            elif feature_name == 'Duration':
-                display_val = f"{val_b//60}h {val_b%60}m"
-            else:
-                display_val = str(val_b)
-
-            st.markdown(f"""
-            <div style="background: {color}; padding: 8px; border-radius: 5px; margin: 5px 0;">
-                <strong>{feature_name}:</strong> {display_val}
-            </div>
-            """, unsafe_allow_html=True)
-
 # Initialize database (create tables if they don't exist)
 try:
     from backend.db import init_db
@@ -2475,10 +2396,6 @@ if st.session_state.all_flights:
 
                 # Display ALL chat history (persists across rounds)
                 for msg_idx, msg in enumerate(st.session_state.lilo_chat_history):
-                    if msg.get('flights'):
-                        # Show flight comparison
-                        render_flight_comparison(msg['flights'][0], msg['flights'][1], "Option A", "Option B")
-
                     # For user messages, add an edit button
                     if not msg.get('is_bot'):
                         col1, col2 = st.columns([20, 1])
@@ -2597,16 +2514,6 @@ if st.session_state.all_flights:
 
                             st.session_state.lilo_answers = {}
                             st.session_state.lilo_round += 1
-
-                            # Add flights to chat if available
-                            if len(flights) >= 2:
-                                comparison_msg = "Here are the options I found:" if current_round == 0 else "Here are refined options:"
-                                st.session_state.lilo_chat_history.append({
-                                    'text': comparison_msg,
-                                    'is_bot': True,
-                                    'flights': [flights[0], flights[1]],
-                                    'round': current_round + 1  # +1 because we just incremented
-                                })
 
                             # DEBUG: Check session state before rerun
                             print(f"[LILO DEBUG] Before rerun - all_flights exists: {bool(st.session_state.get('all_flights'))}, count: {len(st.session_state.get('all_flights', []))}")
