@@ -65,6 +65,13 @@ except Exception as e:
     # Don't crash the app if database setup fails, just log it
     print(f"Database initialization: {str(e)}")
 
+# Seed cross-validation data for DEMO and DATA tokens (runs once)
+try:
+    from seed_cross_validation import seed_cross_validation_data
+    seed_cross_validation_data()
+except Exception as e:
+    print(f"Cross-validation seed: {str(e)}")
+
 # Airline code to name mapping (common IATA codes)
 AIRLINE_NAMES = {
     'AA': 'American Airlines',
