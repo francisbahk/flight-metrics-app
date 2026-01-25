@@ -445,6 +445,8 @@ if 'review_confirmed' not in st.session_state:
     st.session_state.review_confirmed = False
 if 'lilo_completed' not in st.session_state:
     st.session_state.lilo_completed = False
+if 'lilo_answers_confirmed' not in st.session_state:
+    st.session_state.lilo_answers_confirmed = False
 if 'lilo_round' not in st.session_state:
     st.session_state.lilo_round = 0  # 0 = round 1, 1 = round 2
 if 'lilo_optimizer' not in st.session_state:
@@ -2516,85 +2518,116 @@ if st.session_state.all_flights:
 
                 # Check if LILO is complete (Round 2 questions all answered)
                 elif current_idx >= len(questions) and current_round == 2:
-                    # Save final iteration and compute rankings (do this ONCE)
-                    if not st.session_state.get('lilo_data_saved'):
-                        # Wrap all database operations in try-except to prevent breaking LILO
-                        try:
-                            from backend.db import save_lilo_iteration, save_lilo_final_rankings, save_lilo_chat_transcript, complete_lilo_session
+                    # Show confirmation page before finalizing
+                    if not st.session_state.get('lilo_answers_confirmed'):
+                        st.markdown("### ✅ Review Your Answers")
+                        st.markdown("Please review your responses before proceeding. You can go back and edit any answer if needed.")
+                        st.markdown("---")
 
-                            lilo_db_id = st.session_state.get('lilo_db_session_id')
-                            if lilo_db_id:
-                                # Save final iteration (round 2)
-                                save_lilo_iteration(
-                                    lilo_session_id=lilo_db_id,
-                                    iteration_number=2,
-                                    user_responses=st.session_state.lilo_answers,
-                                    flights_shown=[],
-                                    utility_params=None,
-                                    acquisition_values=None
-                                )
+                        # Display all Q&A pairs from chat history
+                        qa_pairs = []
+                        current_q = None
+                        for msg in st.session_state.lilo_chat_history:
+                            if msg.get('is_bot') and '?' in msg.get('text', ''):
+                                current_q = msg.get('text', '')
+                            elif not msg.get('is_bot') and current_q:
+                                qa_pairs.append((current_q, msg.get('text', '')))
+                                current_q = None
 
-                                # Save complete chat transcript
-                                # Add metadata for rounds/indices
-                                chat_with_metadata = []
-                                msg_idx = 0
-                                for msg in st.session_state.lilo_chat_history:
-                                    chat_with_metadata.append({
-                                        'text': msg.get('text', ''),
-                                        'is_bot': msg.get('is_bot', False),
-                                        'round': msg.get('round', 0),  # Use round from message, default to 0
-                                        'index': msg_idx,
-                                        'flight_a': msg.get('flights', [None])[0] if msg.get('flights') else None,
-                                        'flight_b': msg.get('flights', [None, None])[1] if msg.get('flights') and len(msg.get('flights')) > 1 else None
-                                    })
-                                    msg_idx += 1
+                        for i, (q, a) in enumerate(qa_pairs, 1):
+                            with st.expander(f"Question {i}", expanded=False):
+                                st.markdown(f"**Q:** {q}")
+                                st.markdown(f"**Your answer:** {a}")
 
-                                save_lilo_chat_transcript(lilo_db_id, chat_with_metadata)
+                        st.markdown("---")
+                        st.warning("⚠️ Once you confirm, your answers will be saved and you cannot go back.")
 
-                                # Compute final rankings
-                                with st.spinner("Computing final flight rankings..."):
-                                    all_flights = st.session_state.get('all_flights_data', [])
-                                    ranked_flights = st.session_state.lilo_bridge.compute_final_rankings(
-                                        st.session_state.lilo_session_id,
-                                        all_flights
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("✅ Confirm Answers", type="primary", use_container_width=True):
+                                st.session_state.lilo_answers_confirmed = True
+                                st.rerun()
+                        with col2:
+                            st.markdown("*Use the edit buttons (✏️) above to modify any answer*")
+
+                    else:
+                        # Answers confirmed - save final iteration and compute rankings
+                        if not st.session_state.get('lilo_data_saved'):
+                            # Wrap all database operations in try-except to prevent breaking LILO
+                            try:
+                                from backend.db import save_lilo_iteration, save_lilo_final_rankings, save_lilo_chat_transcript, complete_lilo_session
+
+                                lilo_db_id = st.session_state.get('lilo_db_session_id')
+                                if lilo_db_id:
+                                    # Save final iteration (round 2)
+                                    save_lilo_iteration(
+                                        lilo_session_id=lilo_db_id,
+                                        iteration_number=2,
+                                        user_responses=st.session_state.lilo_answers,
+                                        flights_shown=[],
+                                        utility_params=None,
+                                        acquisition_values=None
                                     )
 
-                                    # Save rankings and get CSV
-                                    csv_data = save_lilo_final_rankings(lilo_db_id, ranked_flights)
-                                    st.session_state.lilo_rankings_csv = csv_data
+                                    # Save complete chat transcript
+                                    chat_with_metadata = []
+                                    msg_idx = 0
+                                    for msg in st.session_state.lilo_chat_history:
+                                        chat_with_metadata.append({
+                                            'text': msg.get('text', ''),
+                                            'is_bot': msg.get('is_bot', False),
+                                            'round': msg.get('round', 0),
+                                            'index': msg_idx,
+                                            'flight_a': msg.get('flights', [None])[0] if msg.get('flights') else None,
+                                            'flight_b': msg.get('flights', [None, None])[1] if msg.get('flights') and len(msg.get('flights')) > 1 else None
+                                        })
+                                        msg_idx += 1
 
-                                    # Mark LILO session as complete
-                                    complete_lilo_session(lilo_db_id)
+                                    save_lilo_chat_transcript(lilo_db_id, chat_with_metadata)
 
-                                    print(f"✓ LILO data saved: session {lilo_db_id}, {len(ranked_flights)} flights ranked")
+                                    # Compute final rankings
+                                    with st.spinner("Computing final flight rankings..."):
+                                        all_flights = st.session_state.get('all_flights_data', [])
+                                        ranked_flights = st.session_state.lilo_bridge.compute_final_rankings(
+                                            st.session_state.lilo_session_id,
+                                            all_flights
+                                        )
 
-                        except Exception as e:
-                            print(f"⚠️ Non-critical: Failed to save LILO data to database: {e}")
-                            import traceback
-                            traceback.print_exc()
-                            # Continue anyway - LILO can complete without database saves
+                                        # Save rankings and get CSV
+                                        csv_data = save_lilo_final_rankings(lilo_db_id, ranked_flights)
+                                        st.session_state.lilo_rankings_csv = csv_data
 
-                        st.session_state.lilo_data_saved = True
+                                        # Mark LILO session as complete
+                                        complete_lilo_session(lilo_db_id)
 
-                    # Only add completion message once
-                    completion_msg = "Perfect! I've learned your preferences. LILO is complete! ✅"
-                    if not st.session_state.lilo_chat_history or st.session_state.lilo_chat_history[-1].get('text') != completion_msg:
-                        st.session_state.lilo_chat_history.append({'text': completion_msg, 'is_bot': True, 'round': current_round})
+                                        print(f"✓ LILO data saved: session {lilo_db_id}, {len(ranked_flights)} flights ranked")
 
-                    render_chat_message(completion_msg, is_bot=True)
+                            except Exception as e:
+                                print(f"⚠️ Non-critical: Failed to save LILO data to database: {e}")
+                                import traceback
+                                traceback.print_exc()
 
-                    # Complete LILO and move to cross-validation (skip animation for cleaner transition)
-                    st.markdown("---")
-                    st.info("🎯 Thank you! Moving to the next section...")
+                            st.session_state.lilo_data_saved = True
 
-                    # Mark LILO as completed and skip animation
-                    st.session_state.lilo_completed = True
-                    st.session_state.show_evaluation_animation = False
+                        # Only add completion message once
+                        completion_msg = "Perfect! I've learned your preferences. LILO is complete! ✅"
+                        if not st.session_state.lilo_chat_history or st.session_state.lilo_chat_history[-1].get('text') != completion_msg:
+                            st.session_state.lilo_chat_history.append({'text': completion_msg, 'is_bot': True, 'round': current_round})
 
-                    # Small delay then rerun for smooth transition
-                    import time
-                    time.sleep(1)
-                    st.rerun()
+                        render_chat_message(completion_msg, is_bot=True)
+
+                        # Complete LILO and move to cross-validation
+                        st.markdown("---")
+                        st.info("🎯 Thank you! Moving to the next section...")
+
+                        # Mark LILO as completed and skip animation
+                        st.session_state.lilo_completed = True
+                        st.session_state.show_evaluation_animation = False
+
+                        # Small delay then rerun for smooth transition
+                        import time
+                        time.sleep(1)
+                        st.rerun()
 
                 # Show current question
                 elif current_idx < len(questions):
@@ -3835,6 +3868,8 @@ if st.session_state.all_flights:
                     st.session_state.cross_val_selected = []
                     st.session_state.survey_completed = False
                     st.session_state.completion_page_dismissed = False
+                    st.session_state.lilo_answers_confirmed = False
+                    st.session_state.lilo_data_saved = False
 
                     st.info("🔄 Refresh the page to start a new search!")
                     st.stop()
@@ -3888,6 +3923,8 @@ if st.session_state.all_flights:
                 st.session_state.cv_checkbox_version = 0
                 st.session_state.cv_sort_price_dir = 'asc'
                 st.session_state.cv_sort_duration_dir = 'asc'
+                st.session_state.lilo_answers_confirmed = False
+                st.session_state.lilo_data_saved = False
                 # Delete the prompt key to reset it (can't set widget values directly)
                 if 'flight_prompt_input' in st.session_state:
                     del st.session_state.flight_prompt_input

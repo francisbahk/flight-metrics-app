@@ -366,6 +366,14 @@ class StreamlitLILOBridge:
         # Only replace standalone arm indices not already preceded by "Flight "
         question = re.sub(r'(?<!Flight )(?<!Flight)(\d+_\d+)', replace_standalone_arm, question)
 
+        # Remove normalized weight values that the LLM may have included
+        # Pattern: (price: 0.xxx, duration: 0.xxx, stops: 0, departure_hour: 0.xxx, arrival_hour: 0.xxx)
+        question = re.sub(
+            r'\s*\(price:\s*[\d.]+,\s*duration:\s*[\d.]+,\s*stops:\s*[\d.]+,\s*departure_hour:\s*[\d.]+,\s*arrival_hour:\s*[\d.]+\)',
+            '',
+            question
+        )
+
         # Replace variable names
         question = question.replace("y_names", "flight attributes")
         question = question.replace("decision maker", "you")
