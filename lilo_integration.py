@@ -367,10 +367,11 @@ class StreamlitLILOBridge:
         question = re.sub(r'(?<!Flight )(?<!Flight)(\d+_\d+)', replace_standalone_arm, question)
 
         # Remove normalized weight values that the LLM may have included
-        # Various patterns: (price: 0.xxx, duration_min: 0.xxx, stops: N, departure_hour: 0.xxx, arrival_hour: 0.xxx)
-        # Make pattern flexible to catch variations
+        # Catch BOTH formats:
+        # - Colon format: (price: 0.xxx, duration_min: 0.xxx, ...)
+        # - Equals format: (price=0.xxx, duration=0.xxx, ...)
         question = re.sub(
-            r'\s*\(price:\s*[\d.]+,\s*duration(?:_min)?:\s*[\d.]+,\s*stops:\s*[\d.]+,\s*departure_hour:\s*[\d.]+,\s*arrival_hour:\s*[\d.]+\)',
+            r'\s*\(price[=:]\s*[\d.]+,\s*duration(?:_min)?[=:]\s*[\d.]+,\s*stops[=:]\s*[\d.]+,\s*departure(?:_hour)?[=:]\s*[\d.]+,\s*arrival(?:_hour)?[=:]\s*[\d.]+\)',
             '',
             question
         )

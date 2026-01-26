@@ -205,7 +205,6 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                         'stops': flight.get('stops', ''),
                         'price': flight.get('price', ''),
                         'duration_min': flight.get('duration_min', ''),
-                        'rank_lilo': lilo_rankings.get(flight_id, ''),
                     })
                 else:
                     # Empty flight data
@@ -213,7 +212,6 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                         'unique_id': '', 'rank': '', 'name': '', 'origin': '',
                         'destination': '', 'departure_time': '', 'arrival_time': '',
                         'stops': '', 'price': '', 'duration_min': '',
-                        'rank_lilo': '',
                     })
 
                 # LILO section
@@ -266,7 +264,7 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                 'departure_time', 'arrival_time', 'stops', 'price', 'duration_min',
 
                 # LILO section
-                'questions', 'responses', 'rank_lilo', 'utility_function',
+                'questions', 'responses', 'utility_function',
 
                 # Cross validation section
                 'prompt_cross', 'id_cross',
