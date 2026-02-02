@@ -1410,7 +1410,7 @@ prompt = st.text_area(
     key="flight_prompt_input"
 )
 
-# Voice-to-text microphone button
+# Voice-to-text microphone button (compact icon style)
 voice_to_text_html = """
 <style>
     .voice-btn-container {
@@ -1419,17 +1419,19 @@ voice_to_text_html = """
         margin-top: -10px;
         margin-bottom: 10px;
         align-items: center;
+        gap: 10px;
     }
     .voice-btn {
         background: #f0f2f6;
         border: 1px solid #ddd;
-        border-radius: 20px;
-        padding: 8px 16px;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
         cursor: pointer;
-        font-size: 14px;
+        font-size: 18px;
         display: flex;
         align-items: center;
-        gap: 6px;
+        justify-content: center;
         transition: all 0.2s;
     }
     .voice-btn:hover {
@@ -1438,30 +1440,15 @@ voice_to_text_html = """
     .voice-btn.recording {
         background: #ffebee;
         border-color: #ef5350;
-        animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.7; }
-    }
-    .voice-btn-icon {
-        font-size: 16px;
     }
     .voice-status {
         font-size: 12px;
         color: #666;
-        margin-left: 10px;
-        max-width: 300px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        max-width: 200px;
     }
 </style>
 <div class="voice-btn-container">
-    <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceRecording()">
-        <span class="voice-btn-icon">🎤</span>
-        <span id="voiceBtnText">Speak your prompt</span>
-    </button>
+    <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceRecording()">🎙️</button>
     <span class="voice-status" id="voiceStatus"></span>
 </div>
 <script>
@@ -1496,13 +1483,12 @@ voice_to_text_html = """
         recognition.lang = 'en-US';
 
         const btn = document.getElementById('voiceBtn');
-        const btnText = document.getElementById('voiceBtnText');
         const status = document.getElementById('voiceStatus');
 
         recognition.onstart = function() {
             isRecording = true;
             btn.classList.add('recording');
-            btnText.textContent = 'Stop recording';
+            btn.textContent = '⏹️';
             status.textContent = 'Listening...';
         };
 
@@ -1549,9 +1535,9 @@ voice_to_text_html = """
             recognition = null;
         }
         const btn = document.getElementById('voiceBtn');
-        const btnText = document.getElementById('voiceBtnText');
         btn.classList.remove('recording');
-        btnText.textContent = 'Speak your prompt';
+        btn.textContent = '🎙️';
+        document.getElementById('voiceStatus').textContent = '';
     }
 </script>
 """
@@ -2618,7 +2604,101 @@ if st.session_state.all_flights:
                     current_question = questions[current_idx]
                     render_chat_message(current_question, is_bot=True)
 
-                    # Chat input with Enter key support (back to original)
+                    # Voice input button for LILO
+                    lilo_voice_html = f"""
+                    <div style="display: flex; align-items: center; gap: 10px; margin: 10px 0;">
+                        <button id="liloVoiceBtn" onclick="toggleLiloVoice()" style="
+                            background: #f0f2f6; border: 1px solid #ddd; border-radius: 50%;
+                            width: 40px; height: 40px; cursor: pointer; display: flex;
+                            align-items: center; justify-content: center; font-size: 18px;
+                            transition: all 0.2s;">
+                            🎙️
+                        </button>
+                        <span id="liloVoiceStatus" style="font-size: 12px; color: #666;"></span>
+                    </div>
+                    <script>
+                        let liloRecognition = null;
+                        let liloIsRecording = false;
+
+                        function setNativeValue(element, value) {{
+                            const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+                            valueSetter.call(element, value);
+                            element.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        }}
+
+                        function toggleLiloVoice() {{
+                            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {{
+                                document.getElementById('liloVoiceStatus').textContent = 'Not supported in this browser';
+                                return;
+                            }}
+                            if (liloIsRecording) {{ stopLiloRecording(); }} else {{ startLiloRecording(); }}
+                        }}
+
+                        function startLiloRecording() {{
+                            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                            liloRecognition = new SpeechRecognition();
+                            liloRecognition.continuous = true;
+                            liloRecognition.interimResults = true;
+                            liloRecognition.lang = 'en-US';
+
+                            const btn = document.getElementById('liloVoiceBtn');
+                            const status = document.getElementById('liloVoiceStatus');
+
+                            liloRecognition.onstart = function() {{
+                                liloIsRecording = true;
+                                btn.style.background = '#ffebee';
+                                btn.style.borderColor = '#ef5350';
+                                btn.textContent = '⏹️';
+                                status.textContent = 'Listening... (click to stop)';
+                            }};
+
+                            liloRecognition.onresult = function(event) {{
+                                const textarea = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+                                if (textarea) {{
+                                    let finalTranscript = '';
+                                    for (let i = event.resultIndex; i < event.results.length; i++) {{
+                                        if (event.results[i].isFinal) {{
+                                            finalTranscript += event.results[i][0].transcript;
+                                        }}
+                                    }}
+                                    if (finalTranscript) {{
+                                        const currentValue = textarea.value;
+                                        const newValue = currentValue ? currentValue + ' ' + finalTranscript : finalTranscript;
+                                        setNativeValue(textarea, newValue);
+                                        status.textContent = 'Added: "' + finalTranscript.substring(0, 25) + '..."';
+                                    }}
+                                }}
+                            }};
+
+                            liloRecognition.onerror = function(event) {{
+                                status.textContent = 'Error: ' + event.error;
+                                stopLiloRecording();
+                            }};
+
+                            liloRecognition.onend = function() {{
+                                if (liloIsRecording) {{ liloRecognition.start(); }}
+                            }};
+
+                            liloRecognition.start();
+                        }}
+
+                        function stopLiloRecording() {{
+                            if (liloRecognition) {{
+                                liloIsRecording = false;
+                                liloRecognition.stop();
+                                liloRecognition = null;
+                            }}
+                            const btn = document.getElementById('liloVoiceBtn');
+                            btn.style.background = '#f0f2f6';
+                            btn.style.borderColor = '#ddd';
+                            btn.textContent = '🎙️';
+                            document.getElementById('liloVoiceStatus').textContent = '';
+                        }}
+                    </script>
+                    """
+                    components.html(lilo_voice_html, height=50)
+
+                    # Chat input
                     answer = st.chat_input(
                         "Type your answer and press Enter...",
                         key=f"lilo_chat_input_{current_round}_{current_idx}"
@@ -3405,300 +3485,8 @@ if st.session_state.all_flights:
                     # Close cross-validation div
                     st.markdown('</div>', unsafe_allow_html=True)
 
-            # Survey section (after cross-validation)
-            if st.session_state.get('cross_validation_completed') and not st.session_state.get('survey_completed'):
-                # Hide content above survey and auto-scroll to top
-                st.markdown("""
-                <style>
-                    /* Fade out previous content */
-                    .stApp > header,
-                    [data-testid="stSidebar"],
-                    .main > div:not(:has(.survey-section)) {
-                        opacity: 0.1;
-                        pointer-events: none;
-                    }
-                    .survey-section {
-                        background: white;
-                        position: relative;
-                        z-index: 1000;
-                        padding-top: 20px;
-                    }
-                    /* Hide content between "How to Use" and "Search Flights" on survey page */
-                    .hideable-survey-content {
-                        display: none !important;
-                    }
-
-                    /* Make survey radio buttons bigger and easier to click */
-                    .survey-section .stRadio > div {
-                        gap: 0.75rem !important;
-                    }
-                    .survey-section .stRadio label {
-                        background-color: #f0f2f6 !important;
-                        padding: 1rem 1.5rem !important;
-                        border-radius: 8px !important;
-                        border: 2px solid #e0e0e0 !important;
-                        cursor: pointer !important;
-                        transition: all 0.2s ease !important;
-                        font-size: 1rem !important;
-                        min-width: 120px !important;
-                        text-align: center !important;
-                        display: inline-block !important;
-                    }
-                    .survey-section .stRadio label:hover {
-                        background-color: #e8eaf0 !important;
-                        border-color: #4F8BF9 !important;
-                        transform: translateY(-2px) !important;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
-                    }
-                    .survey-section .stRadio label[data-selected="true"] {
-                        background-color: #4F8BF9 !important;
-                        color: white !important;
-                        border-color: #4F8BF9 !important;
-                        font-weight: 600 !important;
-                    }
-
-                    /* Make submit button bigger */
-                    .survey-section button[kind="primary"] {
-                        padding: 1rem 2rem !important;
-                        font-size: 1.2rem !important;
-                        min-height: 60px !important;
-                    }
-                </style>
-                <script>
-                    // Auto-scroll to top when survey loads
-                    window.scrollTo(0, 0);
-                </script>
-                """, unsafe_allow_html=True)
-
-                st.markdown("---")
-                st.markdown('<div id="survey-step-1" class="survey-section">', unsafe_allow_html=True)
-                st.markdown("### 📋 Quick Feedback Survey")
-                st.markdown("*Please take 2-3 minutes to help us improve the tool*")
-
-                # Initialize survey responses in session state
-                if 'survey_data' not in st.session_state:
-                    st.session_state.survey_data = {}
-
-                # Q1: Satisfaction
-                st.markdown("**1. How satisfied are you with the flight recommendations you received?**")
-                satisfaction = st.radio(
-                    "Satisfaction",
-                    options=[1, 2, 3, 4, 5],
-                    format_func=lambda x: ["Very Dissatisfied", "Dissatisfied", "Neutral", "Satisfied", "Very Satisfied"][x-1],
-                    key="q1_satisfaction",
-                    label_visibility="collapsed",
-                    horizontal=True,
-                    index=None
-                )
-
-                # Q2: Ease of use
-                st.markdown("**2. How easy was it to use the flight search and ranking system?**")
-                ease_of_use = st.radio(
-                    "Ease of use",
-                    options=[1, 2, 3, 4, 5],
-                    format_func=lambda x: ["Very Difficult", "Difficult", "Neutral", "Easy", "Very Easy"][x-1],
-                    key="q2_ease",
-                    label_visibility="collapsed",
-                    horizontal=True,
-                    index=None
-                )
-
-                # Q3: Technical issues
-                st.markdown("**3. Did you encounter any technical issues or errors during your session?**")
-                encountered_issues = st.radio(
-                    "Issues",
-                    options=["No", "Yes"],
-                    key="q3_issues",
-                    label_visibility="collapsed",
-                    horizontal=True,
-                    index=None
-                )
-                issues_description = None
-                if encountered_issues == "Yes":
-                    issues_description = st.text_area(
-                        "Please describe the issues:",
-                        key="q3_issues_desc",
-                        placeholder="e.g., The page froze when I clicked submit..."
-                    )
-
-                # Q4: Search method
-                st.markdown("**4. Which search method did you use?**")
-                search_method = st.radio(
-                    "Search method",
-                    options=["Regular Search", "AI Search with LISTEN", "Both"],
-                    key="q4_method",
-                    label_visibility="collapsed",
-                    index=None
-                )
-
-                # Q5: Understanding AI ranking
-                st.markdown("**5. Did you understand how the AI ranked your flights?**")
-                understood_ranking = st.radio(
-                    "Understanding",
-                    options=[1, 2, 3, 4, 5],
-                    format_func=lambda x: ["Not at all", "Slightly", "Somewhat", "Mostly", "Completely"][x-1],
-                    key="q5_understood",
-                    label_visibility="collapsed",
-                    horizontal=True,
-                    index=None
-                )
-
-                # Q6: Helpful features
-                st.markdown("**6. Which features were most helpful in making your decision?** *(Select all that apply)*")
-                helpful_features = []
-                if st.checkbox("Top 5 ranked flights sidebar", key="q6_sidebar"):
-                    helpful_features.append("Top 5 sidebar")
-                if st.checkbox("Drag-to-rerank functionality", key="q6_drag"):
-                    helpful_features.append("Drag-to-rerank")
-                if st.checkbox("Flight filtering (price, airline, stops, etc.)", key="q6_filter"):
-                    helpful_features.append("Filtering")
-                if st.checkbox("AI-generated rankings", key="q6_ai"):
-                    helpful_features.append("AI rankings")
-                if st.checkbox("Detailed flight metrics (duration, stops, times, etc.)", key="q6_metrics"):
-                    helpful_features.append("Flight metrics")
-
-                # Q7: Flights matched expectations
-                st.markdown("**7. Did the top-ranked flights match what you were looking for?**")
-                flights_matched = st.radio(
-                    "Match",
-                    options=[1, 2, 3, 4, 5],
-                    format_func=lambda x: ["Not at all", "Slightly", "Somewhat", "Mostly", "Perfectly"][x-1],
-                    key="q7_matched",
-                    label_visibility="collapsed",
-                    horizontal=True,
-                    index=None
-                )
-
-                # Q8: Confusion/frustration
-                st.markdown("**8. Was there anything confusing or frustrating about the experience?**")
-                confusing_frustrating = st.text_area(
-                    "Your feedback:",
-                    key="q8_confusing",
-                    placeholder="e.g., I didn't understand why flight X was ranked higher than Y...",
-                    label_visibility="collapsed"
-                )
-
-                # Q9: Missing features
-                st.markdown("**9. Was there any information or feature missing that would have helped you make a better decision?**")
-                missing_features = st.text_area(
-                    "Your feedback:",
-                    key="q9_missing",
-                    placeholder="e.g., I wanted to see baggage fees, seat availability...",
-                    label_visibility="collapsed"
-                )
-
-                # Q10: Would use again
-                st.markdown("**10. Would you use this tool again for future flight searches?**")
-                would_use_again = st.radio(
-                    "Use again",
-                    options=["Yes", "Maybe", "No"],
-                    key="q10_again",
-                    label_visibility="collapsed",
-                    horizontal=True,
-                    index=None
-                )
-                would_use_again_reason = st.text_input(
-                    "Why or why not? (optional)",
-                    key="q10_reason",
-                    placeholder="e.g., It saved me time compared to other sites..."
-                )
-
-                # Q11: Comparison to others
-                st.markdown("**11. Compared to other flight search tools (Google Flights, Kayak, etc.), how would you rate this experience?**")
-                compared_to_others = st.radio(
-                    "Comparison",
-                    options=[1, 2, 3, 4, 5],
-                    format_func=lambda x: ["Much Worse", "Worse", "About the Same", "Better", "Much Better"][x-1],
-                    key="q11_compared",
-                    label_visibility="collapsed",
-                    horizontal=True,
-                    index=None
-                )
-
-                # Q12: Additional comments
-                st.markdown("**12. Any other comments or suggestions?** *(optional)*")
-                additional_comments = st.text_area(
-                    "Your feedback:",
-                    key="q12_comments",
-                    placeholder="Any other thoughts you'd like to share...",
-                    label_visibility="collapsed"
-                )
-
-                # Submit survey button
-                if st.button("📨 Submit Survey", type="primary", use_container_width=True):
-                    # Validate required fields
-                    missing_fields = []
-                    if satisfaction is None:
-                        missing_fields.append("Question 1 (Satisfaction)")
-                    if ease_of_use is None:
-                        missing_fields.append("Question 2 (Ease of use)")
-                    if encountered_issues is None:
-                        missing_fields.append("Question 3 (Technical issues)")
-                    if search_method is None:
-                        missing_fields.append("Question 4 (Search method)")
-                    if understood_ranking is None:
-                        missing_fields.append("Question 5 (Understanding AI ranking)")
-                    if flights_matched is None:
-                        missing_fields.append("Question 7 (Flights matched expectations)")
-                    if would_use_again is None:
-                        missing_fields.append("Question 10 (Would use again)")
-                    if compared_to_others is None:
-                        missing_fields.append("Question 11 (Comparison to others)")
-
-                    if missing_fields:
-                        st.error(f"⚠️ Please answer all required questions: {', '.join(missing_fields)}")
-                    else:
-                        # Collect all survey data
-                        survey_data = {
-                            'satisfaction': satisfaction,
-                            'ease_of_use': ease_of_use,
-                            'encountered_issues': encountered_issues,
-                            'issues_description': issues_description if encountered_issues == "Yes" else None,
-                            'search_method': search_method,
-                            'understood_ranking': understood_ranking,
-                            'helpful_features': helpful_features if helpful_features else None,
-                            'flights_matched': flights_matched,
-                            'confusing_frustrating': confusing_frustrating if confusing_frustrating else None,
-                            'missing_features': missing_features if missing_features else None,
-                            'would_use_again': would_use_again,
-                            'would_use_again_reason': would_use_again_reason if would_use_again_reason else None,
-                            'compared_to_others': compared_to_others,
-                            'additional_comments': additional_comments if additional_comments else None
-                        }
-
-                        # Save to database (REQUIRED - don't allow continuation if save fails)
-                        try:
-                            from backend.db import save_survey_response
-                            success = save_survey_response(
-                                session_id=st.session_state.session_id,
-                                survey_data=survey_data,
-                                completion_token=st.session_state.token
-                            )
-
-                            if success:
-                                st.session_state.survey_completed = True
-                                st.success("✅ Thank you for your feedback!")
-                                st.rerun()
-                            else:
-                                st.error("⚠️ Failed to save survey response to database. Please try again.")
-                                st.info("If this persists, please contact the research team.")
-                        except Exception as e:
-                            # Show actual error for debugging
-                            st.error(f"⚠️ Database Error: {str(e)}")
-                            import traceback
-                            error_details = traceback.format_exc()
-                            print(f"[SURVEY ERROR] {error_details}")
-                            # Show error details in expandable section
-                            with st.expander("Technical Details (for debugging)"):
-                                st.code(error_details)
-                            st.info("Please contact the research team with the error above.")
-
-                # Close survey div
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            # Show completion page with CSV download after survey
+            # Show completion page with CSV download after cross-validation
             if (st.session_state.get('cross_validation_completed') and
-                st.session_state.get('survey_completed') and
                 not st.session_state.get('completion_page_dismissed')):
 
                 # Hide all previous content
