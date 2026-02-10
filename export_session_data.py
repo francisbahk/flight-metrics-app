@@ -116,34 +116,53 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                     lilo_rankings[flight_id] = fr.rank
 
             # Get cross validation data - what THIS user ranked (someone else's prompt)
-            # Find what prompt THIS user reviewed
-            cross_val = db.query(CrossValidation).filter_by(
+            # PILOT STUDY: May have up to 4 cross-validation records (sequential re-rankings)
+            cross_vals = db.query(CrossValidation).filter_by(
                 reviewer_session_id=search.session_id
-            ).first()
+            ).order_by(CrossValidation.rerank_sequence.asc().nullsfirst()).all()
 
-            cv_prompt = None
-            cv_token = None
-            cv_flights = []
-            cv_rankings = {}  # flight_id -> rank
+            # Prepare data for up to 4 CV datasets
+            cv_data = []  # List of dicts, each with prompt, source_token, flights, rankings
+            for cv_idx in range(4):
+                if cv_idx < len(cross_vals):
+                    cross_val = cross_vals[cv_idx]
+                    cv_prompt = cross_val.reviewed_prompt
+                    cv_source_token = cross_val.source_token or cross_val.reviewed_session_id
+                    cv_rankings = {}
+                    if cross_val.selected_flights_data:
+                        for rank, flight in enumerate(cross_val.selected_flights_data, 1):
+                            flight_id = flight.get('id')
+                            cv_rankings[flight_id] = rank
 
-            if cross_val:
-                cv_prompt = cross_val.reviewed_prompt  # The OTHER person's prompt
-                cv_token = cross_val.reviewed_session_id  # The OTHER person's token
+                    # Get flights from reviewed session
+                    cv_flights = []
+                    reviewed_search = db.query(Search).filter(
+                        (Search.session_id == cross_val.reviewed_session_id) |
+                        (Search.completion_token == cv_source_token)
+                    ).first()
+                    if reviewed_search:
+                        cv_flights = reviewed_search.listen_ranked_flights_json or reviewed_search.amadeus_flights_json or []
 
-                # Get rankings THIS user gave (selected_flights_data has the top 5 in ranked order)
-                if cross_val.selected_flights_data:
-                    for rank, flight in enumerate(cross_val.selected_flights_data, 1):
-                        flight_id = flight.get('id')
-                        cv_rankings[flight_id] = rank
+                    cv_data.append({
+                        'prompt': cv_prompt,
+                        'source_token': cv_source_token,
+                        'flights': cv_flights,
+                        'rankings': cv_rankings,
+                    })
+                else:
+                    # No data for this CV slot
+                    cv_data.append({
+                        'prompt': None,
+                        'source_token': None,
+                        'flights': [],
+                        'rankings': {},
+                    })
 
-                # Get ALL flights from the reviewed session
-                reviewed_search = db.query(Search).filter(
-                    (Search.session_id == cv_token) | (Search.completion_token == cv_token)
-                ).first()
-
-                if reviewed_search:
-                    # Get all flights from that OTHER session
-                    cv_flights = reviewed_search.listen_ranked_flights_json or reviewed_search.amadeus_flights_json or []
+            # Legacy compatibility: Get first CV for old column names
+            cv_prompt = cv_data[0]['prompt'] if cv_data else None
+            cv_token = cv_data[0]['source_token'] if cv_data else None
+            cv_flights = cv_data[0]['flights'] if cv_data else []
+            cv_rankings = cv_data[0]['rankings'] if cv_data else {}
 
             # Get survey responses
             survey = db.query(SurveyResponse).filter_by(
@@ -173,11 +192,12 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                     survey_questions.append(q)
                     survey_answers.append(str(a) if a is not None else '')
 
-            # Determine total number of rows
+            # Determine total number of rows (including all CV datasets)
+            max_cv_flights = max(len(cv['flights']) for cv in cv_data) if cv_data else 0
             num_rows = max(
                 len(all_flights),
                 len(lilo_question_texts),
-                len(cv_flights),
+                max_cv_flights,
                 len(survey_questions)
             )
 
@@ -219,7 +239,7 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                 row['responses'] = lilo_responses[idx] if idx < len(lilo_responses) else ''
                 row['utility_function'] = utility_function if idx == 0 else ''
 
-                # Cross validation section
+                # Cross validation section (legacy - first CV only)
                 row['prompt_cross'] = cv_prompt if idx == 0 else ''
                 row['id_cross'] = cv_token if idx == 0 else ''
 
@@ -247,6 +267,42 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                         'stops_cross': '', 'price_cross': '', 'duration_min_cross': '',
                     })
 
+                # PILOT STUDY: 4 CV datasets (cv1_, cv2_, cv3_, cv4_)
+                for cv_num in range(1, 5):
+                    cv_idx = cv_num - 1
+                    prefix = f'cv{cv_num}_'
+                    cv = cv_data[cv_idx] if cv_idx < len(cv_data) else {'prompt': None, 'source_token': None, 'flights': [], 'rankings': {}}
+
+                    # Prompt and source token (first row only)
+                    row[f'{prefix}source_token'] = cv['source_token'] if idx == 0 and cv['source_token'] else ''
+                    row[f'{prefix}prompt'] = cv['prompt'] if idx == 0 and cv['prompt'] else ''
+
+                    # Flight data for this CV
+                    cv_flights_list = cv['flights']
+                    cv_rankings_dict = cv['rankings']
+                    if idx < len(cv_flights_list):
+                        cv_f = cv_flights_list[idx]
+                        cv_f_id = cv_f.get('id')
+                        row.update({
+                            f'{prefix}unique_id': cv_f_id,
+                            f'{prefix}rank': cv_rankings_dict.get(cv_f_id, ''),
+                            f'{prefix}name': cv_f.get('airline', ''),
+                            f'{prefix}origin': cv_f.get('origin', ''),
+                            f'{prefix}destination': cv_f.get('destination', ''),
+                            f'{prefix}departure_time': cv_f.get('departure_time', ''),
+                            f'{prefix}arrival_time': cv_f.get('arrival_time', ''),
+                            f'{prefix}stops': cv_f.get('stops', ''),
+                            f'{prefix}price': cv_f.get('price', ''),
+                            f'{prefix}duration_min': cv_f.get('duration_min', ''),
+                        })
+                    else:
+                        row.update({
+                            f'{prefix}unique_id': '', f'{prefix}rank': '', f'{prefix}name': '',
+                            f'{prefix}origin': '', f'{prefix}destination': '',
+                            f'{prefix}departure_time': '', f'{prefix}arrival_time': '',
+                            f'{prefix}stops': '', f'{prefix}price': '', f'{prefix}duration_min': '',
+                        })
+
                 # Survey section
                 row['survey_questions'] = survey_questions[idx] if idx < len(survey_questions) else ''
                 row['survey_answers'] = survey_answers[idx] if idx < len(survey_answers) else ''
@@ -266,11 +322,36 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                 # LILO section
                 'questions', 'responses', 'utility_function',
 
-                # Cross validation section
+                # Cross validation section (legacy - first CV only)
                 'prompt_cross', 'id_cross',
                 'unique_id_cross', 'rank_cross', 'name_cross', 'origin_cross',
                 'destination_cross', 'departure_time_cross', 'arrival_time_cross',
                 'stops_cross', 'price_cross', 'duration_min_cross',
+
+                # PILOT STUDY: 4 CV datasets
+                # CV 1
+                'cv1_source_token', 'cv1_prompt',
+                'cv1_unique_id', 'cv1_rank', 'cv1_name', 'cv1_origin',
+                'cv1_destination', 'cv1_departure_time', 'cv1_arrival_time',
+                'cv1_stops', 'cv1_price', 'cv1_duration_min',
+
+                # CV 2
+                'cv2_source_token', 'cv2_prompt',
+                'cv2_unique_id', 'cv2_rank', 'cv2_name', 'cv2_origin',
+                'cv2_destination', 'cv2_departure_time', 'cv2_arrival_time',
+                'cv2_stops', 'cv2_price', 'cv2_duration_min',
+
+                # CV 3
+                'cv3_source_token', 'cv3_prompt',
+                'cv3_unique_id', 'cv3_rank', 'cv3_name', 'cv3_origin',
+                'cv3_destination', 'cv3_departure_time', 'cv3_arrival_time',
+                'cv3_stops', 'cv3_price', 'cv3_duration_min',
+
+                # CV 4
+                'cv4_source_token', 'cv4_prompt',
+                'cv4_unique_id', 'cv4_rank', 'cv4_name', 'cv4_origin',
+                'cv4_destination', 'cv4_departure_time', 'cv4_arrival_time',
+                'cv4_stops', 'cv4_price', 'cv4_duration_min',
 
                 # Survey section
                 'survey_questions', 'survey_answers'

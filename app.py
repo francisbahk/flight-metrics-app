@@ -26,6 +26,13 @@ from components.static_demo_page import render_static_demo_page
 
 load_dotenv()
 
+# ============================================================================
+# PILOT STUDY CONFIGURATION
+# ============================================================================
+# Set to False to disable LILO preference learning section
+# (Code is preserved for future use, just not shown in the UI)
+LILO_ENABLED = False
+
 # Helper function to format price display
 def format_price(price):
     """Format price for display, showing 'N/A' for 0 or None."""
@@ -385,8 +392,7 @@ if 'token_message' not in st.session_state:
 
 # Get token from URL parameter (?id=TOKEN)
 # Re-validate on every page load to detect if token was used
-query_params = st.experimental_get_query_params()
-token_from_url = query_params.get('id', [None])[0]
+token_from_url = st.query_params.get('id')
 if token_from_url:
     # Validate token (checks database to see if it's been used)
     from backend.db import validate_token
@@ -395,6 +401,49 @@ if token_from_url:
     st.session_state.token = token_from_url
     st.session_state.token_valid = token_status['valid']
     st.session_state.token_message = token_status['message']
+
+    # Pilot study: Detect token group and re-rank assignments
+    from pilot_tokens import is_pilot_token, get_token_group, get_rerank_targets
+    if is_pilot_token(token_from_url):
+        st.session_state.token_group = get_token_group(token_from_url)
+        st.session_state.rerank_targets = get_rerank_targets(token_from_url)
+        print(f"[PILOT] Token {token_from_url} - Group {st.session_state.token_group}, Targets: {st.session_state.rerank_targets}")
+    else:
+        st.session_state.token_group = None
+        st.session_state.rerank_targets = []
+
+    # Session persistence: Try to restore progress on page refresh
+    if 'session_restored' not in st.session_state:
+        from backend.db import get_session_progress
+        existing_progress = get_session_progress(token_from_url)
+
+        if existing_progress:
+            # Restore session state from database
+            st.session_state.session_id = existing_progress['session_id']
+            if existing_progress.get('user_prompt'):
+                st.session_state.user_prompt = existing_progress['user_prompt']
+            if existing_progress.get('all_flights'):
+                st.session_state.all_flights = existing_progress['all_flights']
+            if existing_progress.get('selected_flights'):
+                st.session_state.selected_flights = existing_progress['selected_flights']
+            if existing_progress.get('search_id'):
+                st.session_state.search_id = existing_progress['search_id']
+            if existing_progress.get('flight_selection_confirmed'):
+                st.session_state.review_confirmed = True
+            if existing_progress.get('lilo_completed'):
+                st.session_state.lilo_completed = True
+            if existing_progress.get('current_rerank_index'):
+                st.session_state.current_rerank_index = existing_progress['current_rerank_index']
+            if existing_progress.get('completed_reranks'):
+                st.session_state.completed_reranks = existing_progress['completed_reranks']
+            if existing_progress.get('all_reranks_completed'):
+                st.session_state.all_reranks_completed = True
+                st.session_state.cross_validation_completed = True
+
+            st.session_state.session_restored = True
+            print(f"[PILOT] Restored session progress for {token_from_url}")
+        else:
+            st.session_state.session_restored = True  # Mark as checked, even if no progress found
 
 # COMMENTED OUT - No longer collecting name/email
 # if 'user_name' not in st.session_state:
@@ -472,6 +521,17 @@ if 'lilo_answers' not in st.session_state:
     st.session_state.lilo_answers = {}
 if 'cross_validation_completed' not in st.session_state:
     st.session_state.cross_validation_completed = False
+# Pilot study: Sequential re-ranking state
+if 'token_group' not in st.session_state:
+    st.session_state.token_group = None
+if 'rerank_targets' not in st.session_state:
+    st.session_state.rerank_targets = []
+if 'current_rerank_index' not in st.session_state:
+    st.session_state.current_rerank_index = 0
+if 'completed_reranks' not in st.session_state:
+    st.session_state.completed_reranks = []
+if 'all_reranks_completed' not in st.session_state:
+    st.session_state.all_reranks_completed = False
 if 'survey_completed' not in st.session_state:
     st.session_state.survey_completed = False
 if 'completion_page_dismissed' not in st.session_state:
@@ -904,8 +964,7 @@ init_demo_mode()
 if st.session_state.get('demo_active', False):
     # Check for tutorial navigation via query params
     try:
-        query_params = st.experimental_get_query_params()
-        action = query_params.get('tutorial_action', [None])[0]
+        action = st.query_params.get('tutorial_action')
         if action:
             if action == 'next':
                 if st.session_state.demo_step < 6:
@@ -919,7 +978,7 @@ if st.session_state.get('demo_active', False):
                 st.session_state.demo_active = False
                 st.session_state.demo_step = 0
             # Clear query param
-            st.experimental_set_query_params()
+            st.query_params.clear()
             st.rerun()
     except:
         pass
@@ -1944,6 +2003,18 @@ if ai_search or regular_search:
                 # Store for LILO optimizer
                 st.session_state.all_flights_data = all_flights
 
+                # Session persistence: Save progress after search
+                if st.session_state.get('token'):
+                    from backend.db import save_session_progress
+                    save_session_progress(st.session_state.token, {
+                        'session_id': st.session_state.session_id,
+                        'current_phase': 'flight_selection',
+                        'search_completed': 1,
+                        'user_prompt': st.session_state.get('user_prompt', ''),
+                        'all_flights_json': all_flights,
+                    })
+                    print(f"[PILOT] Saved search progress for {st.session_state.token}")
+
                 # REMOVED: Pre-generation was blocking flight display (15-30+ seconds!)
                 # LILO questions will be generated when user reaches LILO section
                 # This makes flights appear immediately after Amadeus API responds
@@ -2070,6 +2141,18 @@ if st.session_state.all_flights:
                 if edited_prompt != st.session_state.get('original_prompt', ''):
                     st.session_state.original_prompt = edited_prompt
                 st.session_state.review_confirmed = True
+
+                # Session persistence: Save progress after flight selection confirmation
+                if st.session_state.get('token'):
+                    from backend.db import save_session_progress
+                    save_session_progress(st.session_state.token, {
+                        'session_id': st.session_state.session_id,
+                        'current_phase': 'lilo' if LILO_ENABLED else 'cross_validation',
+                        'flight_selection_confirmed': 1,
+                        'selected_flights_json': st.session_state.selected_flights,
+                    })
+                    print(f"[PILOT] Saved flight selection for {st.session_state.token}")
+
                 st.rerun()
 
             st.stop()  # Stop here until user confirms
@@ -2231,11 +2314,17 @@ if st.session_state.all_flights:
 
             st.markdown("---")
 
+            # Skip LILO when disabled - mark as completed so cross-validation can proceed
+            if not LILO_ENABLED and not st.session_state.get('lilo_completed'):
+                st.session_state.lilo_completed = True
+                print("[PILOT] LILO disabled - marking as completed")
+
             # ============================================================================
             # LILO PREFERENCE LEARNING SECTION (between initial ranking and cross-validation)
             # ============================================================================
-            # Only show LILO if not completed AND not showing animation
-            if not st.session_state.get('lilo_completed') and not st.session_state.get('show_evaluation_animation'):
+            # Only show LILO if enabled, not completed, AND not showing animation
+            # NOTE: LILO_ENABLED is set to False for pilot study - section is preserved but hidden
+            if LILO_ENABLED and not st.session_state.get('lilo_completed') and not st.session_state.get('show_evaluation_animation'):
                 # DEBUG: Check session state at start of LILO section
                 print(f"[LILO DEBUG] Entering LILO section - all_flights exists: {bool(st.session_state.get('all_flights'))}, count: {len(st.session_state.get('all_flights', []))}")
                 print(f"[LILO DEBUG] Entering LILO section - lilo_round: {st.session_state.get('lilo_round', 'NOT SET')}, search_id: {st.session_state.get('search_id', 'NOT SET')}")
@@ -3130,9 +3219,20 @@ if st.session_state.all_flights:
                     st.rerun()
 
             # Cross-validation section (before survey) - only show after LILO is completed
+            # PILOT STUDY: Group A tokens skip cross-validation entirely
+            # Groups B/C do 4 sequential re-rankings of assigned prompts
+            token_group = st.session_state.get('token_group')
+            rerank_targets = st.session_state.get('rerank_targets', [])
+
+            # Skip cross-validation for Group A (first group has nothing to re-rank)
+            if token_group == 'A' and not st.session_state.get('cross_validation_completed'):
+                st.session_state.cross_validation_completed = True
+                st.session_state.all_reranks_completed = True
+                print(f"[PILOT] Group A token - skipping cross-validation")
+
             if st.session_state.get('lilo_completed') and not st.session_state.get('cross_validation_completed'):
                 try:
-                    from backend.db import get_previous_search_for_validation
+                    from backend.db import get_previous_search_for_validation, get_assigned_search_for_validation
 
                     # Hide all content above cross-validation section
                     st.markdown("""
@@ -3162,15 +3262,48 @@ if st.session_state.all_flights:
 
                     st.markdown("---")
                     st.markdown('<div class="cross-validation-section">', unsafe_allow_html=True)
-                    st.markdown("### 🤝 Help Validate Another Search")
-                    st.markdown("*Before completing your session, please help us by ranking flights for another user's search*")
 
-                    # Fetch previous search for cross-validation (separate queues by token type)
-                    if 'cross_val_data' not in st.session_state:
-                        st.session_state.cross_val_data = get_previous_search_for_validation(
-                            st.session_state.session_id,
-                            st.session_state.get('token')
-                        )
+                    # PILOT STUDY: Sequential re-rankings for Groups B/C
+                    if rerank_targets:
+                        # Get current progress
+                        completed_reranks = st.session_state.get('completed_reranks', [])
+                        remaining_targets = [t for t in rerank_targets if t not in completed_reranks]
+                        current_rerank_num = len(completed_reranks) + 1
+                        total_reranks = len(rerank_targets)
+
+                        if not remaining_targets:
+                            # All re-rankings complete
+                            st.session_state.all_reranks_completed = True
+                            st.session_state.cross_validation_completed = True
+                            st.rerun()
+
+                        # Progress indicator
+                        st.progress(len(completed_reranks) / total_reranks)
+                        st.markdown(f"### 🤝 Re-ranking {current_rerank_num} of {total_reranks}")
+                        st.markdown("*Help us by ranking flights for another user's search*")
+
+                        # Get the current target's search data
+                        current_target = remaining_targets[0]
+                        if 'cross_val_data' not in st.session_state or st.session_state.get('current_cv_target') != current_target:
+                            st.session_state.cross_val_data = get_assigned_search_for_validation(
+                                st.session_state.get('token'),
+                                current_target
+                            )
+                            st.session_state.current_cv_target = current_target
+                            # Reset selection for new target
+                            st.session_state.cross_val_selected_flights = []
+                            st.session_state.cv_checkbox_version = st.session_state.get('cv_checkbox_version', 0) + 1
+                    else:
+                        # Legacy behavior: Non-pilot tokens use regular cross-validation
+                        st.markdown("### 🤝 Help Validate Another Search")
+                        st.markdown("*Before completing your session, please help us by ranking flights for another user's search*")
+
+                        # Fetch previous search for cross-validation (separate queues by token type)
+                        if 'cross_val_data' not in st.session_state:
+                            st.session_state.cross_val_data = get_previous_search_for_validation(
+                                st.session_state.session_id,
+                                st.session_state.get('token')
+                            )
                 except ImportError:
                     # Function not available yet (old deployment) - skip cross-validation
                     st.session_state.cross_validation_completed = True
@@ -3462,8 +3595,19 @@ if st.session_state.all_flights:
 
                                 # Submit button
                                 if len(st.session_state.cross_val_selected_flights) == 5:
-                                    if st.button("✅ Submit Cross-Validation Rankings", key="cv_submit", type="primary", use_container_width=True):
-                                        from backend.db import save_cross_validation
+                                    # PILOT STUDY: Different button label for sequential re-rankings
+                                    remaining = len([t for t in st.session_state.get('rerank_targets', [])
+                                                    if t not in st.session_state.get('completed_reranks', [])]) - 1
+                                    button_label = f"✅ Submit Rankings ({remaining} more to go)" if remaining > 0 else "✅ Submit Final Rankings"
+
+                                    if st.button(button_label, key="cv_submit", type="primary", use_container_width=True):
+                                        from backend.db import save_cross_validation, save_session_progress
+
+                                        # Determine rerank_sequence for pilot study
+                                        completed_reranks = st.session_state.get('completed_reranks', [])
+                                        rerank_sequence = len(completed_reranks) + 1 if st.session_state.get('rerank_targets') else None
+                                        source_token = cross_val.get('source_token')  # New field from get_assigned_search_for_validation
+
                                         success = save_cross_validation(
                                             reviewer_session_id=st.session_state.session_id,
                                             reviewed_session_id=cross_val['session_id'],
@@ -3471,11 +3615,49 @@ if st.session_state.all_flights:
                                             reviewed_prompt=cross_val['prompt'],
                                             reviewed_flights=cross_val['flights'],
                                             selected_flights=st.session_state.cross_val_selected_flights,
-                                            reviewer_token=st.session_state.get('token')
+                                            reviewer_token=st.session_state.get('token'),
+                                            rerank_sequence=rerank_sequence,
+                                            source_token=source_token
                                         )
                                         if success:
-                                            st.session_state.cross_validation_completed = True
-                                            st.success("✅ Thank you for helping validate!")
+                                            # PILOT STUDY: Handle sequential re-rankings
+                                            if st.session_state.get('rerank_targets'):
+                                                current_target = st.session_state.get('current_cv_target')
+                                                if current_target:
+                                                    # Add to completed list
+                                                    if 'completed_reranks' not in st.session_state:
+                                                        st.session_state.completed_reranks = []
+                                                    st.session_state.completed_reranks.append(current_target)
+                                                    st.session_state.current_rerank_index = len(st.session_state.completed_reranks)
+
+                                                    # Save progress for session persistence
+                                                    save_session_progress(st.session_state.get('token'), {
+                                                        'current_rerank_index': st.session_state.current_rerank_index,
+                                                        'completed_reranks_json': st.session_state.completed_reranks,
+                                                    })
+                                                    print(f"[PILOT] Completed re-ranking for {current_target} ({st.session_state.current_rerank_index}/{len(st.session_state.rerank_targets)})")
+
+                                                    # Clear for next target
+                                                    del st.session_state.cross_val_data
+                                                    del st.session_state.current_cv_target
+                                                    st.session_state.cross_val_selected_flights = []
+
+                                                    # Check if all done
+                                                    if len(st.session_state.completed_reranks) >= len(st.session_state.rerank_targets):
+                                                        st.session_state.all_reranks_completed = True
+                                                        st.session_state.cross_validation_completed = True
+                                                        save_session_progress(st.session_state.get('token'), {
+                                                            'all_reranks_completed': 1,
+                                                            'current_phase': 'complete',
+                                                        })
+                                                        st.success("✅ All re-rankings complete! Thank you!")
+                                                    else:
+                                                        st.success(f"✅ Submitted! Moving to next re-ranking...")
+                                            else:
+                                                # Legacy single re-ranking
+                                                st.session_state.cross_validation_completed = True
+                                                st.success("✅ Thank you for helping validate!")
+
                                             st.rerun()
                                         else:
                                             st.error("⚠️ Failed to save. Please try again.")

@@ -294,6 +294,10 @@ class CrossValidation(Base):
     selected_flight_ids = Column(JSON, nullable=False)  # User A's top 5 picks (list of flight IDs)
     selected_flights_data = Column(JSON, nullable=True)  # Full flight data for selected flights
 
+    # Pilot study fields (for sequential re-rankings)
+    rerank_sequence = Column(Integer, nullable=True)  # Which of 4 re-rankings (1-4), NULL for legacy
+    source_token = Column(String(255), nullable=True, index=True)  # Token being reviewed (e.g., 'GA01')
+
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
@@ -370,6 +374,48 @@ class LILOFinalRanking(Base):
     rank = Column(Integer, nullable=False)  # 1 = best, 2 = second best, etc.
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SessionProgress(Base):
+    """
+    Stores session progress for recovery on page refresh.
+    Keyed by access_token to enable restoration of session state.
+    """
+    __tablename__ = 'session_progress'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    access_token = Column(String(255), unique=True, nullable=False, index=True)
+    session_id = Column(String(255), nullable=False)  # The UUID session_id
+
+    # Progress tracking
+    current_phase = Column(String(50), nullable=False, default='search')
+    # Phases: 'search', 'flight_selection', 'lilo', 'cross_validation', 'complete'
+
+    # Search state
+    search_completed = Column(Integer, default=0)
+    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='SET NULL'), nullable=True)
+    user_prompt = Column(Text, nullable=True)
+    all_flights_json = Column(JSON, nullable=True)
+
+    # Flight selection state
+    selected_flights_json = Column(JSON, nullable=True)
+    flight_selection_confirmed = Column(Integer, default=0)
+
+    # LILO state (for future use when LILO is re-enabled)
+    lilo_completed = Column(Integer, default=0)
+    lilo_session_id = Column(Integer, nullable=True)
+    lilo_round = Column(Integer, default=0)
+    lilo_chat_history_json = Column(JSON, nullable=True)
+    lilo_answers_json = Column(JSON, nullable=True)
+
+    # Cross-validation state (for pilot study sequential re-rankings)
+    current_rerank_index = Column(Integer, default=0)  # Which re-ranking (0-3)
+    completed_reranks_json = Column(JSON, nullable=True)  # List of completed target tokens
+    all_reranks_completed = Column(Integer, default=0)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 # Database functions
@@ -1184,7 +1230,9 @@ def save_cross_validation(
     reviewed_prompt: str,
     reviewed_flights: List[Dict],
     selected_flights: List[Dict],
-    reviewer_token: Optional[str] = None
+    reviewer_token: Optional[str] = None,
+    rerank_sequence: Optional[int] = None,
+    source_token: Optional[str] = None
 ) -> bool:
     """
     Save cross-validation rankings.
@@ -1197,6 +1245,8 @@ def save_cross_validation(
         reviewed_flights: All flights shown to reviewed user
         selected_flights: Top 5 flights selected by reviewer
         reviewer_token: Optional token of reviewer
+        rerank_sequence: Which of 4 re-rankings (1-4) for pilot study, None for legacy
+        source_token: Token being reviewed (e.g., 'GA01') for pilot study
 
     Returns:
         True if successful, False otherwise
@@ -1215,12 +1265,17 @@ def save_cross_validation(
             reviewed_prompt=reviewed_prompt,
             reviewed_flights_json=reviewed_flights,
             selected_flight_ids=selected_flight_ids,
-            selected_flights_data=selected_flights
+            selected_flights_data=selected_flights,
+            rerank_sequence=rerank_sequence,
+            source_token=source_token
         )
 
         db.add(cross_val)
         db.commit()
-        print(f"✓ Saved cross-validation: {reviewer_session_id} reviewed {reviewed_session_id}")
+        if rerank_sequence:
+            print(f"✓ Saved cross-validation #{rerank_sequence}: {reviewer_token} reviewed {source_token}")
+        else:
+            print(f"✓ Saved cross-validation: {reviewer_session_id} reviewed {reviewed_session_id}")
         return True
 
     except Exception as e:
@@ -1270,6 +1325,140 @@ def update_search_flight_results(
         db.rollback()
         print(f"✗ Error updating flight results: {str(e)}")
         return False
+
+    finally:
+        db.close()
+
+
+# ============================================================================
+# Session Progress Functions (for page refresh recovery)
+# ============================================================================
+
+def save_session_progress(access_token: str, progress_data: Dict) -> bool:
+    """
+    Save or update session progress for a token.
+
+    Args:
+        access_token: The access token to save progress for
+        progress_data: Dictionary of progress fields to update
+
+    Returns:
+        True if successful, False otherwise
+    """
+    db = SessionLocal()
+
+    try:
+        existing = db.query(SessionProgress).filter(
+            SessionProgress.access_token == access_token
+        ).first()
+
+        if existing:
+            # Update existing record
+            for key, value in progress_data.items():
+                if hasattr(existing, key):
+                    setattr(existing, key, value)
+            existing.updated_at = datetime.utcnow()
+        else:
+            # Create new record
+            new_progress = SessionProgress(
+                access_token=access_token,
+                **progress_data
+            )
+            db.add(new_progress)
+
+        db.commit()
+        return True
+
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Error saving session progress: {str(e)}")
+        return False
+
+    finally:
+        db.close()
+
+
+def get_session_progress(access_token: str) -> Optional[Dict]:
+    """
+    Retrieve session progress for a token.
+
+    Args:
+        access_token: The access token to look up
+
+    Returns:
+        Dictionary with progress data or None if not found
+    """
+    db = SessionLocal()
+
+    try:
+        progress = db.query(SessionProgress).filter(
+            SessionProgress.access_token == access_token
+        ).first()
+
+        if progress:
+            return {
+                'session_id': progress.session_id,
+                'current_phase': progress.current_phase,
+                'search_completed': bool(progress.search_completed),
+                'search_id': progress.search_id,
+                'user_prompt': progress.user_prompt,
+                'all_flights': progress.all_flights_json,
+                'selected_flights': progress.selected_flights_json,
+                'flight_selection_confirmed': bool(progress.flight_selection_confirmed),
+                'lilo_completed': bool(progress.lilo_completed),
+                'lilo_round': progress.lilo_round,
+                'lilo_chat_history': progress.lilo_chat_history_json,
+                'lilo_answers': progress.lilo_answers_json,
+                'current_rerank_index': progress.current_rerank_index,
+                'completed_reranks': progress.completed_reranks_json or [],
+                'all_reranks_completed': bool(progress.all_reranks_completed),
+            }
+        return None
+
+    finally:
+        db.close()
+
+
+def get_assigned_search_for_validation(
+    current_token: str,
+    target_token: str
+) -> Optional[Dict]:
+    """
+    Get a specific user's search data for cross-validation.
+    Used in pilot study to get pre-assigned prompts for re-ranking.
+
+    Args:
+        current_token: Current user's pilot token (e.g., 'GB01')
+        target_token: Target user's pilot token to review (e.g., 'GA02')
+
+    Returns:
+        Dictionary with search data or None if target hasn't completed yet
+    """
+    db = SessionLocal()
+
+    try:
+        # Find completed session for target token
+        # Look for searches where completion_token matches the target
+        search = db.query(Search).filter(
+            Search.completion_token == target_token,
+            Search.listen_ranked_flights_json.isnot(None)
+        ).order_by(Search.created_at.desc()).first()
+
+        if not search:
+            print(f"✗ No completed search found for target token {target_token}")
+            return None
+
+        return {
+            'search_id': search.search_id,
+            'session_id': search.session_id,
+            'source_token': target_token,  # Track which token this came from
+            'prompt': search.user_prompt,
+            'flights': search.listen_ranked_flights_json
+        }
+
+    except Exception as e:
+        print(f"✗ Error fetching assigned search: {str(e)}")
+        return None
 
     finally:
         db.close()
