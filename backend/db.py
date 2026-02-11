@@ -9,7 +9,7 @@ from typing import List, Dict, Optional
 from sqlalchemy import create_engine, Column, Integer, String, Text, JSON, DateTime, ForeignKey, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, QueuePool
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -49,12 +49,25 @@ else:
     DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'flight_rankings.db')
     DATABASE_URL = f"sqlite:///{DB_PATH}"
 
-# Create engine
-engine = create_engine(
-    DATABASE_URL,
-    poolclass=NullPool,  # Disable connection pooling for simplicity
-    echo=False  # Set to True for SQL debugging
-)
+# Create engine with appropriate settings for each database type
+if DB_TYPE == 'mysql':
+    # MySQL/Railway: Use connection pooling with health checks
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,  # Verify connection before use (prevents stale connections)
+        pool_recycle=300,    # Recycle connections after 5 minutes
+        pool_size=5,         # Maintain 5 connections in pool
+        max_overflow=10,     # Allow up to 10 additional connections
+        pool_timeout=30,     # Wait up to 30 seconds for a connection
+        echo=False
+    )
+else:
+    # SQLite: Use NullPool (no persistent connections needed)
+    engine = create_engine(
+        DATABASE_URL,
+        poolclass=NullPool,
+        echo=False
+    )
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

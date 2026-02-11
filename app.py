@@ -33,6 +33,29 @@ load_dotenv()
 # (Code is preserved for future use, just not shown in the UI)
 LILO_ENABLED = False
 
+# ============================================================================
+# BACKWARDS-COMPATIBLE QUERY PARAMS (Streamlit version compatibility)
+# ============================================================================
+def get_query_param(key, default=None):
+    """Get query parameter, compatible with both old and new Streamlit versions."""
+    try:
+        # New API (Streamlit 1.30+)
+        return st.query_params.get(key, default)
+    except AttributeError:
+        # Old API (Streamlit < 1.30)
+        params = st.experimental_get_query_params()
+        values = params.get(key, [default])
+        return values[0] if values else default
+
+def clear_query_params():
+    """Clear query parameters, compatible with both old and new Streamlit versions."""
+    try:
+        # New API (Streamlit 1.30+)
+        st.query_params.clear()
+    except AttributeError:
+        # Old API (Streamlit < 1.30)
+        st.experimental_set_query_params()
+
 # Helper function to format price display
 def format_price(price):
     """Format price for display, showing 'N/A' for 0 or None."""
@@ -392,7 +415,7 @@ if 'token_message' not in st.session_state:
 
 # Get token from URL parameter (?id=TOKEN)
 # Re-validate on every page load to detect if token was used
-token_from_url = st.query_params.get('id')
+token_from_url = get_query_param('id')
 if token_from_url:
     # Validate token (checks database to see if it's been used)
     from backend.db import validate_token
@@ -964,7 +987,7 @@ init_demo_mode()
 if st.session_state.get('demo_active', False):
     # Check for tutorial navigation via query params
     try:
-        action = st.query_params.get('tutorial_action')
+        action = get_query_param('tutorial_action')
         if action:
             if action == 'next':
                 if st.session_state.demo_step < 6:
@@ -978,7 +1001,7 @@ if st.session_state.get('demo_active', False):
                 st.session_state.demo_active = False
                 st.session_state.demo_step = 0
             # Clear query param
-            st.query_params.clear()
+            clear_query_params()
             st.rerun()
     except:
         pass
