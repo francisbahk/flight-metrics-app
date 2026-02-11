@@ -153,6 +153,7 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                     cv_data.append({
                         'prompt': cv_prompt,
                         'source_token': cv_source_token,
+                        'rerank_sequence': cross_val.rerank_sequence,
                         'flights': cv_flights,
                         'rankings': cv_rankings,
                     })
@@ -161,6 +162,7 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                     cv_data.append({
                         'prompt': None,
                         'source_token': None,
+                        'rerank_sequence': None,
                         'flights': [],
                         'rankings': {},
                     })
@@ -278,10 +280,11 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                 for cv_num in range(1, 5):
                     cv_idx = cv_num - 1
                     prefix = f'cv{cv_num}_'
-                    cv = cv_data[cv_idx] if cv_idx < len(cv_data) else {'prompt': None, 'source_token': None, 'flights': [], 'rankings': {}}
+                    cv = cv_data[cv_idx] if cv_idx < len(cv_data) else {'prompt': None, 'source_token': None, 'rerank_sequence': None, 'flights': [], 'rankings': {}}
 
-                    # Prompt and source token (first row only)
+                    # Prompt, source token, and rerank_sequence (first row only)
                     row[f'{prefix}source_token'] = cv['source_token'] if idx == 0 and cv['source_token'] else ''
+                    row[f'{prefix}rerank_sequence'] = cv['rerank_sequence'] if idx == 0 and cv['rerank_sequence'] else ''
                     row[f'{prefix}prompt'] = cv['prompt'] if idx == 0 and cv['prompt'] else ''
 
                     # Flight data for this CV
@@ -337,25 +340,25 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
 
                 # PILOT STUDY: 4 CV datasets
                 # CV 1
-                'cv1_source_token', 'cv1_prompt',
+                'cv1_source_token', 'cv1_rerank_sequence', 'cv1_prompt',
                 'cv1_unique_id', 'cv1_rank', 'cv1_name', 'cv1_origin',
                 'cv1_destination', 'cv1_departure_time', 'cv1_arrival_time',
                 'cv1_stops', 'cv1_price', 'cv1_duration_min',
 
                 # CV 2
-                'cv2_source_token', 'cv2_prompt',
+                'cv2_source_token', 'cv2_rerank_sequence', 'cv2_prompt',
                 'cv2_unique_id', 'cv2_rank', 'cv2_name', 'cv2_origin',
                 'cv2_destination', 'cv2_departure_time', 'cv2_arrival_time',
                 'cv2_stops', 'cv2_price', 'cv2_duration_min',
 
                 # CV 3
-                'cv3_source_token', 'cv3_prompt',
+                'cv3_source_token', 'cv3_rerank_sequence', 'cv3_prompt',
                 'cv3_unique_id', 'cv3_rank', 'cv3_name', 'cv3_origin',
                 'cv3_destination', 'cv3_departure_time', 'cv3_arrival_time',
                 'cv3_stops', 'cv3_price', 'cv3_duration_min',
 
                 # CV 4
-                'cv4_source_token', 'cv4_prompt',
+                'cv4_source_token', 'cv4_rerank_sequence', 'cv4_prompt',
                 'cv4_unique_id', 'cv4_rank', 'cv4_name', 'cv4_origin',
                 'cv4_destination', 'cv4_departure_time', 'cv4_arrival_time',
                 'cv4_stops', 'cv4_price', 'cv4_duration_min',
