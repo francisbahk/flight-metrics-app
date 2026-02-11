@@ -18,22 +18,17 @@ load_dotenv()
 # Helper function to get config from Streamlit secrets or environment
 def get_config(key, default=''):
     """Get config from Streamlit secrets first, then environment variables."""
-    # First check environment variables (always available)
-    env_value = os.getenv(key, default)
-
     # Try to get from Streamlit secrets if running in Streamlit
     try:
         import streamlit as st
-        # Only use secrets if we're actually in a Streamlit runtime
-        if hasattr(st, 'secrets') and st.secrets:
-            secret_value = st.secrets.get(key)
-            if secret_value is not None:
-                return secret_value
-    except (ImportError, FileNotFoundError, AttributeError, RuntimeError):
+        # Access secrets using bracket notation (more reliable across versions)
+        if hasattr(st, 'secrets') and key in st.secrets:
+            return st.secrets[key]
+    except (ImportError, FileNotFoundError, AttributeError, RuntimeError, KeyError):
         pass
 
     # Fall back to environment variable
-    return env_value
+    return os.getenv(key, default)
 
 # Database connection
 DB_TYPE = get_config('DB_TYPE', 'sqlite')  # 'sqlite' or 'mysql'
