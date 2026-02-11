@@ -6,6 +6,7 @@ import os
 import json
 from datetime import datetime
 from typing import List, Dict, Optional
+from urllib.parse import quote_plus
 from sqlalchemy import create_engine, Column, Integer, String, Text, JSON, DateTime, ForeignKey, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
@@ -43,7 +44,9 @@ if DB_TYPE == 'mysql':
     MYSQL_DATABASE = get_config('MYSQL_DATABASE', 'flight_rankings')
     MYSQL_USER = get_config('MYSQL_USER', 'root')
     MYSQL_PASSWORD = get_config('MYSQL_PASSWORD', '')
-    DATABASE_URL = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
+    # URL-encode password to handle special characters
+    MYSQL_PASSWORD_ENCODED = quote_plus(MYSQL_PASSWORD) if MYSQL_PASSWORD else ''
+    DATABASE_URL = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD_ENCODED}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
 else:
     # Use SQLite (file-based, no installation required)
     DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'flight_rankings.db')
@@ -59,6 +62,11 @@ if DB_TYPE == 'mysql':
         pool_size=5,         # Maintain 5 connections in pool
         max_overflow=10,     # Allow up to 10 additional connections
         pool_timeout=30,     # Wait up to 30 seconds for a connection
+        connect_args={
+            'connect_timeout': 30,      # 30 second connection timeout
+            'read_timeout': 30,         # 30 second read timeout
+            'write_timeout': 30,        # 30 second write timeout
+        },
         echo=False
     )
 else:
