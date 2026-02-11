@@ -33,6 +33,38 @@ load_dotenv()
 # (Code is preserved for future use, just not shown in the UI)
 LILO_ENABLED = False
 
+# Enable automatic S3 backup on session completion (set via env var)
+AUTO_BACKUP_ENABLED = os.getenv('AUTO_BACKUP_ENABLED', 'false').lower() == 'true'
+
+
+def trigger_backup_on_completion(token: str):
+    """
+    Trigger S3 backup after session completion.
+    Runs in background thread to not block UI.
+    Only runs if AUTO_BACKUP_ENABLED=true in environment.
+    """
+    if not AUTO_BACKUP_ENABLED:
+        print(f"[BACKUP] Auto-backup disabled. Session {token} completed.")
+        return
+
+    import threading
+
+    def run_backup():
+        try:
+            from backup_db import run_backup as do_backup
+            print(f"[BACKUP] Starting backup after session {token} completed...")
+            success = do_backup(on_completion=True)
+            if success:
+                print(f"[BACKUP] Backup completed successfully for session {token}")
+            else:
+                print(f"[BACKUP] Backup failed for session {token}")
+        except Exception as e:
+            print(f"[BACKUP] Error running backup: {e}")
+
+    # Run in background thread
+    backup_thread = threading.Thread(target=run_backup, daemon=True)
+    backup_thread.start()
+
 # ============================================================================
 # BACKWARDS-COMPATIBLE QUERY PARAMS (Streamlit version compatibility)
 # ============================================================================
@@ -1316,28 +1348,42 @@ placeholder_html = r"""
         position: absolute;
         bottom: 8px;
         right: 10px;
-        background: rgba(0, 0, 0, 0.1);
+        background: rgba(0, 0, 0, 0.15);
         border: none;
         border-radius: 50%;
-        width: 22px;
-        height: 22px;
+        width: 35px;
+        height: 35px;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 11px;
-        color: rgba(0, 0, 0, 0.4);
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.4);
         transition: all 0.2s;
         z-index: 10;
         pointer-events: auto;
     }
     .toggle-btn:hover {
-        background: rgba(0, 0, 0, 0.2);
-        color: rgba(0, 0, 0, 0.6);
+        background: rgba(0, 0, 0, 0.3);
+        color: rgba(255, 255, 255, 0.7);
     }
     .toggle-btn.static-mode {
         background: rgba(0, 0, 0, 0.25);
-        color: rgba(0, 0, 0, 0.6);
+        color: rgba(255, 255, 255, 0.6);
+    }
+    #animBox.scrollable {
+        overflow-y: auto;
+    }
+    #animBox.scrollable::-webkit-scrollbar {
+        width: 6px;
+    }
+    #animBox.scrollable::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 3px;
+    }
+    #animBox.scrollable::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
     }
 </style>
 <div class="carousel-container">
@@ -1387,16 +1433,19 @@ I usually don't check bags except on very long trips.`
         if (typingTimeout) clearTimeout(typingTimeout);
 
         if (staticMode) {
-            // Show full text immediately (static mode)
+            // Show full text with scroll (static mode)
             toggleBtn.classList.add('static-mode');
+            animBox.classList.add('scrollable');
             toggleBtn.innerHTML = '▶';
             toggleBtn.title = 'Enable animation';
-            displayText = trimToFit(prompts[idx]);
+            displayText = prompts[idx];  // Full text, scrollable
+            placeholder.textContent = displayText;
         } else {
             // Resume typing from current position (animated mode)
             toggleBtn.classList.remove('static-mode');
+            animBox.classList.remove('scrollable');
             toggleBtn.innerHTML = '▐▐';
-            toggleBtn.title = 'Toggle animation';
+            toggleBtn.title = 'Pause animation';
             charIdx = 0;
             displayText = '';
             typing = true;
@@ -1422,8 +1471,10 @@ I usually don't check bags except on very long trips.`
             displayText = '';
             placeholder.style.opacity = '1';
             updateIndicators();
+            animBox.scrollTop = 0;  // Reset scroll position
             if (staticMode) {
-                displayText = trimToFit(prompts[idx]);
+                displayText = prompts[idx];
+                placeholder.textContent = displayText;
             } else {
                 typing = true;
                 type();
@@ -1441,8 +1492,10 @@ I usually don't check bags except on very long trips.`
             displayText = '';
             placeholder.style.opacity = '1';
             updateIndicators();
+            animBox.scrollTop = 0;  // Reset scroll position
             if (staticMode) {
-                displayText = trimToFit(prompts[idx]);
+                displayText = prompts[idx];
+                placeholder.textContent = displayText;
             } else {
                 typing = true;
                 type();
@@ -1461,8 +1514,10 @@ I usually don't check bags except on very long trips.`
             displayText = '';
             placeholder.style.opacity = '1';
             updateIndicators();
+            animBox.scrollTop = 0;  // Reset scroll position
             if (staticMode) {
-                displayText = trimToFit(prompts[idx]);
+                displayText = prompts[idx];
+                placeholder.textContent = displayText;
             } else {
                 typing = true;
                 type();
@@ -3318,6 +3373,10 @@ if st.session_state.all_flights:
                 st.session_state.cross_validation_completed = True
                 st.session_state.all_reranks_completed = True
                 print(f"[PILOT] Group A token - skipping cross-validation")
+                # Trigger backup on session completion
+                if not st.session_state.get('backup_triggered'):
+                    st.session_state.backup_triggered = True
+                    trigger_backup_on_completion(st.session_state.get('token', 'unknown'))
 
             if st.session_state.get('lilo_completed') and not st.session_state.get('cross_validation_completed'):
                 try:
@@ -3364,6 +3423,10 @@ if st.session_state.all_flights:
                             # All re-rankings complete
                             st.session_state.all_reranks_completed = True
                             st.session_state.cross_validation_completed = True
+                            # Trigger backup on session completion
+                            if not st.session_state.get('backup_triggered'):
+                                st.session_state.backup_triggered = True
+                                trigger_backup_on_completion(st.session_state.get('token', 'unknown'))
                             st.rerun()
 
                         # Progress indicator
@@ -3397,12 +3460,18 @@ if st.session_state.all_flights:
                     # Function not available yet (old deployment) - skip cross-validation
                     st.session_state.cross_validation_completed = True
                     st.session_state.cross_val_data = None
+                    if not st.session_state.get('backup_triggered'):
+                        st.session_state.backup_triggered = True
+                        trigger_backup_on_completion(st.session_state.get('token', 'unknown'))
 
                 if st.session_state.get('cross_val_data') is not None:
                     if not st.session_state.cross_val_data:
                         # No previous search available - skip cross-validation
                         st.info("ℹ️ No previous searches available for validation. You're one of the first users!")
                         st.session_state.cross_validation_completed = True
+                        if not st.session_state.get('backup_triggered'):
+                            st.session_state.backup_triggered = True
+                            trigger_backup_on_completion(st.session_state.get('token', 'unknown'))
                         st.rerun()
                     else:
                         cross_val = st.session_state.cross_val_data
@@ -3739,12 +3808,20 @@ if st.session_state.all_flights:
                                                             'all_reranks_completed': 1,
                                                             'current_phase': 'complete',
                                                         })
+                                                        # Trigger backup on session completion
+                                                        if not st.session_state.get('backup_triggered'):
+                                                            st.session_state.backup_triggered = True
+                                                            trigger_backup_on_completion(st.session_state.get('token', 'unknown'))
                                                         st.success("✅ All re-rankings complete! Thank you!")
                                                     else:
                                                         st.success(f"✅ Submitted! Moving to next re-ranking...")
                                             else:
                                                 # Legacy single re-ranking
                                                 st.session_state.cross_validation_completed = True
+                                                # Trigger backup on session completion
+                                                if not st.session_state.get('backup_triggered'):
+                                                    st.session_state.backup_triggered = True
+                                                    trigger_backup_on_completion(st.session_state.get('token', 'unknown'))
                                                 st.success("✅ Thank you for helping validate!")
 
                                             st.rerun()
