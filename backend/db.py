@@ -49,7 +49,12 @@ else:
 
 # Create engine with appropriate settings for each database type
 if DB_TYPE == 'mysql':
-    # MySQL/Railway: Use connection pooling with health checks
+    # MySQL/Railway: Use connection pooling with health checks and SSL
+    import ssl
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE  # Railway uses self-signed certs
+
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,  # Verify connection before use (prevents stale connections)
@@ -61,6 +66,7 @@ if DB_TYPE == 'mysql':
             'connect_timeout': 30,      # 30 second connection timeout
             'read_timeout': 30,         # 30 second read timeout
             'write_timeout': 30,        # 30 second write timeout
+            'ssl': ssl_context,         # Enable SSL for Railway
         },
         echo=False
     )
