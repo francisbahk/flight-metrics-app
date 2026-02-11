@@ -1271,12 +1271,13 @@ placeholder_html = r"""
     }
     .carousel-container {
         position: relative;
-    }
-    #animBox {
         border: 1px solid rgb(204, 204, 204);
         border-radius: 0.5rem;
         background: white;
         height: 150px;
+    }
+    #animBox {
+        height: 100%;
         padding: 0.5rem 0.75rem;
         overflow: hidden;
         position: relative;
@@ -1291,6 +1292,7 @@ placeholder_html = r"""
         transition: opacity 0.5s ease-out;
         pointer-events: none;
     }
+    /* Controls are positioned on carousel-container (doesn't scroll) */
     .carousel-nav {
         position: absolute;
         top: 50%;
@@ -1387,15 +1389,17 @@ placeholder_html = r"""
     }
 </style>
 <div class="carousel-container">
+    <!-- Controls outside scrollable area (stay fixed when scrolling) -->
+    <button class="carousel-nav carousel-prev" onclick="prevPrompt()">‹</button>
+    <button class="carousel-nav carousel-next" onclick="nextPrompt()">›</button>
+    <div class="carousel-indicator">
+        <span class="indicator-dot active" onclick="goToPrompt(0)"></span>
+        <span class="indicator-dot" onclick="goToPrompt(1)"></span>
+    </div>
+    <button class="toggle-btn" id="toggleBtn" onclick="toggleTypewriter()" title="Pause animation">▐▐</button>
+    <!-- Scrollable content area -->
     <div id="animBox">
-        <button class="carousel-nav carousel-prev" onclick="prevPrompt()">‹</button>
-        <button class="carousel-nav carousel-next" onclick="nextPrompt()">›</button>
         <div id="animPlaceholder"></div>
-        <div class="carousel-indicator">
-            <span class="indicator-dot active" onclick="goToPrompt(0)"></span>
-            <span class="indicator-dot" onclick="goToPrompt(1)"></span>
-        </div>
-        <button class="toggle-btn" id="toggleBtn" onclick="toggleTypewriter()" title="Toggle animation">▐▐</button>
     </div>
 </div>
 <script>
@@ -1764,13 +1768,17 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # Search buttons
 st.markdown('<div id="demo-search-btn">', unsafe_allow_html=True)
-col_btn1, col_btn2 = st.columns(2)
 
-with col_btn1:
-    regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True)
+# Single search button (AI button hidden for pilot study)
+regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True)
 
-with col_btn2:
-    ai_search = st.button("🔎 Search Flights with AI Personalization", type="secondary", use_container_width=True)
+# AI Personalization button - HIDDEN for pilot study (keep code for future use)
+ai_search = False  # Disabled
+# col_btn1, col_btn2 = st.columns(2)
+# with col_btn1:
+#     regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True)
+# with col_btn2:
+#     ai_search = st.button("🔎 Search Flights with AI Personalization", type="secondary", use_container_width=True)
 
 # Custom CSS and JavaScript for black AI button
 st.markdown("""
@@ -4126,9 +4134,57 @@ if st.session_state.all_flights:
 
         if has_return:
             st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Outbound Flights and {len(st.session_state.all_return_flights)} Return Flights")
-            st.markdown("**Select your top 5 flights for EACH direction and drag to rank them →**")
         else:
             st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Flights")
+
+        # Show current prompt with edit option (collapsible)
+        with st.expander("📝 Your Search Prompt", expanded=False):
+            st.markdown("**Your prompt:**")
+            st.info(st.session_state.get('original_prompt', ''))
+
+            # Edit prompt toggle
+            if 'editing_prompt_main' not in st.session_state:
+                st.session_state.editing_prompt_main = False
+
+            if not st.session_state.editing_prompt_main:
+                if st.button("✏️ Make Edits", key="edit_prompt_main_btn"):
+                    st.session_state.editing_prompt_main = True
+                    st.rerun()
+            else:
+                edited_prompt_main = st.text_area(
+                    "Edit your prompt:",
+                    value=st.session_state.get('original_prompt', ''),
+                    height=150,
+                    key="edited_prompt_main"
+                )
+
+                col_save1, col_save2, col_cancel = st.columns([1, 1, 1])
+                with col_save1:
+                    if st.button("💾 Save", key="save_prompt_main"):
+                        st.session_state.original_prompt = edited_prompt_main
+                        st.session_state.editing_prompt_main = False
+                        st.success("Prompt saved!")
+                        st.rerun()
+                with col_save2:
+                    if st.button("🔄 Save & Search Again", key="save_search_prompt_main"):
+                        st.session_state.original_prompt = edited_prompt_main
+                        st.session_state.editing_prompt_main = False
+                        # Clear flight data to trigger new search
+                        st.session_state.all_flights = []
+                        st.session_state.all_return_flights = []
+                        st.session_state.selected_flights = []
+                        st.session_state.selected_return_flights = []
+                        st.session_state.search_complete = False
+                        st.rerun()
+                with col_cancel:
+                    if st.button("❌ Cancel", key="cancel_prompt_main"):
+                        st.session_state.editing_prompt_main = False
+                        st.rerun()
+
+        # Flight selection instructions
+        if has_return:
+            st.markdown("**Select your top 5 flights for EACH direction and drag to rank them →**")
+        else:
             st.markdown("**Select your top 5 flights and drag to rank them →**")
 
         # SIDEBAR FILTERS
