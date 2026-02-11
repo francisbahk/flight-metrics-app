@@ -1226,42 +1226,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize typewriter toggle state
-if 'typewriter_enabled' not in st.session_state:
-    st.session_state.typewriter_enabled = True
+# Always show example prompts header
+st.markdown("**Example prompts:**")
 
-# Example prompts header with toggle button
-col_header, col_toggle = st.columns([4, 1])
-with col_header:
-    st.markdown("**Example prompts:**")
-with col_toggle:
-    toggle_label = "⏸ Static" if st.session_state.typewriter_enabled else "▶ Animate"
-    if st.button(toggle_label, key="typewriter_toggle", help="Toggle between animated and static view"):
-        st.session_state.typewriter_enabled = not st.session_state.typewriter_enabled
-        st.rerun()
-
-# Example prompts data (shared between both views)
-EXAMPLE_PROMPTS = [
-    """I would like to take a trip from Chicago to New York City with my brother the weekend of October 11, 2025. Time is of the essence, so I prefer to maximize my time there. I will be leaving from Times Square area, so I can fly from any of the three major airports. I heavily prefer to fly into ORD.
-I do not feel the need to strictly minimize cost; however, I would prefer to keep the fare to under 400 dollars. Obviously, if different flights meet my requirements, I prefer the cheaper one. I prefer direct flights.
-I would like to maximize my time in NYC on Sunday. It would be ideal to leave on the second-to-last flight leaving from the departure airport to Chicago, in case of delays and cancellations. Worst case, I would like there to be an early Monday morning departure to Chicago from the airport, in case of cancellations.
-I have no preference for airline. I would prefer to not leave NYC before 5 PM. I am okay with an early morning departure, as long as I arrive in Chicago by around 9 AM, as I will need to go to work. The earlier the arrival Monday morning, the better.""",
-    """On November 3rd I need to fly from where I live, in Ithaca NY, to a conference in Reston VA. The conference starts the next day (November 4th) at 9am. I'd like to sleep well but if my travel plans are disrupted and I arrive late, it's ok. I'll either fly out of Ithaca, Syracuse, Elmira, or Binghamton.
-I'll fly to DCA or IAD. For all my flights, I don't like having to get up before 7am to be on time to my flight. I'd like to avoid the amount of time I need to spend driving / taking Ubers / taking transit to airports both at home and at my destination.
-I prefer flying out of my local airport in Ithaca rather rather than driving or taking an Uber to a nearby airport in Syracuse, Elmira, or Binghamton.
-I want to avoid extra connections because they take more time and increase the chance of missing a connection. I can move pretty quickly through airports so connections longer than 45 min are fine but for connections that are tighter than that I worry about missing my flight if there is a delay. If the connection is earlier in the day and there are lots of other ways to get to my destination in the event of a missed connection, then a 30 min connection is fine.
-I prefer to avoid long layovers. Under 60 minutes is fine, under 90 minutes is not a huge deal, and over 90 minutes starts to get annoying.
-I feel that flying late in the day or connecting through airports with poor on-time performance like EWR increases my chance of a delay.
-I don't like JFK because the food choices are poor (except for Shake Shack). When I fly to Europe from the US, I don't like taking a redeye but I know I'll usually have to take one. When I do take a redeye, I don't like to have a long layover early in the morning — I prefer to just arrive at my destination. If I do have a layover, I prefer to land later in the morning so that I can get some sleep on the plane.
-I prefer to fly United because I'm a frequent flyer with them. When I fly for work, my travel is usually reimbursed from federal grants. Because of this, I must comply with the Fly America Act. This requires me to fly on a US carrier unless there are no other options. Even if I'm allowed to reimburse a trip on a non-US carrier, I don't want to because it creates extra paperwork.
-For longer trips, I am happy to return to an airport that is different from the one I left from because I probably wouldn't drive my car in any case. When I do this, I'll take an Uber, rent a car, or get a ride. For shorter trips, however, I do prefer to return to the airport I left from so that I can drive to the airport, unless it saves me a lot of trouble.
-I am not very price sensitive. It is ok to pay 20% more than the cheapest fare if the itinerary is more convenient. But if the fare is outrageous then that's problematic.
-I usually don't check bags except on very long trips."""
-]
-
-if st.session_state.typewriter_enabled:
-    # Show animated placeholder with carousel controls
-    placeholder_html = r"""
+# Animated placeholder with carousel controls and toggle button
+placeholder_html = r"""
 <style>
     body {
         margin: 0;
@@ -1343,6 +1312,33 @@ if st.session_state.typewriter_enabled:
     .indicator-dot:hover {
         background: rgba(0, 0, 0, 0.25);
     }
+    .toggle-btn {
+        position: absolute;
+        bottom: 8px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.1);
+        border: none;
+        border-radius: 50%;
+        width: 22px;
+        height: 22px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        color: rgba(0, 0, 0, 0.4);
+        transition: all 0.2s;
+        z-index: 10;
+        pointer-events: auto;
+    }
+    .toggle-btn:hover {
+        background: rgba(0, 0, 0, 0.2);
+        color: rgba(0, 0, 0, 0.6);
+    }
+    .toggle-btn.static-mode {
+        background: rgba(0, 0, 0, 0.25);
+        color: rgba(0, 0, 0, 0.6);
+    }
 </style>
 <div class="carousel-container">
     <div id="animBox">
@@ -1353,6 +1349,7 @@ if st.session_state.typewriter_enabled:
             <span class="indicator-dot active" onclick="goToPrompt(0)"></span>
             <span class="indicator-dot" onclick="goToPrompt(1)"></span>
         </div>
+        <button class="toggle-btn" id="toggleBtn" onclick="toggleTypewriter()" title="Toggle animation">▐▐</button>
     </div>
 </div>
 <script>
@@ -1378,8 +1375,34 @@ I usually don't check bags except on very long trips.`
     const speed = 42, pause = 5000, fadeTime = 500;
     const placeholder = document.getElementById('animPlaceholder');
     const animBox = document.getElementById('animBox');
+    const toggleBtn = document.getElementById('toggleBtn');
     let autoPlay = true;
     let typingTimeout = null;
+    let staticMode = false;
+
+    // Toggle between animated and static mode
+    function toggleTypewriter() {
+        staticMode = !staticMode;
+        autoPlay = false;
+        if (typingTimeout) clearTimeout(typingTimeout);
+
+        if (staticMode) {
+            // Show full text immediately (static mode)
+            toggleBtn.classList.add('static-mode');
+            toggleBtn.innerHTML = '▶';
+            toggleBtn.title = 'Enable animation';
+            displayText = trimToFit(prompts[idx]);
+        } else {
+            // Resume typing from current position (animated mode)
+            toggleBtn.classList.remove('static-mode');
+            toggleBtn.innerHTML = '▐▐';
+            toggleBtn.title = 'Toggle animation';
+            charIdx = 0;
+            displayText = '';
+            typing = true;
+            type();
+        }
+    }
 
     // Carousel navigation functions
     function updateIndicators() {
@@ -1397,10 +1420,14 @@ I usually don't check bags except on very long trips.`
             idx = (idx - 1 + prompts.length) % prompts.length;
             charIdx = 0;
             displayText = '';
-            typing = true;
             placeholder.style.opacity = '1';
             updateIndicators();
-            type();
+            if (staticMode) {
+                displayText = trimToFit(prompts[idx]);
+            } else {
+                typing = true;
+                type();
+            }
         }, fadeTime);
     }
 
@@ -1412,10 +1439,14 @@ I usually don't check bags except on very long trips.`
             idx = (idx + 1) % prompts.length;
             charIdx = 0;
             displayText = '';
-            typing = true;
             placeholder.style.opacity = '1';
             updateIndicators();
-            type();
+            if (staticMode) {
+                displayText = trimToFit(prompts[idx]);
+            } else {
+                typing = true;
+                type();
+            }
         }, fadeTime);
     }
 
@@ -1428,10 +1459,14 @@ I usually don't check bags except on very long trips.`
             idx = index;
             charIdx = 0;
             displayText = '';
-            typing = true;
             placeholder.style.opacity = '1';
             updateIndicators();
-            type();
+            if (staticMode) {
+                displayText = trimToFit(prompts[idx]);
+            } else {
+                typing = true;
+                type();
+            }
         }, fadeTime);
     }
 
@@ -1492,55 +1527,10 @@ I usually don't check bags except on very long trips.`
     setTimeout(type, 500);
 </script>
 """
-    components.html(placeholder_html, height=178)
+components.html(placeholder_html, height=178)
 
-    # Add negative margin to pull textarea up over the animation
-    st.markdown('<div style="margin-top: -178px;">', unsafe_allow_html=True)
-
-else:
-    # Static view - scrollable prompts
-    static_html = f"""
-    <style>
-        .static-prompts-container {{
-            border: 1px solid rgb(204, 204, 204);
-            border-radius: 0.5rem;
-            background: white;
-            height: 150px;
-            padding: 0.5rem 0.75rem;
-            overflow-y: auto;
-        }}
-        .static-prompt {{
-            font-family: 'Source Code Pro', monospace;
-            font-size: 14px;
-            line-height: 1.6;
-            color: rgba(49, 51, 63, 0.6);
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid #eee;
-        }}
-        .static-prompt:last-child {{
-            border-bottom: none;
-            margin-bottom: 0;
-        }}
-        .prompt-label {{
-            font-weight: bold;
-            color: rgba(49, 51, 63, 0.8);
-            margin-bottom: 0.5rem;
-        }}
-    </style>
-    <div class="static-prompts-container">
-        <div class="prompt-label">Prompt 1:</div>
-        <div class="static-prompt">{EXAMPLE_PROMPTS[0]}</div>
-        <div class="prompt-label">Prompt 2:</div>
-        <div class="static-prompt">{EXAMPLE_PROMPTS[1]}</div>
-    </div>
-    """
-    components.html(static_html, height=178)
-
-    # Add negative margin to pull textarea up over the static view
-    st.markdown('<div style="margin-top: -178px;">', unsafe_allow_html=True)
+# Add negative margin to pull textarea up over the animation
+st.markdown('<div style="margin-top: -178px;">', unsafe_allow_html=True)
 
 # Add header for real prompt input
 st.markdown("**Your flight prompt:**")
