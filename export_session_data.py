@@ -48,10 +48,14 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
             search_id = search.search_id
             prompt = search.user_prompt
 
-            # ONLY include completed LILO sessions
+            # Check for LILO session (optional for pilot study)
             lilo_session = db.query(LILOSession).filter_by(search_id=search_id).first()
-            if not lilo_session or lilo_session.completed_at is None:
-                print(f"Skipping incomplete session: search_id={search_id}")
+            lilo_enabled = lilo_session and lilo_session.completed_at is not None
+
+            # For pilot study: session is complete if has user rankings (no LILO required)
+            rankings_count = db.query(UserRanking).filter_by(search_id=search_id).count()
+            if not lilo_enabled and rankings_count == 0:
+                print(f"Skipping incomplete session: search_id={search_id} (no rankings)")
                 continue
 
             # Get ALL flights from Amadeus
@@ -73,53 +77,56 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
             # Get LILO questions and responses (actual question text)
             lilo_question_texts = []
             lilo_responses = []
-
-            # Get ALL chat messages ordered
-            all_chat_messages = db.query(LILOChatMessage).filter_by(
-                lilo_session_id=lilo_session.id
-            ).order_by(LILOChatMessage.round_number, LILOChatMessage.message_index).all()
-
-            # Match questions with user responses by looking at adjacent messages
-            # A question is a bot message that contains '?' (anywhere) and is followed by a user response
-            for i, msg in enumerate(all_chat_messages):
-                # If this is a bot message that contains a question mark
-                if msg.is_bot == 1 and '?' in msg.message_text:
-                    # Look for the next user message as the answer
-                    for j in range(i + 1, len(all_chat_messages)):
-                        next_msg = all_chat_messages[j]
-                        if next_msg.is_bot == 0:  # User response
-                            lilo_question_texts.append(msg.message_text)
-                            lilo_responses.append(next_msg.message_text)
-                            break
-
-            # Get iterations for utility function
-            iterations = db.query(LILOIteration).filter_by(
-                lilo_session_id=lilo_session.id
-            ).order_by(LILOIteration.iteration_number).all()
-
-            # Get utility function (from last iteration's params)
             utility_function = None
-            if iterations:
-                last_iteration = iterations[-1]
-                if last_iteration.utility_function_params:
-                    utility_function = json.dumps(last_iteration.utility_function_params)
 
-            # Get LILO final rankings
+            # Only get LILO data if LILO session exists
+            if lilo_enabled and lilo_session:
+                # Get ALL chat messages ordered
+                all_chat_messages = db.query(LILOChatMessage).filter_by(
+                    lilo_session_id=lilo_session.id
+                ).order_by(LILOChatMessage.round_number, LILOChatMessage.message_index).all()
+
+                # Match questions with user responses by looking at adjacent messages
+                # A question is a bot message that contains '?' (anywhere) and is followed by a user response
+                for i, msg in enumerate(all_chat_messages):
+                    # If this is a bot message that contains a question mark
+                    if msg.is_bot == 1 and '?' in msg.message_text:
+                        # Look for the next user message as the answer
+                        for j in range(i + 1, len(all_chat_messages)):
+                            next_msg = all_chat_messages[j]
+                            if next_msg.is_bot == 0:  # User response
+                                lilo_question_texts.append(msg.message_text)
+                                lilo_responses.append(next_msg.message_text)
+                                break
+
+                # Get iterations for utility function
+                iterations = db.query(LILOIteration).filter_by(
+                    lilo_session_id=lilo_session.id
+                ).order_by(LILOIteration.iteration_number).all()
+
+                # Get utility function (from last iteration's params)
+                if iterations:
+                    last_iteration = iterations[-1]
+                    if last_iteration.utility_function_params:
+                        utility_function = json.dumps(last_iteration.utility_function_params)
+
+            # Get LILO final rankings (only if LILO enabled)
             lilo_rankings = {}  # flight_id -> rank
-            final_ranks = db.query(LILOFinalRanking).filter_by(
-                lilo_session_id=lilo_session.id
-            ).order_by(LILOFinalRanking.rank).all()
+            if lilo_enabled and lilo_session:
+                final_ranks = db.query(LILOFinalRanking).filter_by(
+                    lilo_session_id=lilo_session.id
+                ).order_by(LILOFinalRanking.rank).all()
 
-            for fr in final_ranks:
-                flight_id = fr.flight_data.get('id')
-                if fr.rank <= 5:
-                    lilo_rankings[flight_id] = fr.rank
+                for fr in final_ranks:
+                    flight_id = fr.flight_data.get('id')
+                    if fr.rank <= 5:
+                        lilo_rankings[flight_id] = fr.rank
 
             # Get cross validation data - what THIS user ranked (someone else's prompt)
             # PILOT STUDY: May have up to 4 cross-validation records (sequential re-rankings)
             cross_vals = db.query(CrossValidation).filter_by(
                 reviewer_session_id=search.session_id
-            ).order_by(CrossValidation.rerank_sequence.asc().nullsfirst()).all()
+            ).order_by(CrossValidation.rerank_sequence.asc()).all()
 
             # Prepare data for up to 4 CV datasets
             cv_data = []  # List of dicts, each with prompt, source_token, flights, rankings
