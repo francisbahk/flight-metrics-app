@@ -33,8 +33,17 @@ load_dotenv()
 # (Code is preserved for future use, just not shown in the UI)
 LILO_ENABLED = False
 
-# Enable automatic S3 backup on session completion (set via env var)
-AUTO_BACKUP_ENABLED = os.getenv('AUTO_BACKUP_ENABLED', 'false').lower() == 'true'
+# Enable automatic S3 backup on session completion (set via env var or Streamlit secrets)
+def get_auto_backup_enabled():
+    """Check AUTO_BACKUP_ENABLED from Streamlit secrets first, then environment."""
+    try:
+        if hasattr(st, 'secrets') and 'AUTO_BACKUP_ENABLED' in st.secrets:
+            return str(st.secrets['AUTO_BACKUP_ENABLED']).lower() == 'true'
+    except Exception:
+        pass
+    return os.getenv('AUTO_BACKUP_ENABLED', 'false').lower() == 'true'
+
+AUTO_BACKUP_ENABLED = get_auto_backup_enabled()
 
 
 def trigger_backup_on_completion(token: str):

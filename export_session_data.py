@@ -241,38 +241,38 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                         'stops': '', 'price': '', 'duration_min': '',
                     })
 
-                # LILO section
-                row['questions'] = lilo_question_texts[idx] if idx < len(lilo_question_texts) else ''
-                row['responses'] = lilo_responses[idx] if idx < len(lilo_responses) else ''
-                row['utility_function'] = utility_function if idx == 0 else ''
+                # LILO section (commented out for pilot study)
+                # row['questions'] = lilo_question_texts[idx] if idx < len(lilo_question_texts) else ''
+                # row['responses'] = lilo_responses[idx] if idx < len(lilo_responses) else ''
+                # row['utility_function'] = utility_function if idx == 0 else ''
 
-                # Cross validation section (legacy - first CV only)
-                row['prompt_cross'] = cv_prompt if idx == 0 else ''
-                row['id_cross'] = cv_token if idx == 0 else ''
-
-                if idx < len(cv_flights):
-                    cv_flight = cv_flights[idx]
-                    cv_flight_id = cv_flight.get('id')
-                    row.update({
-                        'unique_id_cross': cv_flight_id,
-                        'rank_cross': cv_rankings.get(cv_flight_id, ''),
-                        'name_cross': cv_flight.get('airline', ''),
-                        'origin_cross': cv_flight.get('origin', ''),
-                        'destination_cross': cv_flight.get('destination', ''),
-                        'departure_time_cross': cv_flight.get('departure_time', ''),
-                        'arrival_time_cross': cv_flight.get('arrival_time', ''),
-                        'stops_cross': cv_flight.get('stops', ''),
-                        'price_cross': cv_flight.get('price', ''),
-                        'duration_min_cross': cv_flight.get('duration_min', ''),
-                    })
-                else:
-                    # Empty cross validation data
-                    row.update({
-                        'unique_id_cross': '', 'rank_cross': '', 'name_cross': '',
-                        'origin_cross': '', 'destination_cross': '',
-                        'departure_time_cross': '', 'arrival_time_cross': '',
-                        'stops_cross': '', 'price_cross': '', 'duration_min_cross': '',
-                    })
+                # Cross validation section (legacy - first CV only) - commented out for pilot study
+                # row['prompt_cross'] = cv_prompt if idx == 0 else ''
+                # row['id_cross'] = cv_token if idx == 0 else ''
+                #
+                # if idx < len(cv_flights):
+                #     cv_flight = cv_flights[idx]
+                #     cv_flight_id = cv_flight.get('id')
+                #     row.update({
+                #         'unique_id_cross': cv_flight_id,
+                #         'rank_cross': cv_rankings.get(cv_flight_id, ''),
+                #         'name_cross': cv_flight.get('airline', ''),
+                #         'origin_cross': cv_flight.get('origin', ''),
+                #         'destination_cross': cv_flight.get('destination', ''),
+                #         'departure_time_cross': cv_flight.get('departure_time', ''),
+                #         'arrival_time_cross': cv_flight.get('arrival_time', ''),
+                #         'stops_cross': cv_flight.get('stops', ''),
+                #         'price_cross': cv_flight.get('price', ''),
+                #         'duration_min_cross': cv_flight.get('duration_min', ''),
+                #     })
+                # else:
+                #     # Empty cross validation data
+                #     row.update({
+                #         'unique_id_cross': '', 'rank_cross': '', 'name_cross': '',
+                #         'origin_cross': '', 'destination_cross': '',
+                #         'departure_time_cross': '', 'arrival_time_cross': '',
+                #         'stops_cross': '', 'price_cross': '', 'duration_min_cross': '',
+                #     })
 
                 # PILOT STUDY: 4 CV datasets (cv1_, cv2_, cv3_, cv4_)
                 for cv_num in range(1, 5):
@@ -326,14 +326,14 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                 'unique_id', 'rank', 'name', 'origin', 'destination',
                 'departure_time', 'arrival_time', 'stops', 'price', 'duration_min',
 
-                # LILO section
-                'questions', 'responses', 'utility_function',
+                # LILO section (commented out for pilot study)
+                # 'questions', 'responses', 'utility_function',
 
-                # Cross validation section (legacy - first CV only)
-                'prompt_cross', 'id_cross',
-                'unique_id_cross', 'rank_cross', 'name_cross', 'origin_cross',
-                'destination_cross', 'departure_time_cross', 'arrival_time_cross',
-                'stops_cross', 'price_cross', 'duration_min_cross',
+                # Cross validation section (legacy - first CV only) - commented out for pilot study
+                # 'prompt_cross', 'id_cross',
+                # 'unique_id_cross', 'rank_cross', 'name_cross', 'origin_cross',
+                # 'destination_cross', 'departure_time_cross', 'arrival_time_cross',
+                # 'stops_cross', 'price_cross', 'duration_min_cross',
 
                 # PILOT STUDY: 4 CV datasets
                 # CV 1
