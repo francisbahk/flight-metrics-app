@@ -38,6 +38,9 @@ omegaconf>=2.3.0
 pymoo>=0.6.0
 pyre-extensions>=0.0.30
 
+# AWS S3 backups
+boto3>=1.34.0
+
 # Alternative: FastAPI backend (in api/ directory)
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
