@@ -313,9 +313,9 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                             f'{prefix}stops': '', f'{prefix}price': '', f'{prefix}duration_min': '',
                         })
 
-                # Survey section
-                row['survey_questions'] = survey_questions[idx] if idx < len(survey_questions) else ''
-                row['survey_answers'] = survey_answers[idx] if idx < len(survey_answers) else ''
+                # Survey section (commented out for pilot study)
+                # row['survey_questions'] = survey_questions[idx] if idx < len(survey_questions) else ''
+                # row['survey_answers'] = survey_answers[idx] if idx < len(survey_answers) else ''
 
                 all_rows.append(row)
 
@@ -363,8 +363,8 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                 'cv4_destination', 'cv4_departure_time', 'cv4_arrival_time',
                 'cv4_stops', 'cv4_price', 'cv4_duration_min',
 
-                # Survey section
-                'survey_questions', 'survey_answers'
+                # Survey section (commented out for pilot study)
+                # 'survey_questions', 'survey_answers'
             ]
 
             with open(output_file, 'w', newline='', encoding='utf-8') as f:

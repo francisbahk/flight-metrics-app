@@ -4146,8 +4146,8 @@ if st.session_state.all_flights:
         else:
             st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Flights")
 
-        # Show current prompt with edit option (collapsible)
-        with st.expander("📝 Your Search Prompt", expanded=False):
+        # Show current prompt with edit option (expanded by default so users see it)
+        with st.expander("📝 Your Search Prompt (click to edit)", expanded=True):
             st.markdown("**Your prompt:**")
             st.info(st.session_state.get('original_prompt', ''))
 
