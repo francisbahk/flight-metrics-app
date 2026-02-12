@@ -3400,6 +3400,14 @@ if st.session_state.all_flights:
                 st.session_state.cross_validation_completed = True
                 st.session_state.all_reranks_completed = True
                 print(f"[PILOT] Group A token - skipping cross-validation")
+                # Mark token as used immediately for Group A (they complete here)
+                if not st.session_state.get('token_marked_used'):
+                    from backend.db import mark_token_used
+                    token = st.session_state.get('token')
+                    if token and token.upper() not in ["DEMO", "DATA"]:
+                        mark_token_used(token)
+                        st.session_state.token_marked_used = True
+                        print(f"[PILOT] Token {token} marked as used (Group A complete)")
                 # Trigger backup on session completion
                 if not st.session_state.get('backup_triggered'):
                     st.session_state.backup_triggered = True
@@ -3839,6 +3847,14 @@ if st.session_state.all_flights:
                                                         if not st.session_state.get('backup_triggered'):
                                                             st.session_state.backup_triggered = True
                                                             trigger_backup_on_completion(st.session_state.get('token', 'unknown'))
+                                                        # Mark token as used (session complete)
+                                                        if not st.session_state.get('token_marked_used'):
+                                                            from backend.db import mark_token_used
+                                                            token = st.session_state.get('token')
+                                                            if token and token.upper() not in ["DEMO", "DATA"]:
+                                                                mark_token_used(token)
+                                                                st.session_state.token_marked_used = True
+                                                                print(f"[PILOT] Token {token} marked as used (all re-rankings complete)")
                                                         st.success("✅ All re-rankings complete! Thank you!")
                                                     else:
                                                         st.success(f"✅ Submitted! Moving to next re-ranking...")
