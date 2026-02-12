@@ -1011,10 +1011,11 @@ elif not st.session_state.token:
     st.warning("This study requires a unique access token. Please use the link provided to you by the researchers, or use `?id=DEMO` for demo mode.")
     st.stop()
 elif not st.session_state.token_valid:
-    st.error(f"❌ **Access Denied: {st.session_state.token_message}**")
     if 'already used' in st.session_state.token_message.lower():
-        st.warning("This token has already been used. To request a new token for an additional session, please reach out to the research team.")
+        st.error("❌ **Access Not Granted: This token has already been used**")
+        st.warning("This access link can only be used once. If you need to participate again, please contact the research team for a new token.")
     else:
+        st.error(f"❌ **Access Denied: {st.session_state.token_message}**")
         st.warning("Please check your access link and try again, or contact the researchers if you believe this is an error.")
     st.stop()
 else:
@@ -1837,7 +1838,16 @@ if ai_search:
 
     st.session_state.last_ai_search_time = current_time
 
-if ai_search or regular_search:
+# Check for auto-search request (from "Save & Search Again" button)
+auto_search = st.session_state.get('auto_search_requested', False)
+if auto_search:
+    # Use the saved prompt for auto-search
+    prompt = st.session_state.get('auto_search_prompt', prompt)
+    # Clear the auto-search flag
+    st.session_state.auto_search_requested = False
+    st.session_state.auto_search_prompt = None
+
+if ai_search or regular_search or auto_search:
     # Reset session state to clear previous results
     st.session_state.all_flights = []
     st.session_state.selected_flights = []
@@ -4178,7 +4188,10 @@ if st.session_state.all_flights:
                     if st.button("🔄 Save & Search Again", key="save_search_prompt_main"):
                         st.session_state.original_prompt = edited_prompt_main
                         st.session_state.editing_prompt_main = False
-                        # Clear flight data to trigger new search
+                        # Set flag to auto-search with the new prompt
+                        st.session_state.auto_search_requested = True
+                        st.session_state.auto_search_prompt = edited_prompt_main
+                        # Clear flight data
                         st.session_state.all_flights = []
                         st.session_state.all_return_flights = []
                         st.session_state.selected_flights = []

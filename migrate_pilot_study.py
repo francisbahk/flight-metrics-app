@@ -108,7 +108,7 @@ def run_migration():
         pilot_count = db.query(AccessToken).filter(
             AccessToken.token.in_(list(PILOT_TOKENS.keys()))
         ).count()
-        print(f"   Pilot tokens in database: {pilot_count}/15")
+        print(f"   Pilot tokens in database: {pilot_count}/20")
 
         # Check SessionProgress table exists
         from backend.db import SessionProgress

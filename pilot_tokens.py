@@ -5,6 +5,7 @@ Groups:
 - Group A (GA01-GA05): Complete search, NO re-ranking required
 - Group B (GB01-GB05): Complete search, re-rank 4 Group A prompts each
 - Group C (GC01-GC05): Complete search, re-rank 4 Group B prompts each
+- Group D (GD01-GD05): Complete search, re-rank 4 Group C prompts each
 
 Assignment algorithm (balanced coverage):
 - 5 people x 4 reviews = 20 reviews per group
@@ -38,6 +39,14 @@ PILOT_TOKENS: Dict[str, Dict] = {
     'GC03': {'group': 'C', 'rerank_targets': ['GB01', 'GB02', 'GB04', 'GB05']},  # skips GB03
     'GC04': {'group': 'C', 'rerank_targets': ['GB01', 'GB02', 'GB03', 'GB05']},  # skips GB04
     'GC05': {'group': 'C', 'rerank_targets': ['GB01', 'GB02', 'GB03', 'GB04']},  # skips GB05
+
+    # Group D - Re-ranks Group C prompts (4 each, balanced coverage)
+    # Each Group C prompt gets reviewed by exactly 4 Group D participants
+    'GD01': {'group': 'D', 'rerank_targets': ['GC02', 'GC03', 'GC04', 'GC05']},  # skips GC01
+    'GD02': {'group': 'D', 'rerank_targets': ['GC01', 'GC03', 'GC04', 'GC05']},  # skips GC02
+    'GD03': {'group': 'D', 'rerank_targets': ['GC01', 'GC02', 'GC04', 'GC05']},  # skips GC03
+    'GD04': {'group': 'D', 'rerank_targets': ['GC01', 'GC02', 'GC03', 'GC05']},  # skips GC04
+    'GD05': {'group': 'D', 'rerank_targets': ['GC01', 'GC02', 'GC03', 'GC04']},  # skips GC05
 }
 
 
@@ -49,7 +58,7 @@ def get_token_group(token: str) -> Optional[str]:
         token: Pilot token (e.g., 'GA01', 'GB03')
 
     Returns:
-        Group letter ('A', 'B', or 'C') or None if not a pilot token
+        Group letter ('A', 'B', 'C', or 'D') or None if not a pilot token
     """
     config = PILOT_TOKENS.get(token.upper())
     return config['group'] if config else None
@@ -112,10 +121,11 @@ def generate_pilot_tokens_md(output_file: str = 'pilot_tokens.md') -> str:
         "# Pilot Study Tokens",
         "",
         "## Overview",
-        "- **3 groups** of 5 participants each (15 total tokens)",
+        "- **4 groups** of 5 participants each (20 total tokens)",
         "- **Group A**: Complete flight search and ranking (no re-ranking)",
         "- **Group B**: Complete flight search + re-rank 4 prompts from Group A",
         "- **Group C**: Complete flight search + re-rank 4 prompts from Group B",
+        "- **Group D**: Complete flight search + re-rank 4 prompts from Group C",
         "",
         "## Balanced Coverage",
         "Each prompt from the previous group is reviewed by exactly 4 participants.",
@@ -170,6 +180,23 @@ def generate_pilot_tokens_md(output_file: str = 'pilot_tokens.md') -> str:
         "",
         "---",
         "",
+        "## Group D Tokens (Re-rank Group C)",
+        "",
+        "| Token | Re-rank Targets | Skips |",
+        "|-------|-----------------|-------|",
+    ])
+
+    # Group D
+    for token in ['GD01', 'GD02', 'GD03', 'GD04', 'GD05']:
+        targets = get_rerank_targets(token)
+        all_gc = ['GC01', 'GC02', 'GC03', 'GC04', 'GC05']
+        skipped = [t for t in all_gc if t not in targets][0]
+        lines.append(f"| `{token}` | {', '.join(targets)} | {skipped} |")
+
+    lines.extend([
+        "",
+        "---",
+        "",
         "## Coverage Matrix",
         "",
         "### Group A prompts reviewed by Group B:",
@@ -200,6 +227,20 @@ def generate_pilot_tokens_md(output_file: str = 'pilot_tokens.md') -> str:
 
     lines.extend([
         "",
+        "### Group C prompts reviewed by Group D:",
+        "",
+        "| Prompt | Reviewed By |",
+        "|--------|-------------|",
+    ])
+
+    # Coverage matrix for C -> D
+    for gc_token in ['GC01', 'GC02', 'GC03', 'GC04', 'GC05']:
+        reviewers = [gd for gd in ['GD01', 'GD02', 'GD03', 'GD04', 'GD05']
+                     if gc_token in get_rerank_targets(gd)]
+        lines.append(f"| {gc_token} | {', '.join(reviewers)} |")
+
+    lines.extend([
+        "",
         "---",
         "",
         "## Usage Instructions",
@@ -208,7 +249,9 @@ def generate_pilot_tokens_md(output_file: str = 'pilot_tokens.md') -> str:
         "2. **Wait for Group A to complete**: All 5 must finish before Group B starts",
         "3. **Group B goes second**: Distribute GB01-GB05 tokens to next 5 participants",
         "4. **Wait for Group B to complete**: All 5 must finish before Group C starts",
-        "5. **Group C goes last**: Distribute GC01-GC05 tokens to final 5 participants",
+        "5. **Group C goes third**: Distribute GC01-GC05 tokens to next 5 participants",
+        "6. **Wait for Group C to complete**: All 5 must finish before Group D starts",
+        "7. **Group D goes last**: Distribute GD01-GD05 tokens to final 5 participants",
         "",
     ])
 
@@ -229,7 +272,7 @@ if __name__ == "__main__":
     print("\nPilot Token Summary:")
     print("=" * 50)
 
-    for group in ['A', 'B', 'C']:
+    for group in ['A', 'B', 'C', 'D']:
         print(f"\nGroup {group}:")
         for token, config in PILOT_TOKENS.items():
             if config['group'] == group:
