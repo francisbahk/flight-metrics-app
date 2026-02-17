@@ -21,18 +21,12 @@ sys.path.insert(0, os.path.dirname(__file__))
 from backend.flight_search import FlightSearchClient
 from backend.prompt_parser import parse_flight_prompt_with_llm, get_test_api_fallback
 from backend.utils.parse_duration import parse_duration_to_minutes
-from components.interactive_demo import init_demo_mode, start_demo
-from components.static_demo_page import render_static_demo_page
 
 load_dotenv()
 
 # ============================================================================
-# PILOT STUDY CONFIGURATION
+# CONFIGURATION
 # ============================================================================
-# Set to False to disable LILO preference learning section
-# (Code is preserved for future use, just not shown in the UI)
-LILO_ENABLED = False
-
 # Enable automatic S3 backup on session completion (set via env var or Streamlit secrets)
 def get_auto_backup_enabled():
     """Check AUTO_BACKUP_ENABLED from Streamlit secrets first, then environment."""
@@ -103,30 +97,6 @@ def format_price(price):
     if price is None or price == 0:
         return "N/A"
     return f"${price:.0f}"
-
-# LILO Chat UI Helper Functions
-def render_chat_message(message, is_bot=True):
-    """Render a single chat message with bot/user styling."""
-    import html
-    # Escape HTML to prevent rendering issues
-    safe_message = html.escape(message)
-
-    if is_bot:
-        st.markdown(f"""
-        <div style="display: flex; justify-content: flex-start; margin: 10px 0;">
-            <div style="background: #f0f2f6; padding: 12px 16px; border-radius: 18px; max-width: 70%;">
-                🤖 {safe_message}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <div style="display: flex; justify-content: flex-end; margin: 10px 0;">
-            <div style="background: #0068c9; color: white; padding: 12px 16px; border-radius: 18px; max-width: 70%;">
-                {safe_message}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
 
 # Initialize database (create tables if they don't exist)
 try:
@@ -207,6 +177,134 @@ AIRLINE_NAMES = {
     'WY': 'Oman Air',
     'GF': 'Gulf Air',
 }
+
+# Common airports for manual search dropdowns (IATA code - City Name)
+AIRPORT_OPTIONS = [
+    # Major US Hubs
+    "ATL - Atlanta Hartsfield-Jackson",
+    "BOS - Boston Logan",
+    "BWI - Baltimore/Washington",
+    "CLT - Charlotte Douglas",
+    "DCA - Washington Reagan",
+    "DEN - Denver International",
+    "DFW - Dallas/Fort Worth",
+    "DTW - Detroit Metropolitan",
+    "EWR - Newark Liberty",
+    "FLL - Fort Lauderdale",
+    "HNL - Honolulu",
+    "IAD - Washington Dulles",
+    "IAH - Houston Intercontinental",
+    "JFK - New York JFK",
+    "LAS - Las Vegas",
+    "LAX - Los Angeles",
+    "LGA - New York LaGuardia",
+    "MCO - Orlando",
+    "MDW - Chicago Midway",
+    "MIA - Miami",
+    "MSP - Minneapolis-St. Paul",
+    "ORD - Chicago O'Hare",
+    "PHL - Philadelphia",
+    "PHX - Phoenix Sky Harbor",
+    "PIT - Pittsburgh",
+    "PDX - Portland",
+    "RDU - Raleigh-Durham",
+    "SAN - San Diego",
+    "SEA - Seattle-Tacoma",
+    "SFO - San Francisco",
+    "SJC - San Jose",
+    "SLC - Salt Lake City",
+    "STL - St. Louis",
+    "TPA - Tampa",
+    # Upstate NY / Regional
+    "BUF - Buffalo",
+    "ITH - Ithaca",
+    "ROC - Rochester",
+    "SYR - Syracuse",
+    "ALB - Albany",
+    # Canada
+    "YYZ - Toronto Pearson",
+    "YVR - Vancouver",
+    "YUL - Montreal Trudeau",
+    # Europe
+    "LHR - London Heathrow",
+    "LGW - London Gatwick",
+    "CDG - Paris Charles de Gaulle",
+    "AMS - Amsterdam Schiphol",
+    "FRA - Frankfurt",
+    "MUC - Munich",
+    "BCN - Barcelona",
+    "MAD - Madrid",
+    "FCO - Rome Fiumicino",
+    "IST - Istanbul",
+    "ZRH - Zurich",
+    "CPH - Copenhagen",
+    "DUB - Dublin",
+    # Asia
+    "NRT - Tokyo Narita",
+    "HND - Tokyo Haneda",
+    "ICN - Seoul Incheon",
+    "PEK - Beijing Capital",
+    "PVG - Shanghai Pudong",
+    "HKG - Hong Kong",
+    "SIN - Singapore Changi",
+    "BKK - Bangkok Suvarnabhumi",
+    "DEL - New Delhi",
+    "BOM - Mumbai",
+    # Middle East
+    "DXB - Dubai",
+    "DOH - Doha Hamad",
+    "AUH - Abu Dhabi",
+    # Oceania
+    "SYD - Sydney",
+    "MEL - Melbourne",
+    "AKL - Auckland",
+    # Latin America
+    "MEX - Mexico City",
+    "CUN - Cancun",
+    "GRU - Sao Paulo Guarulhos",
+    "EZE - Buenos Aires Ezeiza",
+    "BOG - Bogota El Dorado",
+    "LIM - Lima Jorge Chavez",
+    "SCL - Santiago",
+    "PTY - Panama City Tocumen",
+]
+
+def build_manual_parsed(origins, destinations, departure_date, return_date=None):
+    """
+    Build the same parsed dict structure that parse_flight_prompt_with_llm returns,
+    from manual form inputs.
+    """
+    # Extract IATA codes from "JFK - New York JFK" format
+    origin_codes = [opt.split(" - ")[0] for opt in origins]
+    dest_codes = [opt.split(" - ")[0] for opt in destinations]
+
+    dep_dates = [departure_date.strftime("%Y-%m-%d")]
+    ret_dates = [return_date.strftime("%Y-%m-%d")] if return_date else []
+
+    return {
+        "parsed_successfully": True,
+        "origins": origin_codes,
+        "destinations": dest_codes,
+        "departure_dates": dep_dates,
+        "return_dates": ret_dates,
+        "return_date": ret_dates[0] if ret_dates else None,
+        "preferences": {
+            "prefer_direct": False,
+            "prefer_cheap": False,
+            "prefer_fast": False,
+            "avoid_early_departures": False,
+            "min_connection_time": 0,
+            "max_layover_time": 10000,
+            "preferred_airlines": [],
+            "avoid_airports": [],
+            "fly_america_act": False,
+        },
+        "constraints": {
+            "latest_arrival": None,
+            "earliest_departure": None,
+        },
+        "original_prompt": f"Manual search: {', '.join(origin_codes)} to {', '.join(dest_codes)} on {dep_dates[0]}",
+    }
 
 def get_airline_name(code):
     """Convert airline IATA code to full name."""
@@ -494,8 +592,6 @@ if token_from_url:
                 st.session_state.search_id = existing_progress['search_id']
             if existing_progress.get('flight_selection_confirmed'):
                 st.session_state.review_confirmed = True
-            if existing_progress.get('lilo_completed'):
-                st.session_state.lilo_completed = True
             if existing_progress.get('current_rerank_index'):
                 st.session_state.current_rerank_index = existing_progress['current_rerank_index']
             if existing_progress.get('completed_reranks'):
@@ -520,6 +616,8 @@ if 'selected_flights' not in st.session_state:  # Changed from 'shortlist'
     st.session_state.selected_flights = []
 if 'parsed_params' not in st.session_state:
     st.session_state.parsed_params = None
+if 'search_mode' not in st.session_state:
+    st.session_state.search_mode = "ai"
 if 'csv_generated' not in st.session_state:
     st.session_state.csv_generated = False
 # New: for return flights
@@ -563,26 +661,6 @@ if 'csv_data_return' not in st.session_state:
     st.session_state.csv_data_return = None
 if 'review_confirmed' not in st.session_state:
     st.session_state.review_confirmed = False
-if 'lilo_completed' not in st.session_state:
-    st.session_state.lilo_completed = False
-if 'lilo_answers_confirmed' not in st.session_state:
-    st.session_state.lilo_answers_confirmed = False
-if 'lilo_round' not in st.session_state:
-    st.session_state.lilo_round = 0  # 0 = round 1, 1 = round 2
-if 'lilo_optimizer' not in st.session_state:
-    st.session_state.lilo_optimizer = None
-if 'lilo_round1_flights' not in st.session_state:
-    st.session_state.lilo_round1_flights = []
-if 'lilo_round2_flights' not in st.session_state:
-    st.session_state.lilo_round2_flights = []
-if 'lilo_round1_selected' not in st.session_state:
-    st.session_state.lilo_round1_selected = []
-if 'lilo_round2_selected' not in st.session_state:
-    st.session_state.lilo_round2_selected = []
-if 'lilo_questions' not in st.session_state:
-    st.session_state.lilo_questions = []
-if 'lilo_answers' not in st.session_state:
-    st.session_state.lilo_answers = {}
 if 'cross_validation_completed' not in st.session_state:
     st.session_state.cross_validation_completed = False
 # Pilot study: Sequential re-ranking state
@@ -620,12 +698,6 @@ if 'filter_destinations' not in st.session_state:
 # Counter to force filter widgets to reset
 if 'filter_reset_counter' not in st.session_state:
     st.session_state.filter_reset_counter = 0
-
-# TEMPORARY COMMENT: Old session state for algorithm-based ranking
-# if 'interleaved_results' not in st.session_state:
-#     st.session_state.interleaved_results = []
-# if 'shortlist' not in st.session_state:
-#     st.session_state.shortlist = []
 
 # Initialize Flight Search Client (supports Amadeus and SerpAPI)
 def get_flight_client():
@@ -1022,147 +1094,11 @@ else:
     # Show success message for valid token
     st.success(f"✅ Access granted! Token: {st.session_state.token}")
 
-# Initialize interactive demo/tutorial mode
-init_demo_mode()
-
-# Show static demo page if active (completely separate from real app)
-if st.session_state.get('demo_active', False):
-    # Check for tutorial navigation via query params
-    try:
-        action = get_query_param('tutorial_action')
-        if action:
-            if action == 'next':
-                if st.session_state.demo_step < 6:
-                    st.session_state.demo_step += 1
-                else:
-                    st.session_state.demo_active = False
-                    st.session_state.demo_step = 0
-            elif action == 'back' and st.session_state.demo_step > 0:
-                st.session_state.demo_step -= 1
-            elif action == 'exit':
-                st.session_state.demo_active = False
-                st.session_state.demo_step = 0
-            # Clear query param
-            clear_query_params()
-            st.rerun()
-    except:
-        pass
-
-    # OLD TUTORIAL CODE - Commented out in favor of new guided tutorial
-    # render_static_demo_page(st.session_state.demo_step)
-    # from components.tutorial_card import show_tutorial_card
-    # show_tutorial_card(st.session_state.demo_step)
-    # st.stop()
-
-    # NEW GUIDED TUTORIAL - COMMENTED OUT PER USER REQUEST
-    # from components.guided_tutorial import show_guided_tutorial
-    #
-    # # Pre-populate demo state with sample flight data
-    # if 'demo_initialized' not in st.session_state:
-    #     st.session_state.demo_initialized = True
-    #     # Set up a populated state (as if user already searched)
-    #     st.session_state.search_prompt = "I want to fly from JFK to LAX on December 26th. I prefer cheap flights but if a flight is longer than 12 hours I'd prefer to pay a bit more."
-    #     st.session_state.search_complete = True
-    #     # Add more demo state initialization as needed
-    #
-    # # Show the guided tutorial overlay
-    # show_guided_tutorial(st.session_state.demo_step)
-    #
-    # # Continue rendering the real app below (but with interactions disabled in demo mode)
-    pass
-
-# # Interactive Demo/Tutorial Mode (COMMENTED OUT - REPLACED WITH NEW TOUR ABOVE)
-# if 'demo_mode' not in st.session_state:
-#     st.session_state.demo_mode = False
-# if 'demo_step' not in st.session_state:
-#     st.session_state.demo_step = 0
-#
-# st.markdown("---")
-# if not st.session_state.demo_mode:
-#     col1, col2, col3 = st.columns([1, 2, 1])
-#     with col2:
-#         if st.button("🎓 Start Interactive Tutorial", use_container_width=True, type="secondary"):
-#             st.session_state.demo_mode = True
-#             st.session_state.demo_step = 0
-#             st.rerun()
-# else:
-#     # Demo mode active - show slideshow
-#     demo_steps = [
-#         {
-#             "title": "Step 1: Write Your Prompt",
-#             "description": "Describe your ideal flight in natural language. Include your route, dates, and preferences.",
-#             "example": "I need to fly from NYC to LAX on December 25th. I prefer nonstop flights and want the cheapest option under $400.",
-#             "visual": "📝"
-#         },
-#         {
-#             "title": "Step 2: Search for Flights",
-#             "description": "Click 'Search Flights' to see available options. You can filter results by price, airlines, stops, and times.",
-#             "example": "The system will show you all matching flights with detailed information about price, duration, and stops.",
-#             "visual": "🔍"
-#         },
-#         {
-#             "title": "Step 3: Select Top 5 Flights",
-#             "description": "Check the boxes next to your 5 favorite flights that best match your needs.",
-#             "example": "Review each flight's details (price, duration, stops) and select your top choices.",
-#             "visual": "☑️"
-#         },
-#         {
-#             "title": "Step 4: Rank Your Selections",
-#             "description": "Drag and drop your selected flights to rank them from most to least preferred.",
-#             "example": "Your #1 choice should be at the top, and your #5 choice at the bottom.",
-#             "visual": "🎯"
-#         },
-#         {
-#             "title": "Step 5: Complete Survey",
-#             "description": "After submitting your rankings, complete a brief survey about your experience.",
-#             "example": "Share your feedback to help us improve the flight search system.",
-#             "visual": "📋"
-#         }
-#     ]
-#
-#     step = demo_steps[st.session_state.demo_step]
-#
-#     st.markdown(f"""
-#     <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-#                 padding: 30px; border-radius: 10px; color: white; text-align: center;">
-#         <div style="font-size: 60px; margin-bottom: 15px;">{step['visual']}</div>
-#         <h2 style="color: white; margin: 0;">{step['title']}</h2>
-#         <p style="font-size: 18px; margin-top: 10px; opacity: 0.9;">Tutorial Step {st.session_state.demo_step + 1} of {len(demo_steps)}</p>
-#     </div>
-#     """, unsafe_allow_html=True)
-#
-#     st.markdown(f"### {step['description']}")
-#     st.info(f"**Example:** {step['example']}")
-#
-#     # Navigation buttons
-#     col1, col2, col3 = st.columns([1, 1, 1])
-#     with col1:
-#         if st.session_state.demo_step > 0:
-#             if st.button("⬅️ Previous", use_container_width=True):
-#                 st.session_state.demo_step -= 1
-#                 st.rerun()
-#     with col2:
-#         if st.button("❌ Exit Tutorial", use_container_width=True):
-#             st.session_state.demo_mode = False
-#             st.rerun()
-#     with col3:
-#         if st.session_state.demo_step < len(demo_steps) - 1:
-#             if st.button("Next ➡️", use_container_width=True, type="primary"):
-#                 st.session_state.demo_step += 1
-#                 st.rerun()
-#         else:
-#             if st.button("✅ Finish Tutorial", use_container_width=True, type="primary"):
-#                 st.session_state.demo_mode = False
-#                 st.success("Tutorial complete! You're ready to search for flights.")
-#                 st.rerun()
-#
-#     st.markdown("---")
-
 # How to Use section
 st.markdown('<div id="how-to-use"></div>', unsafe_allow_html=True)
 st.markdown("### 📖 How to Use")
 
-# Container to hide content on LILO/survey pages
+# Container to hide content on survey pages
 st.markdown('<div class="hideable-survey-content">', unsafe_allow_html=True)
 
 st.markdown("""
@@ -1598,245 +1534,236 @@ I usually don't check bags except on very long trips.`
 """
 components.html(placeholder_html, height=178)
 
-# Add negative margin to pull textarea up over the animation
-st.markdown('<div style="margin-top: -178px;">', unsafe_allow_html=True)
+# Search mode tabs
+tab_ai, tab_manual = st.tabs(["Describe Your Flight", "Search by Fields"])
 
-# Add header for real prompt input
-st.markdown("**Your flight prompt:**")
+# Initialize button states (will be set inside tabs)
+regular_search = False
+manual_search_btn = False
+ai_search = False
 
-# Add CSS to hide label and make textarea transparent
-st.markdown("""
-<style>
-    /* Hide the label */
-    label[data-testid="stWidgetLabel"] {
-        display: none !important;
-    }
-    /* Make textarea background transparent */
-    textarea[aria-label="flight prompt input"] {
-        background: transparent !important;
-    }
-</style>
-""", unsafe_allow_html=True)
+with tab_ai:
+    # Add negative margin to pull textarea up over the animation
+    st.markdown('<div style="margin-top: -178px;">', unsafe_allow_html=True)
 
-# Real textarea that user types in
-prompt = st.text_area(
-    "flight prompt input",
-    height=150,
-    placeholder="",
-    label_visibility="collapsed",
-    key="flight_prompt_input"
-)
+    # Add header for real prompt input
+    st.markdown("**Your flight prompt:**")
 
-# Voice-to-text microphone button (compact icon style)
-voice_to_text_html = """
-<style>
-    .voice-btn-container {
-        display: flex;
-        justify-content: flex-end;
-        margin-top: -10px;
-        margin-bottom: 10px;
-        align-items: center;
-        gap: 10px;
-    }
-    .voice-btn {
-        background: #f0f2f6;
-        border: 1px solid #ddd;
-        border-radius: 50%;
-        width: 40px;
-        height: 40px;
-        cursor: pointer;
-        font-size: 18px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s;
-    }
-    .voice-btn:hover {
-        background: #e0e2e6;
-    }
-    .voice-btn.recording {
-        background: #ffebee;
-        border-color: #ef5350;
-    }
-    .voice-status {
-        font-size: 12px;
-        color: #666;
-        max-width: 200px;
-    }
-</style>
-<div class="voice-btn-container">
-    <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceRecording()">🎙️</button>
-    <span class="voice-status" id="voiceStatus"></span>
-</div>
-<script>
-    let recognition = null;
-    let isRecording = false;
+    # Add CSS to hide label and make textarea transparent
+    st.markdown("""
+    <style>
+        /* Hide the label */
+        label[data-testid="stWidgetLabel"] {
+            display: none !important;
+        }
+        /* Make textarea background transparent */
+        textarea[aria-label="flight prompt input"] {
+            background: transparent !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-    // Helper to properly set textarea value in React/Streamlit
-    function setNativeValue(element, value) {
-        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-        valueSetter.call(element, value);
-        element.dispatchEvent(new Event('input', { bubbles: true }));
-    }
+    # Real textarea that user types in
+    prompt = st.text_area(
+        "flight prompt input",
+        height=150,
+        placeholder="",
+        label_visibility="collapsed",
+        key="flight_prompt_input"
+    )
 
-    function toggleVoiceRecording() {
-        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-            document.getElementById('voiceStatus').textContent = 'Speech recognition not supported in this browser';
-            return;
+    # Voice-to-text microphone button (compact icon style)
+    voice_to_text_html = """
+    <style>
+        .voice-btn-container {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: -10px;
+            margin-bottom: 10px;
+            align-items: center;
+            gap: 10px;
+        }
+        .voice-btn {
+            background: #f0f2f6;
+            border: 1px solid #ddd;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .voice-btn:hover {
+            background: #e0e2e6;
+        }
+        .voice-btn.recording {
+            background: #ffebee;
+            border-color: #ef5350;
+        }
+        .voice-status {
+            font-size: 12px;
+            color: #666;
+            max-width: 200px;
+        }
+    </style>
+    <div class="voice-btn-container">
+        <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceRecording()">🎙️</button>
+        <span class="voice-status" id="voiceStatus"></span>
+    </div>
+    <script>
+        let recognition = null;
+        let isRecording = false;
+
+        // Helper to properly set textarea value in React/Streamlit
+        function setNativeValue(element, value) {
+            const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+            valueSetter.call(element, value);
+            element.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
-        if (isRecording) {
-            stopRecording();
-        } else {
-            startRecording();
+        function toggleVoiceRecording() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                document.getElementById('voiceStatus').textContent = 'Speech recognition not supported in this browser';
+                return;
+            }
+
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
         }
-    }
 
-    function startRecording() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
+        function startRecording() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
 
-        const btn = document.getElementById('voiceBtn');
-        const status = document.getElementById('voiceStatus');
+            const btn = document.getElementById('voiceBtn');
+            const status = document.getElementById('voiceStatus');
 
-        recognition.onstart = function() {
-            isRecording = true;
-            btn.classList.add('recording');
-            btn.textContent = '⏹️';
-            status.textContent = 'Listening...';
-        };
+            recognition.onstart = function() {
+                isRecording = true;
+                btn.classList.add('recording');
+                btn.textContent = '⏹️';
+                status.textContent = 'Listening...';
+            };
 
-        recognition.onresult = function(event) {
-            // Find the Streamlit textarea in parent document
-            const textarea = window.parent.document.querySelector('textarea[aria-label="flight prompt input"]');
-            if (textarea) {
-                let finalTranscript = '';
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    if (event.results[i].isFinal) {
-                        finalTranscript += event.results[i][0].transcript;
+            recognition.onresult = function(event) {
+                // Find the Streamlit textarea in parent document
+                const textarea = window.parent.document.querySelector('textarea[aria-label="flight prompt input"]');
+                if (textarea) {
+                    let finalTranscript = '';
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        if (event.results[i].isFinal) {
+                            finalTranscript += event.results[i][0].transcript;
+                        }
+                    }
+                    if (finalTranscript) {
+                        // Append to existing text
+                        const currentValue = textarea.value;
+                        const newValue = currentValue ? currentValue + ' ' + finalTranscript : finalTranscript;
+                        // Use native setter to properly update React state
+                        setNativeValue(textarea, newValue);
+                        status.textContent = 'Added: "' + finalTranscript.substring(0, 30) + (finalTranscript.length > 30 ? '..."' : '"');
                     }
                 }
-                if (finalTranscript) {
-                    // Append to existing text
-                    const currentValue = textarea.value;
-                    const newValue = currentValue ? currentValue + ' ' + finalTranscript : finalTranscript;
-                    // Use native setter to properly update React state
-                    setNativeValue(textarea, newValue);
-                    status.textContent = 'Added: "' + finalTranscript.substring(0, 30) + (finalTranscript.length > 30 ? '..."' : '"');
+            };
+
+            recognition.onerror = function(event) {
+                status.textContent = 'Error: ' + event.error;
+                stopRecording();
+            };
+
+            recognition.onend = function() {
+                if (isRecording) {
+                    // Restart if still supposed to be recording
+                    recognition.start();
                 }
-            }
-        };
+            };
 
-        recognition.onerror = function(event) {
-            status.textContent = 'Error: ' + event.error;
-            stopRecording();
-        };
-
-        recognition.onend = function() {
-            if (isRecording) {
-                // Restart if still supposed to be recording
-                recognition.start();
-            }
-        };
-
-        recognition.start();
-    }
-
-    function stopRecording() {
-        if (recognition) {
-            isRecording = false;
-            recognition.stop();
-            recognition = null;
+            recognition.start();
         }
-        const btn = document.getElementById('voiceBtn');
-        btn.classList.remove('recording');
-        btn.textContent = '🎙️';
-        document.getElementById('voiceStatus').textContent = '';
-    }
-</script>
-"""
-components.html(voice_to_text_html, height=50)
 
-# Add ID dynamically to textarea container for tutorial
-st.markdown("""
-<script>
-setTimeout(() => {
-    const textarea = document.querySelector('textarea[aria-label="flight prompt input"]');
-    if (textarea) {
-        let container = textarea.closest('[data-testid="stTextArea"]');
-        if (container) container.id = 'demo-prompt';
-    }
-}, 200);
-</script>
-""", unsafe_allow_html=True)
-
-# Close the negative margin div
-st.markdown('</div>', unsafe_allow_html=True)
-
-# Search buttons
-st.markdown('<div id="demo-search-btn">', unsafe_allow_html=True)
-
-# Single search button (AI button hidden for pilot study)
-regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True)
-
-# AI Personalization button - HIDDEN for pilot study (keep code for future use)
-ai_search = False  # Disabled
-# col_btn1, col_btn2 = st.columns(2)
-# with col_btn1:
-#     regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True)
-# with col_btn2:
-#     ai_search = st.button("🔎 Search Flights with AI Personalization", type="secondary", use_container_width=True)
-
-# Custom CSS and JavaScript for black AI button
-st.markdown("""
-<style>
-/* Make the AI search button black with white text */
-button.ai-search-black {
-    background-color: #000000 !important;
-    color: white !important;
-    border: 1px solid #333333 !important;
-}
-button.ai-search-black:hover {
-    background-color: #1a1a1a !important;
-    border: 1px solid #4a4a4a !important;
-}
-</style>
-<script>
-// Add class to AI search button (secondary button containing AI Personalization text)
-setTimeout(function() {
-    const buttons = document.querySelectorAll('button[kind="secondary"]');
-    buttons.forEach(function(btn) {
-        if (btn.textContent.includes('AI Personalization')) {
-            btn.classList.add('ai-search-black');
+        function stopRecording() {
+            if (recognition) {
+                isRecording = false;
+                recognition.stop();
+                recognition = null;
+            }
+            const btn = document.getElementById('voiceBtn');
+            btn.classList.remove('recording');
+            btn.textContent = '🎙️';
+            document.getElementById('voiceStatus').textContent = '';
         }
-    });
-}, 100);
-</script>
-""", unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)  # Close demo-search-btn
+    </script>
+    """
+    components.html(voice_to_text_html, height=50)
+
+    # Add ID dynamically to textarea container for tutorial
+    st.markdown("""
+    <script>
+    setTimeout(() => {
+        const textarea = document.querySelector('textarea[aria-label="flight prompt input"]');
+        if (textarea) {
+            let container = textarea.closest('[data-testid="stTextArea"]');
+            if (container) container.id = 'demo-prompt';
+        }
+    }, 200);
+    </script>
+    """, unsafe_allow_html=True)
+
+    # Close the negative margin div
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Search button for AI mode
+    regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True, key="ai_search_btn")
+
+with tab_manual:
+    from datetime import date
+    st.markdown("**Select your flight details:**")
+
+    col_orig, col_dest = st.columns(2)
+    with col_orig:
+        manual_origins = st.multiselect(
+            "Origin airport(s)",
+            options=AIRPORT_OPTIONS,
+            placeholder="Select origin airports...",
+            key="manual_origins"
+        )
+    with col_dest:
+        manual_destinations = st.multiselect(
+            "Destination airport(s)",
+            options=AIRPORT_OPTIONS,
+            placeholder="Select destination airports...",
+            key="manual_destinations"
+        )
+
+    col_dep, col_ret = st.columns(2)
+    with col_dep:
+        manual_dep_date = st.date_input(
+            "Departure date",
+            value=None,
+            min_value=date.today(),
+            key="manual_dep_date"
+        )
+    with col_ret:
+        manual_ret_date = st.date_input(
+            "Return date (optional)",
+            value=None,
+            min_value=date.today(),
+            key="manual_ret_date"
+        )
+
+    manual_search_btn = st.button("🔍 Search Flights", type="primary", use_container_width=True, key="manual_search_btn")
 
 # Close hideable-survey-content container
 st.markdown('</div>', unsafe_allow_html=True)
-
-# Rate limiting for AI search (prevent quota exhaustion)
-import time
-if 'last_ai_search_time' not in st.session_state:
-    st.session_state.last_ai_search_time = 0
-
-if ai_search:
-    current_time = time.time()
-    time_since_last = current_time - st.session_state.last_ai_search_time
-    cooldown_seconds = 45  # 45 second cooldown between AI searches (allows ~5 iterations at 6s each + buffer)
-
-    if time_since_last < cooldown_seconds:
-        remaining = int(cooldown_seconds - time_since_last)
-        st.error(f"⏳ Please wait {remaining} seconds before searching again (Gemini API rate limit protection)")
-        st.stop()
-
-    st.session_state.last_ai_search_time = current_time
 
 # Check for auto-search request (from "Save & Search Again" button)
 auto_search = st.session_state.get('auto_search_requested', False)
@@ -1847,7 +1774,13 @@ if auto_search:
     st.session_state.auto_search_requested = False
     st.session_state.auto_search_prompt = None
 
-if ai_search or regular_search or auto_search:
+# Determine search mode
+if manual_search_btn:
+    st.session_state.search_mode = "manual"
+elif regular_search or auto_search:
+    st.session_state.search_mode = "ai"
+
+if regular_search or manual_search_btn or auto_search:
     # Reset session state to clear previous results
     st.session_state.all_flights = []
     st.session_state.selected_flights = []
@@ -1863,19 +1796,16 @@ if ai_search or regular_search or auto_search:
     # Validation
     validation_errors = []
 
-    # COMMENTED OUT - No longer collecting name/email
-    # if not st.session_state.user_name or not st.session_state.user_name.strip():
-    #     validation_errors.append("Please enter your full name")
-    # elif len(st.session_state.user_name.split()) < 2:
-    #     validation_errors.append("Please enter both first and last name")
-    #
-    # if not st.session_state.user_email or not st.session_state.user_email.strip():
-    #     validation_errors.append("Please enter your email address")
-    # elif '@' not in st.session_state.user_email or '.' not in st.session_state.user_email:
-    #     validation_errors.append("Please enter a valid email address")
-
-    if not prompt or not prompt.strip():
-        validation_errors.append("Please describe your flight needs")
+    if st.session_state.search_mode == "manual":
+        if not manual_origins:
+            validation_errors.append("Please select at least one origin airport")
+        if not manual_destinations:
+            validation_errors.append("Please select at least one destination airport")
+        if not manual_dep_date:
+            validation_errors.append("Please select a departure date")
+    else:
+        if not prompt or not prompt.strip():
+            validation_errors.append("Please describe your flight needs")
 
     if validation_errors:
         for error in validation_errors:
@@ -1894,15 +1824,26 @@ if ai_search or regular_search or auto_search:
         st.session_state.csv_data_return = None
         st.session_state.review_confirmed = False
 
-        with st.spinner("✨ Parsing your request and searching flights..."):
+        with st.spinner("✨ Searching flights..."):
             try:
-                # Store original prompt
-                st.session_state.original_prompt = prompt
+                if st.session_state.search_mode == "manual":
+                    # Build parsed dict from manual form inputs (skip LLM)
+                    parsed = build_manual_parsed(
+                        origins=manual_origins,
+                        destinations=manual_destinations,
+                        departure_date=manual_dep_date,
+                        return_date=manual_ret_date
+                    )
+                    st.session_state.parsed_params = parsed
+                    st.session_state.original_prompt = parsed['original_prompt']
+                else:
+                    # Store original prompt
+                    st.session_state.original_prompt = prompt
 
-                # Parse prompt with LLM
-                st.info("🤖 Parsing your request with Gemini...")
-                parsed = parse_flight_prompt_with_llm(prompt)
-                st.session_state.parsed_params = parsed
+                    # Parse prompt with LLM
+                    st.info("🤖 Parsing your request with Gemini...")
+                    parsed = parse_flight_prompt_with_llm(prompt)
+                    st.session_state.parsed_params = parsed
 
                 # Debug: show parsed results
                 with st.expander("🔍 Debug: Parsed Parameters"):
@@ -2063,116 +2004,9 @@ if ai_search or regular_search or auto_search:
                 airline_name_map = flight_client.get_airline_names(unique_airlines)
                 st.session_state.airline_names = airline_name_map
 
-                # Apply AI ranking if AI search button was pressed
-                if ai_search:
-                    st.write("---")
-                    st.write(f"### 🤖 LISTEN-U AI Personalization")
-                    st.write(f"**Debug Info:**")
-                    st.write(f"- Outbound flights to rank: {len(all_flights)}")
-                    st.write(f"- Your prompt: *{prompt}*")
-
-                    import traceback
-                    import time
-                    try:
-                        from backend.listen_main_wrapper import rank_flights_with_listen_main
-
-                        preferences = parsed.get('preferences', {})
-                        preferences['origins'] = parsed.get('origins', [])
-                        preferences['destinations'] = parsed.get('destinations', [])
-
-                        # Show progress with simulated progress bar
-                        n_iters = 5  # Reduced from 25 to stay within Gemini free tier quota (15 req/min)
-                        expected_time = n_iters * 6  # ~6 seconds per iteration with Gemini free tier safe limit (10 req/min)
-
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
-
-                        # Run LISTEN in background while updating progress bar
-                        import threading
-
-                        result_container = {'flights': None, 'error': None}
-
-                        def run_listen():
-                            try:
-                                result_container['flights'] = rank_flights_with_listen_main(
-                                    flights=all_flights,
-                                    user_prompt=prompt,
-                                    user_preferences=preferences,
-                                    n_iterations=n_iters
-                                )
-                            except Exception as e:
-                                result_container['error'] = e
-
-                        thread = threading.Thread(target=run_listen)
-                        thread.start()
-
-                        start_time = time.time()
-
-                        # Update progress bar while LISTEN runs
-                        while thread.is_alive():
-                            elapsed = time.time() - start_time
-                            progress = min(elapsed / expected_time, 0.99)  # Cap at 99% until actually done
-                            estimated_iter = int(progress * n_iters)
-
-                            progress_bar.progress(progress)
-                            status_text.info(f"⏳ **LISTEN-U iteration ~{estimated_iter}/{n_iters}** (Learning your preferences...)")
-                            time.sleep(0.5)
-
-                        thread.join()
-
-                        # Check for errors
-                        if result_container['error']:
-                            progress_bar.empty()
-                            status_text.empty()
-                            raise result_container['error']
-
-                        all_flights = result_container['flights']
-                        elapsed = time.time() - start_time
-
-                        progress_bar.progress(1.0)
-                        status_text.success(f"✅ **LISTEN-U completed!**")
-                        time.sleep(0.5)
-                        progress_bar.empty()
-                        status_text.empty()
-
-                        st.success(f"✅ **LISTEN-U completed in {elapsed:.1f} seconds!**")
-                        st.write(f"**Results:**")
-                        st.write(f"- Ranked {len(all_flights)} flights by learned utility function")
-                        st.write(f"- Top flight price: {format_price(all_flights[0]['price'])}")
-
-                        # Rank return flights if present
-                        if has_return and all_return_flights:
-                            return_progress = st.empty()
-                            return_progress.info("⏳ **Ranking return flights with LISTEN-U...**")
-
-                            start_return = time.time()
-                            all_return_flights = rank_flights_with_listen_main(
-                                flights=all_return_flights,
-                                user_prompt=prompt,
-                                user_preferences=preferences,
-                                n_iterations=5  # Reduced from 25 to stay within Gemini free tier quota
-                            )
-                            elapsed_return = time.time() - start_return
-                            return_progress.empty()
-
-                            st.success(f"✅ **Return flights ranked in {elapsed_return:.1f} seconds!**")
-                            st.write(f"- Top return flight price: {format_price(all_return_flights[0]['price'])}")
-
-                        st.write("---")
-                    except Exception as e:
-                        st.error(f"⚠️ **LISTEN-U AI PERSONALIZATION FAILED**")
-                        st.error(f"**Error:** {str(e)}")
-                        with st.expander("Show Full Error Details"):
-                            st.code(traceback.format_exc())
-                        st.error("**CANNOT CONTINUE - LISTEN-U IS REQUIRED FOR AI SEARCH**")
-                        st.info("Please use the regular '🔍 Search Flights' button instead, or contact support if this error persists.")
-                        st.stop()  # STOP execution - do NOT show flights if LISTEN failed
-
                 # Store all flights
                 st.session_state.all_flights = all_flights
                 st.session_state.all_return_flights = all_return_flights
-                # Store for LILO optimizer
-                st.session_state.all_flights_data = all_flights
 
                 # Session persistence: Save progress after search
                 if st.session_state.get('token'):
@@ -2186,60 +2020,11 @@ if ai_search or regular_search or auto_search:
                     })
                     print(f"[PILOT] Saved search progress for {st.session_state.token}")
 
-                # REMOVED: Pre-generation was blocking flight display (15-30+ seconds!)
-                # LILO questions will be generated when user reaches LILO section
-                # This makes flights appear immediately after Amadeus API responds
-
                 if has_return:
                     st.success(f"✅ Found {len(all_flights)} outbound flights and {len(all_return_flights)} return flights!")
                 else:
                     st.success(f"✅ Found {len(all_flights)} flights!")
                 # Don't rerun here - it causes infinite loop
-
-                # TEMPORARY COMMENT: Algorithm-based ranking code (old version)
-                # preferences = parsed.get('preferences', {})
-                # preferences['origins'] = parsed.get('origins', [])
-                # preferences['destinations'] = parsed.get('destinations', [])
-                #
-                # # Algorithm 1: Cheapest
-                # cheapest_ranked = sorted(all_flights, key=lambda x: x['price'])[:10]
-                #
-                # # Algorithm 2: Fastest
-                # fastest_ranked = sorted(all_flights, key=lambda x: x['duration_min'])[:10]
-                #
-                # # Algorithm 3: LISTEN-U (using LISTEN's main.py framework)
-                # try:
-                #     from backend.listen_main_wrapper import rank_flights_with_listen_main
-                #     st.info("🤖 Running LISTEN-U algorithm via main.py (25 iterations, may take 2-3 minutes)...")
-                #     listen_u_ranked = rank_flights_with_listen_main(
-                #         flights=all_flights,
-                #         user_prompt=prompt,
-                #         user_preferences=preferences
-                #     )
-                #     st.success("✅ LISTEN-U complete! Used utility algorithm to rank flights.")
-                # except Exception as e:
-                #     st.warning(f"⚠️ LISTEN-U failed ({str(e)}), using fallback preference-aware ranking")
-                #     def preference_score(flight):
-                #         score = 0
-                #         if preferences.get('prefer_cheap'):
-                #             score += flight['price'] / 1000
-                #         if preferences.get('prefer_fast'):
-                #             score += flight['duration_min'] / 300
-                #         if preferences.get('prefer_direct'):
-                #             score += flight['stops'] * 0.5
-                #         return score if score > 0 else flight['price'] / 500 + flight['duration_min'] / 300
-                #     listen_u_ranked = sorted(all_flights, key=preference_score)[:10]
-                #
-                # # Interleave results (round-robin)
-                # interleaved = []
-                # for i in range(10):
-                #     if i < len(cheapest_ranked):
-                #         interleaved.append({'flight': cheapest_ranked[i], 'algorithm': 'Cheapest', 'rank': i + 1})
-                #     if i < len(fastest_ranked):
-                #         interleaved.append({'flight': fastest_ranked[i], 'algorithm': 'Fastest', 'rank': i + 1})
-                #     if i < len(listen_u_ranked):
-                #         interleaved.append({'flight': listen_u_ranked[i], 'algorithm': 'LISTEN-U', 'rank': i + 1})
-                # st.session_state.interleaved_results = interleaved
 
             except Exception as e:
                 st.error(f"Error: {str(e)}")
@@ -2318,7 +2103,7 @@ if st.session_state.all_flights:
                     from backend.db import save_session_progress
                     save_session_progress(st.session_state.token, {
                         'session_id': st.session_state.session_id,
-                        'current_phase': 'lilo' if LILO_ENABLED else 'cross_validation',
+                        'current_phase': 'cross_validation',
                         'flight_selection_confirmed': 1,
                         'selected_flights_json': st.session_state.selected_flights,
                     })
@@ -2357,7 +2142,7 @@ if st.session_state.all_flights:
                 else:
                     # For DATA token, delete all previous submissions to allow overwriting
                     if st.session_state.token.upper() == "DATA":
-                        from backend.db import SessionLocal, Search, FlightCSV, UserRanking, FlightShown, LILOSession, LILOIteration, LILOChatMessage, LILOFinalRanking, CrossValidation, SurveyResponse
+                        from backend.db import SessionLocal, Search, FlightCSV, UserRanking, FlightShown, CrossValidation, SurveyResponse
                         db = SessionLocal()
                         try:
                             # Find all previous searches for this token
@@ -2366,14 +2151,6 @@ if st.session_state.all_flights:
                             ).all()
 
                             for search in previous_searches:
-                                # Delete related LILO data
-                                lilo_sessions = db.query(LILOSession).filter_by(search_id=search.search_id).all()
-                                for lilo_session in lilo_sessions:
-                                    db.query(LILOChatMessage).filter_by(lilo_session_id=lilo_session.id).delete()
-                                    db.query(LILOIteration).filter_by(lilo_session_id=lilo_session.id).delete()
-                                    db.query(LILOFinalRanking).filter_by(lilo_session_id=lilo_session.id).delete()
-                                    db.delete(lilo_session)
-
                                 # Delete cross-validation data
                                 db.query(CrossValidation).filter_by(reviewer_session_id=search.session_id).delete()
                                 db.query(CrossValidation).filter_by(reviewed_session_id=search.session_id).delete()
@@ -2419,7 +2196,7 @@ if st.session_state.all_flights:
                     try:
                         from backend.db import update_search_flight_results
                         if st.session_state.all_flights:
-                            # Save LISTEN-ranked flights (the order shown to user)
+                            # Save ranked flights (the order shown to user)
                             update_search_flight_results(
                                 session_id=st.session_state.session_id,
                                 listen_ranked_flights=st.session_state.all_flights
@@ -2461,7 +2238,7 @@ if st.session_state.all_flights:
         if st.session_state.get('search_id'):
             st.success("✅ All rankings submitted successfully!")
 
-            # Download Rankings CSV (on same page as LILO)
+            # Download Rankings CSV
             token = st.session_state.get('token')
             if token:
                 try:
@@ -2485,911 +2262,7 @@ if st.session_state.all_flights:
 
             st.markdown("---")
 
-            # Skip LILO when disabled - mark as completed so cross-validation can proceed
-            if not LILO_ENABLED and not st.session_state.get('lilo_completed'):
-                st.session_state.lilo_completed = True
-                print("[PILOT] LILO disabled - marking as completed")
-
-            # ============================================================================
-            # LILO PREFERENCE LEARNING SECTION (between initial ranking and cross-validation)
-            # ============================================================================
-            # Only show LILO if enabled, not completed, AND not showing animation
-            # NOTE: LILO_ENABLED is set to False for pilot study - section is preserved but hidden
-            if LILO_ENABLED and not st.session_state.get('lilo_completed') and not st.session_state.get('show_evaluation_animation'):
-                # DEBUG: Check session state at start of LILO section
-                print(f"[LILO DEBUG] Entering LILO section - all_flights exists: {bool(st.session_state.get('all_flights'))}, count: {len(st.session_state.get('all_flights', []))}")
-                print(f"[LILO DEBUG] Entering LILO section - lilo_round: {st.session_state.get('lilo_round', 'NOT SET')}, search_id: {st.session_state.get('search_id', 'NOT SET')}")
-
-                # Hide survey content on LILO page
-                st.markdown("""
-                <style>
-                    .hideable-survey-content {
-                        display: none !important;
-                    }
-                </style>
-                """, unsafe_allow_html=True)
-
-                st.markdown("---")
-                st.markdown("# 🧠 LILO: AI-Powered Preference Learning")
-                st.markdown("*Help the AI understand your flight preferences through interactive questioning*")
-                st.markdown("---")
-                st.markdown('<div class="lilo-section">', unsafe_allow_html=True)
-
-                # Initialize LILO session using real language_bo_code
-                if 'lilo_bridge' not in st.session_state:
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-
-                    try:
-                        from lilo_integration import StreamlitLILOBridge
-
-                        # Step 1: Create bridge
-                        status_text.text("Loading ML libraries (PyTorch, BoTorch)...")
-                        progress_bar.progress(20)
-                        bridge = StreamlitLILOBridge()
-                        st.session_state.lilo_bridge = bridge
-
-                        # Step 2: Create LILO session
-                        status_text.text("Creating LILO session...")
-                        progress_bar.progress(50)
-                        flights_data = st.session_state.get('all_flights_data', [])
-                        if not flights_data:
-                            st.warning("⚠️ No flight data available for LILO. Skipping LILO section.")
-                            st.session_state.lilo_completed = True
-                            st.rerun()
-
-                        session = bridge.create_session(
-                            session_id=f"user_{st.session_state.get('user_id', 'default')}",
-                            flights_data=flights_data
-                        )
-                        st.session_state.lilo_session_id = session.session_id
-
-                        # Save LILO session to database (non-critical - won't block LILO startup)
-                        try:
-                            from backend.db import save_lilo_session
-                            lilo_db_id = save_lilo_session(
-                                session_id=session.session_id,
-                                search_id=st.session_state.get('search_id'),
-                                completion_token=st.session_state.get('token'),
-                                num_iterations=2,
-                                questions_per_round=2
-                            )
-                            st.session_state.lilo_db_session_id = lilo_db_id
-                        except Exception as db_err:
-                            print(f"⚠️ Non-critical: Failed to save LILO session to database: {db_err}")
-                            st.session_state.lilo_db_session_id = None
-
-                        # Step 3: Initialize state
-                        status_text.text("Initializing conversation...")
-                        progress_bar.progress(75)
-                        st.session_state.lilo_round = 0
-                        st.session_state.lilo_chat_history = []  # Chat message history with round tracking
-                        st.session_state.lilo_current_question_idx = 0  # Current question index
-                        st.session_state.lilo_round1_flights = []
-                        st.session_state.lilo_round2_flights = []
-
-                        # Step 4: Generate initial questions
-                        status_text.text("Generating initial questions...")
-                        progress_bar.progress(90)
-                        initial_questions = bridge.get_initial_questions(session.session_id)
-                        st.session_state.lilo_questions = initial_questions
-                        st.session_state.lilo_answers = {}  # Store answers
-
-                        # Complete
-                        progress_bar.progress(100)
-                        status_text.text("✅ Ready!")
-                        st.success("✅ LILO initialized successfully!")
-
-                    except Exception as e:
-                        progress_bar.empty()
-                        status_text.empty()
-                        st.error(f"⚠️ Error initializing LILO: {e}")
-                        import traceback
-                        st.code(traceback.format_exc())
-                        if st.button("Skip LILO and Continue", type="primary"):
-                            st.session_state.lilo_completed = True
-                            st.rerun()
-                        st.stop()
-
-                # LILO: Continuous chat interface (single page, no reloads between rounds)
-                st.markdown("### 💬 Chat with LILO")
-
-                # Debug info: Show current round
-                current_round_display = st.session_state.get('lilo_round', 0)
-                total_rounds = 3  # Round 0, 1, 2
-                st.caption(f"Round {current_round_display + 1} of {total_rounds}")
-
-                st.markdown("---")
-
-                # Add LILO-specific CSS
-                st.markdown("""
-                <style>
-                    /* Prevent auto-scroll on checkbox click */
-                    .stCheckbox {
-                        overflow-anchor: none !important;
-                    }
-
-                    /* Position chat input above footer */
-                    .stChatInput {
-                        position: fixed !important;
-                        bottom: 60px !important;
-                        left: 0 !important;
-                        right: 0 !important;
-                        z-index: 999 !important;
-                        background: white !important;
-                        padding: 10px !important;
-                        box-shadow: 0 -2px 10px rgba(0,0,0,0.1) !important;
-                    }
-
-                    /* Hide content between "How to Use" and "Search Flights" during LILO */
-                    .hideable-survey-content {
-                        display: none !important;
-                    }
-                </style>
-                """, unsafe_allow_html=True)
-
-                # Initialize chat state if needed
-                if 'lilo_chat_history' not in st.session_state:
-                    st.session_state.lilo_chat_history = []
-                if 'lilo_current_question_idx' not in st.session_state:
-                    st.session_state.lilo_current_question_idx = 0
-                if 'lilo_answers' not in st.session_state:
-                    st.session_state.lilo_answers = {}
-                if 'lilo_round' not in st.session_state:
-                    st.session_state.lilo_round = 0
-
-                # Display ALL chat history (persists across rounds)
-                for msg_idx, msg in enumerate(st.session_state.lilo_chat_history):
-                    # For user messages, add an edit button
-                    if not msg.get('is_bot'):
-                        col1, col2 = st.columns([20, 1])
-                        with col1:
-                            render_chat_message(msg['text'], is_bot=False)
-                        with col2:
-                            # Check if this message is being edited
-                            edit_key = f"editing_msg_{msg_idx}"
-                            if edit_key not in st.session_state:
-                                st.session_state[edit_key] = False
-
-                            if st.button("✏️", key=f"edit_btn_{msg_idx}", help="Edit this answer"):
-                                st.session_state[edit_key] = not st.session_state[edit_key]
-                                st.rerun()
-
-                        # Show edit box if editing
-                        if st.session_state.get(edit_key, False):
-                            edited_text = st.text_area(
-                                "Edit your answer:",
-                                value=msg['text'],
-                                key=f"edit_area_{msg_idx}",
-                                height=100
-                            )
-                            col_save, col_cancel = st.columns([1, 1])
-                            with col_save:
-                                if st.button("💾 Save", key=f"save_{msg_idx}", use_container_width=True, type="primary"):
-                                    # Update the message in chat history
-                                    st.session_state.lilo_chat_history[msg_idx]['text'] = edited_text
-
-                                    # Also update in lilo_answers if this was a question response
-                                    # Find which question this was an answer to
-                                    question_num = None
-                                    for i in range(msg_idx - 1, -1, -1):
-                                        if st.session_state.lilo_chat_history[i].get('is_bot') and '?' in st.session_state.lilo_chat_history[i]['text']:
-                                            # Count how many questions before this one
-                                            question_count = sum(1 for m in st.session_state.lilo_chat_history[:i+1] if m.get('is_bot') and '?' in m['text'])
-                                            question_num = question_count - 1
-                                            break
-
-                                    if question_num is not None and f"q{question_num}" in st.session_state.lilo_answers:
-                                        st.session_state.lilo_answers[f"q{question_num}"] = edited_text
-
-                                    st.session_state[edit_key] = False
-                                    st.rerun()
-                            with col_cancel:
-                                if st.button("❌ Cancel", key=f"cancel_{msg_idx}", use_container_width=True):
-                                    st.session_state[edit_key] = False
-                                    st.rerun()
-                    else:
-                        render_chat_message(msg['text'], is_bot=True)
-
-                # Determine what to show next based on state
-                questions = st.session_state.get('lilo_questions', [])
-                current_idx = st.session_state.lilo_current_question_idx
-                current_round = st.session_state.lilo_round
-
-                # Check if we need to run iteration (all questions answered for current round)
-                if current_idx >= len(questions) and current_round < 2:
-                    # DEBUG: Check session state before iteration
-                    print(f"[LILO DEBUG] Before iteration - all_flights exists: {bool(st.session_state.get('all_flights'))}, count: {len(st.session_state.get('all_flights', []))}")
-                    print(f"[LILO DEBUG] Before iteration - all_flights_data exists: {bool(st.session_state.get('all_flights_data'))}, count: {len(st.session_state.get('all_flights_data', []))}")
-
-                    # Add loading message to chat
-                    loading_msg = "Analyzing your preferences..." if current_round == 0 else "Refining flight options..."
-                    render_chat_message(loading_msg, is_bot=True)
-                    st.session_state.lilo_chat_history.append({'text': loading_msg, 'is_bot': True, 'round': current_round})
-
-                    # Run LILO iteration
-                    try:
-                        with st.spinner("🤖 Running LILO algorithm..."):
-                            flights, next_questions = st.session_state.lilo_bridge.run_iteration(
-                                st.session_state.lilo_session_id,
-                                st.session_state.lilo_answers
-                            )
-
-                            # Store results
-                            if current_round == 0:
-                                st.session_state.lilo_round1_flights = flights
-                            else:
-                                st.session_state.lilo_round2_flights = flights
-
-                            # Check if we got valid questions
-                            if not next_questions or len(next_questions) == 0:
-                                st.error("⚠️ LILO failed to generate questions for next round. Using fallback.")
-                                # Use fallback questions
-                                if current_round == 0:
-                                    next_questions = [
-                                        "Between the two flight options shown, which one better matches your needs and why?",
-                                        "What trade-offs are you willing to make between price, duration, and convenience?"
-                                    ]
-                                else:
-                                    next_questions = [
-                                        "Looking at the refined options, which aspects are most important to you?",
-                                        "Is there anything you'd like to adjust in your preferences?"
-                                    ]
-
-                            # Update state for next round
-                            st.session_state.lilo_questions = next_questions
-                            st.session_state.lilo_current_question_idx = 0
-
-                            # Save iteration data to database (non-blocking - errors won't break LILO)
-                            try:
-                                from backend.db import save_lilo_iteration
-                                if st.session_state.get('lilo_db_session_id'):
-                                    save_lilo_iteration(
-                                        lilo_session_id=st.session_state.lilo_db_session_id,
-                                        iteration_number=current_round,
-                                        user_responses=st.session_state.lilo_answers,
-                                        flights_shown=flights,
-                                        utility_params=None,  # Will be extracted later
-                                        acquisition_values=None
-                                    )
-                            except Exception as db_err:
-                                print(f"⚠️ Non-critical: Failed to save iteration to database: {db_err}")
-                                # Continue anyway - database save is not critical for user experience
-
-                            st.session_state.lilo_answers = {}
-                            st.session_state.lilo_round += 1
-
-                            # DEBUG: Check session state before rerun
-                            print(f"[LILO DEBUG] Before rerun - all_flights exists: {bool(st.session_state.get('all_flights'))}, count: {len(st.session_state.get('all_flights', []))}")
-                            print(f"[LILO DEBUG] Before rerun - lilo_round: {st.session_state.lilo_round}, search_id: {st.session_state.get('search_id')}")
-
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"Error: {e}")
-                        import traceback
-                        st.code(traceback.format_exc())
-
-                # Check if LILO is complete (Round 2 questions all answered)
-                elif current_idx >= len(questions) and current_round == 2:
-                    # Show confirmation page before finalizing
-                    if not st.session_state.get('lilo_answers_confirmed'):
-                        st.markdown("### ✅ Review Your Answers")
-                        st.markdown("Please review your responses before proceeding. You can go back and edit any answer if needed using the edit buttons (✏️) above.")
-
-                        if st.button("✅ Confirm Answers", type="primary", use_container_width=True):
-                            st.session_state.lilo_answers_confirmed = True
-                            st.rerun()
-
-                    else:
-                        # Answers confirmed - save final iteration and compute rankings
-                        if not st.session_state.get('lilo_data_saved'):
-                            # Wrap all database operations in try-except to prevent breaking LILO
-                            try:
-                                from backend.db import save_lilo_iteration, save_lilo_final_rankings, save_lilo_chat_transcript, complete_lilo_session
-
-                                lilo_db_id = st.session_state.get('lilo_db_session_id')
-                                if lilo_db_id:
-                                    # Save final iteration (round 2)
-                                    save_lilo_iteration(
-                                        lilo_session_id=lilo_db_id,
-                                        iteration_number=2,
-                                        user_responses=st.session_state.lilo_answers,
-                                        flights_shown=[],
-                                        utility_params=None,
-                                        acquisition_values=None
-                                    )
-
-                                    # Save complete chat transcript
-                                    chat_with_metadata = []
-                                    msg_idx = 0
-                                    for msg in st.session_state.lilo_chat_history:
-                                        chat_with_metadata.append({
-                                            'text': msg.get('text', ''),
-                                            'is_bot': msg.get('is_bot', False),
-                                            'round': msg.get('round', 0),
-                                            'index': msg_idx,
-                                            'flight_a': msg.get('flights', [None])[0] if msg.get('flights') else None,
-                                            'flight_b': msg.get('flights', [None, None])[1] if msg.get('flights') and len(msg.get('flights')) > 1 else None
-                                        })
-                                        msg_idx += 1
-
-                                    save_lilo_chat_transcript(lilo_db_id, chat_with_metadata)
-
-                                    # Compute final rankings
-                                    with st.spinner("Computing final flight rankings..."):
-                                        all_flights = st.session_state.get('all_flights_data', [])
-                                        ranked_flights = st.session_state.lilo_bridge.compute_final_rankings(
-                                            st.session_state.lilo_session_id,
-                                            all_flights
-                                        )
-
-                                        # Save rankings and get CSV
-                                        csv_data = save_lilo_final_rankings(lilo_db_id, ranked_flights)
-                                        st.session_state.lilo_rankings_csv = csv_data
-
-                                        # Mark LILO session as complete
-                                        complete_lilo_session(lilo_db_id)
-
-                                        print(f"✓ LILO data saved: session {lilo_db_id}, {len(ranked_flights)} flights ranked")
-
-                            except Exception as e:
-                                print(f"⚠️ Non-critical: Failed to save LILO data to database: {e}")
-                                import traceback
-                                traceback.print_exc()
-
-                            st.session_state.lilo_data_saved = True
-
-                        # Only add completion message once
-                        completion_msg = "Perfect! I've learned your preferences. LILO is complete! ✅"
-                        if not st.session_state.lilo_chat_history or st.session_state.lilo_chat_history[-1].get('text') != completion_msg:
-                            st.session_state.lilo_chat_history.append({'text': completion_msg, 'is_bot': True, 'round': current_round})
-
-                        render_chat_message(completion_msg, is_bot=True)
-
-                        # Complete LILO and move to cross-validation
-                        st.markdown("---")
-                        st.info("🎯 Thank you! Moving to the next section...")
-
-                        # Mark LILO as completed and skip animation
-                        st.session_state.lilo_completed = True
-                        st.session_state.show_evaluation_animation = False
-
-                        # Small delay then rerun for smooth transition
-                        import time
-                        time.sleep(1)
-                        st.rerun()
-
-                # Show current question
-                elif current_idx < len(questions):
-                    current_question = questions[current_idx]
-                    render_chat_message(current_question, is_bot=True)
-
-                    # Voice input button for LILO
-                    lilo_voice_html = f"""
-                    <div style="display: flex; align-items: center; gap: 10px; margin: 10px 0;">
-                        <button id="liloVoiceBtn" onclick="toggleLiloVoice()" style="
-                            background: #f0f2f6; border: 1px solid #ddd; border-radius: 50%;
-                            width: 40px; height: 40px; cursor: pointer; display: flex;
-                            align-items: center; justify-content: center; font-size: 18px;
-                            transition: all 0.2s;">
-                            🎙️
-                        </button>
-                        <span id="liloVoiceStatus" style="font-size: 12px; color: #666;"></span>
-                    </div>
-                    <script>
-                        let liloRecognition = null;
-                        let liloIsRecording = false;
-
-                        function setNativeValue(element, value) {{
-                            const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-                            valueSetter.call(element, value);
-                            element.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                        }}
-
-                        function toggleLiloVoice() {{
-                            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {{
-                                document.getElementById('liloVoiceStatus').textContent = 'Not supported in this browser';
-                                return;
-                            }}
-                            if (liloIsRecording) {{ stopLiloRecording(); }} else {{ startLiloRecording(); }}
-                        }}
-
-                        function startLiloRecording() {{
-                            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                            liloRecognition = new SpeechRecognition();
-                            liloRecognition.continuous = true;
-                            liloRecognition.interimResults = true;
-                            liloRecognition.lang = 'en-US';
-
-                            const btn = document.getElementById('liloVoiceBtn');
-                            const status = document.getElementById('liloVoiceStatus');
-
-                            liloRecognition.onstart = function() {{
-                                liloIsRecording = true;
-                                btn.style.background = '#ffebee';
-                                btn.style.borderColor = '#ef5350';
-                                btn.textContent = '⏹️';
-                                status.textContent = 'Listening... (click to stop)';
-                            }};
-
-                            liloRecognition.onresult = function(event) {{
-                                const textarea = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
-                                if (textarea) {{
-                                    let finalTranscript = '';
-                                    for (let i = event.resultIndex; i < event.results.length; i++) {{
-                                        if (event.results[i].isFinal) {{
-                                            finalTranscript += event.results[i][0].transcript;
-                                        }}
-                                    }}
-                                    if (finalTranscript) {{
-                                        const currentValue = textarea.value;
-                                        const newValue = currentValue ? currentValue + ' ' + finalTranscript : finalTranscript;
-                                        setNativeValue(textarea, newValue);
-                                        status.textContent = 'Added: "' + finalTranscript.substring(0, 25) + '..."';
-                                    }}
-                                }}
-                            }};
-
-                            liloRecognition.onerror = function(event) {{
-                                status.textContent = 'Error: ' + event.error;
-                                stopLiloRecording();
-                            }};
-
-                            liloRecognition.onend = function() {{
-                                if (liloIsRecording) {{ liloRecognition.start(); }}
-                            }};
-
-                            liloRecognition.start();
-                        }}
-
-                        function stopLiloRecording() {{
-                            if (liloRecognition) {{
-                                liloIsRecording = false;
-                                liloRecognition.stop();
-                                liloRecognition = null;
-                            }}
-                            const btn = document.getElementById('liloVoiceBtn');
-                            btn.style.background = '#f0f2f6';
-                            btn.style.borderColor = '#ddd';
-                            btn.textContent = '🎙️';
-                            document.getElementById('liloVoiceStatus').textContent = '';
-                        }}
-                    </script>
-                    """
-                    components.html(lilo_voice_html, height=50)
-
-                    # Chat input
-                    answer = st.chat_input(
-                        "Type your answer and press Enter...",
-                        key=f"lilo_chat_input_{current_round}_{current_idx}"
-                    )
-
-                    if answer and answer.strip():
-                        # Add Q&A to chat history with round tracking
-                        st.session_state.lilo_chat_history.append({'text': current_question, 'is_bot': True, 'round': current_round})
-                        st.session_state.lilo_chat_history.append({'text': answer, 'is_bot': False, 'round': current_round})
-
-                        # Save answer
-                        st.session_state.lilo_answers[f"q{current_idx}"] = answer
-
-                        # Move to next question
-                        st.session_state.lilo_current_question_idx += 1
-                        st.rerun()
-
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            # Evaluation Animation - Show between LILO completion and cross-validation
-            if st.session_state.get('show_evaluation_animation'):
-                st.markdown("""
-                <style>
-                    /* Full-screen animation overlay */
-                    .evaluation-animation {
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        width: 100vw;
-                        height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        z-index: 9999;
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        justify-content: center;
-                        overflow: hidden;
-                    }
-
-                    /* Person A watching */
-                    .observer {
-                        position: absolute;
-                        bottom: 20px;
-                        left: 50px;
-                        width: 120px;
-                        height: 140px;
-                        opacity: 0;
-                        animation: fadeInObserver 1s ease-in forwards;
-                    }
-
-                    @keyframes fadeInObserver {
-                        to { opacity: 1; }
-                    }
-
-                    /* Flight path container */
-                    .flight-container {
-                        position: relative;
-                        width: 70%;
-                        height: 60%;
-                        background: rgba(255, 255, 255, 0.1);
-                        border-radius: 20px;
-                        backdrop-filter: blur(10px);
-                        border: 2px solid rgba(255, 255, 255, 0.2);
-                        overflow: hidden;
-                    }
-
-                    /* Animated flight path */
-                    .flight-path {
-                        position: absolute;
-                        top: 50%;
-                        left: 10%;
-                        width: 0;
-                        height: 3px;
-                        background: linear-gradient(90deg, #4CAF50, #2196F3, #9C27B0);
-                        animation: drawPath 3s ease-in-out forwards;
-                        animation-delay: 0.5s;
-                    }
-
-                    @keyframes drawPath {
-                        to { width: 80%; }
-                    }
-
-                    /* Airplane icon */
-                    .airplane {
-                        position: absolute;
-                        top: calc(50% - 15px);
-                        left: 10%;
-                        font-size: 30px;
-                        animation: flyPlane 3s ease-in-out forwards;
-                        animation-delay: 0.5s;
-                    }
-
-                    @keyframes flyPlane {
-                        0% { left: 10%; }
-                        100% { left: 90%; }
-                    }
-
-                    /* Telemetry overlays */
-                    .telemetry {
-                        position: absolute;
-                        right: 30px;
-                        top: 50%;
-                        transform: translateY(-50%);
-                        display: flex;
-                        flex-direction: column;
-                        gap: 20px;
-                        opacity: 0;
-                        animation: fadeInTelemetry 1s ease-in forwards;
-                        animation-delay: 1.5s;
-                    }
-
-                    @keyframes fadeInTelemetry {
-                        to { opacity: 1; }
-                    }
-
-                    .telemetry-item {
-                        background: rgba(255, 255, 255, 0.9);
-                        padding: 15px 20px;
-                        border-radius: 10px;
-                        min-width: 200px;
-                        animation: pulse 2s infinite;
-                    }
-
-                    @keyframes pulse {
-                        0%, 100% { transform: scale(1); box-shadow: 0 0 10px rgba(76, 175, 80, 0.3); }
-                        50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(76, 175, 80, 0.6); }
-                    }
-
-                    .telemetry-label {
-                        font-size: 12px;
-                        color: #666;
-                        text-transform: uppercase;
-                        margin-bottom: 5px;
-                    }
-
-                    .telemetry-value {
-                        font-size: 24px;
-                        font-weight: bold;
-                        color: #2196F3;
-                    }
-
-                    /* Ranking scale */
-                    .ranking-scale {
-                        position: absolute;
-                        bottom: 100px;
-                        left: 50%;
-                        transform: translateX(-50%);
-                        display: flex;
-                        gap: 10px;
-                        opacity: 0;
-                        animation: fadeInScale 1s ease-in forwards;
-                        animation-delay: 2.5s;
-                    }
-
-                    @keyframes fadeInScale {
-                        to { opacity: 1; }
-                    }
-
-                    .ranking-bar {
-                        width: 40px;
-                        background: rgba(255, 255, 255, 0.3);
-                        border-radius: 5px 5px 0 0;
-                        position: relative;
-                        overflow: hidden;
-                    }
-
-                    .ranking-bar-fill {
-                        position: absolute;
-                        bottom: 0;
-                        width: 100%;
-                        background: linear-gradient(180deg, #4CAF50, #2196F3);
-                        animation: fillBar 1.5s ease-out forwards;
-                        animation-delay: 3s;
-                    }
-
-                    @keyframes fillBar {
-                        from { height: 0; }
-                    }
-
-                    .bar-label {
-                        position: absolute;
-                        bottom: -25px;
-                        width: 100%;
-                        text-align: center;
-                        color: white;
-                        font-size: 11px;
-                    }
-
-                    /* Score assembly */
-                    .score-container {
-                        position: absolute;
-                        top: 30px;
-                        left: 50%;
-                        transform: translateX(-50%);
-                        opacity: 0;
-                        animation: fadeInScore 1s ease-in forwards;
-                        animation-delay: 4.5s;
-                    }
-
-                    @keyframes fadeInScore {
-                        to { opacity: 1; }
-                    }
-
-                    .score-box {
-                        background: white;
-                        padding: 30px 50px;
-                        border-radius: 15px;
-                        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-                        text-align: center;
-                    }
-
-                    .score-label {
-                        font-size: 14px;
-                        color: #666;
-                        margin-bottom: 10px;
-                    }
-
-                    .score-value {
-                        font-size: 64px;
-                        font-weight: bold;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        -webkit-background-clip: text;
-                        -webkit-text-fill-color: transparent;
-                        animation: countUp 2s ease-out forwards;
-                    }
-
-                    @keyframes countUp {
-                        from { opacity: 0; transform: scale(0.5); }
-                        to { opacity: 1; transform: scale(1); }
-                    }
-
-                    /* Playback controls */
-                    .playback-controls {
-                        position: absolute;
-                        bottom: 30px;
-                        left: 50%;
-                        transform: translateX(-50%);
-                        display: flex;
-                        gap: 15px;
-                        opacity: 0;
-                        animation: fadeInControls 1s ease-in forwards;
-                        animation-delay: 1s;
-                    }
-
-                    @keyframes fadeInControls {
-                        to { opacity: 1; }
-                    }
-
-                    .control-btn {
-                        background: rgba(255, 255, 255, 0.2);
-                        border: 2px solid rgba(255, 255, 255, 0.4);
-                        color: white;
-                        padding: 10px 20px;
-                        border-radius: 25px;
-                        cursor: pointer;
-                        transition: all 0.3s;
-                        backdrop-filter: blur(5px);
-                    }
-
-                    .control-btn:hover {
-                        background: rgba(255, 255, 255, 0.3);
-                        transform: scale(1.05);
-                    }
-
-                    /* Continue button */
-                    .continue-btn {
-                        position: absolute;
-                        bottom: 50px;
-                        right: 50px;
-                        background: white;
-                        color: #667eea;
-                        padding: 15px 40px;
-                        border-radius: 30px;
-                        font-size: 18px;
-                        font-weight: bold;
-                        cursor: pointer;
-                        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
-                        opacity: 0;
-                        animation: fadeInContinue 1s ease-in forwards;
-                        animation-delay: 5.5s;
-                        transition: all 0.3s;
-                    }
-
-                    .continue-btn:hover {
-                        transform: scale(1.1);
-                        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
-                    }
-
-                    @keyframes fadeInContinue {
-                        to { opacity: 1; }
-                    }
-
-                    /* Confirmation checkmark */
-                    .checkmark {
-                        position: absolute;
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%) scale(0);
-                        width: 100px;
-                        height: 100px;
-                        border-radius: 50%;
-                        background: white;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        font-size: 60px;
-                        animation: popCheckmark 0.5s ease-out forwards;
-                        animation-delay: 6s;
-                        z-index: 10000;
-                    }
-
-                    @keyframes popCheckmark {
-                        0% { transform: translate(-50%, -50%) scale(0); }
-                        50% { transform: translate(-50%, -50%) scale(1.2); }
-                        100% { transform: translate(-50%, -50%) scale(1); }
-                    }
-                </style>
-
-                <div class="evaluation-animation">
-                    <!-- Observer (Person A) -->
-                    <div class="observer">
-                        <div style="font-size: 80px;">👨‍💼</div>
-                        <div style="color: white; text-align: center; margin-top: 5px; font-size: 12px;">Person A</div>
-                    </div>
-
-                    <!-- Flight container -->
-                    <div class="flight-container">
-                        <!-- Flight path -->
-                        <div class="flight-path"></div>
-
-                        <!-- Airplane -->
-                        <div class="airplane">✈️</div>
-
-                        <!-- Telemetry overlays -->
-                        <div class="telemetry">
-                            <div class="telemetry-item">
-                                <div class="telemetry-label">Altitude</div>
-                                <div class="telemetry-value">35,000 ft</div>
-                            </div>
-                            <div class="telemetry-item" style="animation-delay: 0.2s;">
-                                <div class="telemetry-label">Speed</div>
-                                <div class="telemetry-value">550 mph</div>
-                            </div>
-                            <div class="telemetry-item" style="animation-delay: 0.4s;">
-                                <div class="telemetry-label">Smoothness</div>
-                                <div class="telemetry-value">98%</div>
-                            </div>
-                            <div class="telemetry-item" style="animation-delay: 0.6s;">
-                                <div class="telemetry-label">Efficiency</div>
-                                <div class="telemetry-value">95%</div>
-                            </div>
-                        </div>
-
-                        <!-- Playback controls -->
-                        <div class="playback-controls">
-                            <div class="control-btn">⏮️ Replay</div>
-                            <div class="control-btn">⏸️ Pause</div>
-                            <div class="control-btn">⏭️ Skip</div>
-                        </div>
-                    </div>
-
-                    <!-- Ranking scale -->
-                    <div class="ranking-scale">
-                        <div class="ranking-bar" style="height: 100px;">
-                            <div class="ranking-bar-fill" style="--fill-height: 85%;"></div>
-                            <div class="bar-label">Comfort</div>
-                        </div>
-                        <div class="ranking-bar" style="height: 120px;">
-                            <div class="ranking-bar-fill" style="--fill-height: 92%; animation-delay: 3.2s;"></div>
-                            <div class="bar-label">Speed</div>
-                        </div>
-                        <div class="ranking-bar" style="height: 110px;">
-                            <div class="ranking-bar-fill" style="--fill-height: 88%; animation-delay: 3.4s;"></div>
-                            <div class="bar-label">Price</div>
-                        </div>
-                        <div class="ranking-bar" style="height: 105px;">
-                            <div class="ranking-bar-fill" style="--fill-height: 90%; animation-delay: 3.6s;"></div>
-                            <div class="bar-label">Route</div>
-                        </div>
-                    </div>
-
-                    <!-- Score assembly -->
-                    <div class="score-container">
-                        <div class="score-box">
-                            <div class="score-label">COMPOSITE SCORE</div>
-                            <div class="score-value">8.9</div>
-                        </div>
-                    </div>
-
-                    <!-- Checkmark confirmation -->
-                    <div class="checkmark">✓</div>
-                </div>
-
-                <script>
-                    // Auto-advance to cross-validation after animation completes
-                    setTimeout(function() {
-                        // Find and click the hidden continue button
-                        const continueBtn = document.querySelector('[data-testid="evaluation-continue"]');
-                        if (continueBtn) {
-                            continueBtn.click();
-                        }
-                    }, 7000); // 7 seconds total animation time
-                </script>
-                """, unsafe_allow_html=True)
-
-                # Auto-advance using session state timer
-                if 'animation_start_time' not in st.session_state:
-                    import time
-                    st.session_state.animation_start_time = time.time()
-
-                # Check if 7 seconds have passed
-                import time
-                elapsed = time.time() - st.session_state.animation_start_time
-                if elapsed >= 7:
-                    # Clear timer and advance
-                    del st.session_state.animation_start_time
-                    st.session_state.lilo_completed = True
-                    st.session_state.show_evaluation_animation = False
-                    st.rerun()
-                else:
-                    # Show manual continue button
-                    if st.button("Continue to Cross-Validation", key="evaluation-continue", help="Continue", type="primary"):
-                        del st.session_state.animation_start_time
-                        st.session_state.lilo_completed = True
-                        st.session_state.show_evaluation_animation = False
-                        st.rerun()
-                    # Force rerun to check timer again
-                    time.sleep(0.1)
-                    st.rerun()
-
-            # Cross-validation section (before survey) - only show after LILO is completed
+            # Cross-validation section (before survey)
             # PILOT STUDY: Group A tokens skip cross-validation entirely
             # Groups B/C do 4 sequential re-rankings of assigned prompts
             token_group = st.session_state.get('token_group')
@@ -3413,7 +2286,7 @@ if st.session_state.all_flights:
                     st.session_state.backup_triggered = True
                     trigger_backup_on_completion(st.session_state.get('token', 'unknown'))
 
-            if st.session_state.get('lilo_completed') and not st.session_state.get('cross_validation_completed'):
+            if not st.session_state.get('cross_validation_completed'):
                 try:
                     from backend.db import get_previous_search_for_validation, get_assigned_search_for_validation
 
@@ -3948,7 +2821,7 @@ if st.session_state.all_flights:
                                 file_name=f"session_data_{token}.csv",
                                 mime="text/csv",
                                 use_container_width=True,
-                                help="Contains: rankings, LILO questions/responses, cross-validation, and survey"
+                                help="Contains: rankings, cross-validation, and survey"
                             )
 
                             st.success("✅ Your session data is ready for download!")
@@ -4031,8 +2904,6 @@ if st.session_state.all_flights:
                     st.session_state.cross_val_selected = []
                     st.session_state.survey_completed = False
                     st.session_state.completion_page_dismissed = False
-                    st.session_state.lilo_answers_confirmed = False
-                    st.session_state.lilo_data_saved = False
 
                     st.info("🔄 Refresh the page to start a new search!")
                     st.stop()
@@ -4055,8 +2926,8 @@ if st.session_state.all_flights:
             Failsafe should have triggered! Please screenshot this and report the bug.
             """)
 
-        # Only show "What would you like to do next?" after LILO is completed
-        if st.session_state.get('lilo_completed'):
+        # Show options after results are submitted
+        if st.session_state.get('search_id'):
             st.markdown("### What would you like to do next?")
 
             # New Search button takes full width
@@ -4086,8 +2957,6 @@ if st.session_state.all_flights:
                 st.session_state.cv_checkbox_version = 0
                 st.session_state.cv_sort_price_dir = 'asc'
                 st.session_state.cv_sort_duration_dir = 'asc'
-                st.session_state.lilo_answers_confirmed = False
-                st.session_state.lilo_data_saved = False
                 # Delete the prompt key to reset it (can't set widget values directly)
                 if 'flight_prompt_input' in st.session_state:
                     del st.session_state.flight_prompt_input
@@ -5143,7 +4012,7 @@ if st.session_state.all_flights:
 
                     # For DATA token, delete all previous submissions to allow overwriting
                     if st.session_state.token.upper() == "DATA":
-                        from backend.db import Search, UserRanking, FlightShown, LILOSession, LILOIteration, LILOChatMessage, LILOFinalRanking, CrossValidation, SurveyResponse
+                        from backend.db import Search, UserRanking, FlightShown, CrossValidation, SurveyResponse
                         db = SessionLocal()
                         try:
                             # Find all previous searches for this token
@@ -5152,14 +4021,6 @@ if st.session_state.all_flights:
                             ).all()
 
                             for search in previous_searches:
-                                # Delete related LILO data
-                                lilo_sessions = db.query(LILOSession).filter_by(search_id=search.search_id).all()
-                                for lilo_session in lilo_sessions:
-                                    db.query(LILOChatMessage).filter_by(lilo_session_id=lilo_session.id).delete()
-                                    db.query(LILOIteration).filter_by(lilo_session_id=lilo_session.id).delete()
-                                    db.query(LILOFinalRanking).filter_by(lilo_session_id=lilo_session.id).delete()
-                                    db.delete(lilo_session)
-
                                 # Delete cross-validation data
                                 db.query(CrossValidation).filter_by(reviewer_session_id=search.session_id).delete()
                                 db.query(CrossValidation).filter_by(reviewed_session_id=search.session_id).delete()
