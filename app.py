@@ -179,104 +179,15 @@ AIRLINE_NAMES = {
 }
 
 # Common airports for manual search dropdowns (IATA code - City Name)
-AIRPORT_OPTIONS = [
-    # Major US Hubs
-    "ATL - Atlanta Hartsfield-Jackson",
-    "BOS - Boston Logan",
-    "BWI - Baltimore/Washington",
-    "CLT - Charlotte Douglas",
-    "DCA - Washington Reagan",
-    "DEN - Denver International",
-    "DFW - Dallas/Fort Worth",
-    "DTW - Detroit Metropolitan",
-    "EWR - Newark Liberty",
-    "FLL - Fort Lauderdale",
-    "HNL - Honolulu",
-    "IAD - Washington Dulles",
-    "IAH - Houston Intercontinental",
-    "JFK - New York JFK",
-    "LAS - Las Vegas",
-    "LAX - Los Angeles",
-    "LGA - New York LaGuardia",
-    "MCO - Orlando",
-    "MDW - Chicago Midway",
-    "MIA - Miami",
-    "MSP - Minneapolis-St. Paul",
-    "ORD - Chicago O'Hare",
-    "PHL - Philadelphia",
-    "PHX - Phoenix Sky Harbor",
-    "PIT - Pittsburgh",
-    "PDX - Portland",
-    "RDU - Raleigh-Durham",
-    "SAN - San Diego",
-    "SEA - Seattle-Tacoma",
-    "SFO - San Francisco",
-    "SJC - San Jose",
-    "SLC - Salt Lake City",
-    "STL - St. Louis",
-    "TPA - Tampa",
-    # Upstate NY / Regional
-    "BUF - Buffalo",
-    "ITH - Ithaca",
-    "ROC - Rochester",
-    "SYR - Syracuse",
-    "ALB - Albany",
-    # Canada
-    "YYZ - Toronto Pearson",
-    "YVR - Vancouver",
-    "YUL - Montreal Trudeau",
-    # Europe
-    "LHR - London Heathrow",
-    "LGW - London Gatwick",
-    "CDG - Paris Charles de Gaulle",
-    "AMS - Amsterdam Schiphol",
-    "FRA - Frankfurt",
-    "MUC - Munich",
-    "BCN - Barcelona",
-    "MAD - Madrid",
-    "FCO - Rome Fiumicino",
-    "IST - Istanbul",
-    "ZRH - Zurich",
-    "CPH - Copenhagen",
-    "DUB - Dublin",
-    # Asia
-    "NRT - Tokyo Narita",
-    "HND - Tokyo Haneda",
-    "ICN - Seoul Incheon",
-    "PEK - Beijing Capital",
-    "PVG - Shanghai Pudong",
-    "HKG - Hong Kong",
-    "SIN - Singapore Changi",
-    "BKK - Bangkok Suvarnabhumi",
-    "DEL - New Delhi",
-    "BOM - Mumbai",
-    # Middle East
-    "DXB - Dubai",
-    "DOH - Doha Hamad",
-    "AUH - Abu Dhabi",
-    # Oceania
-    "SYD - Sydney",
-    "MEL - Melbourne",
-    "AKL - Auckland",
-    # Latin America
-    "MEX - Mexico City",
-    "CUN - Cancun",
-    "GRU - Sao Paulo Guarulhos",
-    "EZE - Buenos Aires Ezeiza",
-    "BOG - Bogota El Dorado",
-    "LIM - Lima Jorge Chavez",
-    "SCL - Santiago",
-    "PTY - Panama City Tocumen",
-]
 
 def build_manual_parsed(origins, destinations, departure_date, return_date=None):
     """
     Build the same parsed dict structure that parse_flight_prompt_with_llm returns,
     from manual form inputs.
     """
-    # Extract IATA codes from "JFK - New York JFK" format
-    origin_codes = [opt.split(" - ")[0] for opt in origins]
-    dest_codes = [opt.split(" - ")[0] for opt in destinations]
+    # origins/destinations are plain IATA codes (e.g. ["JFK", "EWR"])
+    origin_codes = [c.strip().upper() for c in origins if c.strip()]
+    dest_codes = [c.strip().upper() for c in destinations if c.strip()]
 
     dep_dates = [departure_date.strftime("%Y-%m-%d")]
     ret_dates = [return_date.strftime("%Y-%m-%d")] if return_date else []
@@ -618,6 +529,14 @@ if 'parsed_params' not in st.session_state:
     st.session_state.parsed_params = None
 if 'search_mode' not in st.session_state:
     st.session_state.search_mode = "ai"
+if 'origin_search_results' not in st.session_state:
+    st.session_state.origin_search_results = []
+if 'origin_iata_map' not in st.session_state:
+    st.session_state.origin_iata_map = {}
+if 'dest_search_results' not in st.session_state:
+    st.session_state.dest_search_results = []
+if 'dest_iata_map' not in st.session_state:
+    st.session_state.dest_iata_map = {}
 if 'csv_generated' not in st.session_state:
     st.session_state.csv_generated = False
 # New: for return flights
@@ -1235,6 +1154,9 @@ placeholder_html = r"""
         color: rgba(49, 51, 63, 0.4);
         white-space: pre-wrap;
         word-wrap: break-word;
+        overflow-wrap: break-word;
+        overflow: hidden;
+        max-width: 100%;
         transition: opacity 0.5s ease-out;
         pointer-events: none;
     }
@@ -1540,6 +1462,11 @@ tab_ai, tab_manual = st.tabs(["Describe Your Flight", "Search by Fields"])
 # Initialize button states (will be set inside tabs)
 regular_search = False
 manual_search_btn = False
+manual_prompt = ""
+manual_origins = []
+manual_destinations = []
+manual_dep_date = None
+manual_ret_date = None
 ai_search = False
 
 with tab_ai:
@@ -1726,24 +1653,68 @@ with tab_ai:
 
 with tab_manual:
     from datetime import date
-    st.markdown("**Select your flight details:**")
 
-    col_orig, col_dest = st.columns(2)
-    with col_orig:
-        manual_origins = st.multiselect(
-            "Origin airport(s)",
-            options=AIRPORT_OPTIONS,
-            placeholder="Select origin airports...",
-            key="manual_origins"
+    # --- Origin airport search ---
+    st.markdown("**Origin airport(s)**")
+    col_oq, col_ob = st.columns([4, 1])
+    with col_oq:
+        origin_query = st.text_input(
+            "Search origin",
+            placeholder="e.g. New York, JFK, London...",
+            key="origin_query",
+            label_visibility="collapsed"
         )
-    with col_dest:
-        manual_destinations = st.multiselect(
-            "Destination airport(s)",
-            options=AIRPORT_OPTIONS,
-            placeholder="Select destination airports...",
-            key="manual_destinations"
-        )
+    with col_ob:
+        find_origins = st.button("Find", key="find_origins_btn", use_container_width=True)
 
+    if find_origins and origin_query.strip():
+        with st.spinner("Searching airports..."):
+            origin_results = flight_client.search_airports(origin_query.strip(), max_results=15)
+            st.session_state.origin_search_results = [r["label"] for r in origin_results]
+            st.session_state.origin_iata_map = {r["label"]: r["iata_code"] for r in origin_results}
+        if not origin_results:
+            st.warning("No airports found. Try a different search term.")
+
+    origin_labels = st.multiselect(
+        "Select origin airport(s)",
+        options=st.session_state.get("origin_search_results", []),
+        placeholder="Search above, then select...",
+        key="manual_origins_select",
+        label_visibility="collapsed"
+    )
+    manual_origins = [st.session_state.get("origin_iata_map", {}).get(l, "") for l in origin_labels]
+
+    # --- Destination airport search ---
+    st.markdown("**Destination airport(s)**")
+    col_dq, col_db = st.columns([4, 1])
+    with col_dq:
+        dest_query = st.text_input(
+            "Search destination",
+            placeholder="e.g. Los Angeles, LAX, Paris...",
+            key="dest_query",
+            label_visibility="collapsed"
+        )
+    with col_db:
+        find_dests = st.button("Find", key="find_dests_btn", use_container_width=True)
+
+    if find_dests and dest_query.strip():
+        with st.spinner("Searching airports..."):
+            dest_results = flight_client.search_airports(dest_query.strip(), max_results=15)
+            st.session_state.dest_search_results = [r["label"] for r in dest_results]
+            st.session_state.dest_iata_map = {r["label"]: r["iata_code"] for r in dest_results}
+        if not dest_results:
+            st.warning("No airports found. Try a different search term.")
+
+    dest_labels = st.multiselect(
+        "Select destination airport(s)",
+        options=st.session_state.get("dest_search_results", []),
+        placeholder="Search above, then select...",
+        key="manual_dests_select",
+        label_visibility="collapsed"
+    )
+    manual_destinations = [st.session_state.get("dest_iata_map", {}).get(l, "") for l in dest_labels]
+
+    # --- Date pickers ---
     col_dep, col_ret = st.columns(2)
     with col_dep:
         manual_dep_date = st.date_input(
@@ -1759,6 +1730,13 @@ with tab_manual:
             min_value=date.today(),
             key="manual_ret_date"
         )
+
+    manual_prompt = st.text_area(
+        "Describe any additional preferences (optional)",
+        placeholder="e.g. I prefer nonstop flights, cheapest option, morning departures...",
+        height=80,
+        key="manual_prompt_input"
+    )
 
     manual_search_btn = st.button("🔍 Search Flights", type="primary", use_container_width=True, key="manual_search_btn")
 
@@ -1835,7 +1813,9 @@ if regular_search or manual_search_btn or auto_search:
                         return_date=manual_ret_date
                     )
                     st.session_state.parsed_params = parsed
-                    st.session_state.original_prompt = parsed['original_prompt']
+                    # Store structured description + any extra preferences the user typed
+                    extra = f" | Preferences: {manual_prompt}" if manual_prompt and manual_prompt.strip() else ""
+                    st.session_state.original_prompt = parsed['original_prompt'] + extra
                 else:
                     # Store original prompt
                     st.session_state.original_prompt = prompt

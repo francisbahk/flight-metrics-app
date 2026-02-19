@@ -113,6 +113,17 @@ class FlightSearchClient:
         """
         return self.client.parse_flight_offer(offer)
 
+    def search_airports(self, keyword: str, max_results: int = 10) -> List[Dict]:
+        """
+        Search for airports by keyword. Only supported for Amadeus provider.
+
+        Returns list of dicts with: iata_code, name, city, country, label
+        """
+        if self.provider == "amadeus":
+            return self.client.search_airports(keyword, max_results)
+        # SerpAPI has no airport search endpoint — return empty
+        return []
+
     def get_airline_names(self, airline_codes: List[str]) -> Dict[str, str]:
         """
         Look up airline names from codes.

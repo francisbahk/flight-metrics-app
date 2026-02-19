@@ -176,6 +176,46 @@ class AmadeusClient:
         except requests.exceptions.RequestException as e:
             raise Exception(f"Failed to search flights: {str(e)}")
 
+    def search_airports(self, keyword: str, max_results: int = 10) -> List[Dict]:
+        """
+        Search for airports by keyword (city name or IATA code) using Amadeus locations API.
+
+        Args:
+            keyword: City name or airport code to search (e.g., "New York", "JFK")
+            max_results: Max results to return (default 10)
+
+        Returns:
+            List of dicts with keys: iata_code, name, city, country, label
+        """
+        token = self._get_access_token()
+        url = self.AUTH_URL.replace("/v1/security/oauth2/token", "/v1/reference-data/locations")
+
+        try:
+            response = requests.get(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                params={
+                    "keyword": keyword,
+                    "subType": "AIRPORT",
+                    "page[limit]": max_results,
+                },
+                timeout=10,
+            )
+            response.raise_for_status()
+            data = response.json()
+            results = []
+            for loc in data.get("data", []):
+                iata = loc.get("iataCode", "")
+                name = loc.get("name", "")
+                city = loc.get("address", {}).get("cityName", "")
+                country = loc.get("address", {}).get("countryName", "")
+                label = f"{iata} - {name}, {city}, {country}"
+                results.append({"iata_code": iata, "name": name, "city": city, "country": country, "label": label})
+            return results
+        except requests.exceptions.RequestException as e:
+            print(f"⚠ Airport search failed: {str(e)}")
+            return []
+
     def get_airline_names(self, airline_codes: List[str]) -> Dict[str, str]:
         """
         Look up airline names from IATA codes using Amadeus API.
