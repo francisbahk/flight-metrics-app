@@ -178,7 +178,26 @@ AIRLINE_NAMES = {
     'GF': 'Gulf Air',
 }
 
-# Common airports for manual search dropdowns (IATA code - City Name)
+# ============================================================================
+# STATIC FLIGHT DATABASE (pilot study)
+# Pre-fetched once via fetch_static_flights.py for March 1-7 2026 (Sun-Sat).
+# ============================================================================
+import json as _json
+STATIC_FLIGHTS = []
+STATIC_ORIGINS = []
+STATIC_DESTINATIONS = []
+DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+try:
+    _static_path = os.path.join(os.path.dirname(__file__), 'static_flights.json')
+    with open(_static_path) as _f:
+        STATIC_FLIGHTS = _json.load(_f)
+    STATIC_ORIGINS = sorted(set(f['origin'] for f in STATIC_FLIGHTS))
+    STATIC_DESTINATIONS = sorted(set(f['destination'] for f in STATIC_FLIGHTS))
+    print(f"✓ Loaded {len(STATIC_FLIGHTS)} static flights "
+          f"({len(STATIC_ORIGINS)} origins, {len(STATIC_DESTINATIONS)} destinations)")
+except FileNotFoundError:
+    print("⚠ static_flights.json not found. Run fetch_static_flights.py first.")
+
 
 def build_manual_parsed(origins, destinations, departure_date, return_date=None):
     """
@@ -1456,8 +1475,9 @@ I usually don't check bags except on very long trips.`
 """
 components.html(placeholder_html, height=178)
 
-# Search mode tabs
-tab_ai, tab_manual = st.tabs(["Describe Your Flight", "Search by Fields"])
+# Search mode - AI tab disabled for pilot study (code preserved, re-enable by restoring st.tabs line)
+# tab_ai, tab_manual = st.tabs(["Describe Your Flight", "Search by Fields"])
+(tab_manual,) = st.tabs(["Search by Fields"])
 
 # Initialize button states (will be set inside tabs)
 regular_search = False
@@ -1465,11 +1485,11 @@ manual_search_btn = False
 manual_prompt = ""
 manual_origins = []
 manual_destinations = []
-manual_dep_date = None
-manual_ret_date = None
+manual_days = []
 ai_search = False
 
-with tab_ai:
+if False:  # AI search tab - disabled for pilot study. Re-enable by restoring st.tabs above.
+    # with tab_ai:
     # Add negative margin to pull textarea up over the animation
     st.markdown('<div style="margin-top: -178px;">', unsafe_allow_html=True)
 
@@ -1652,84 +1672,28 @@ with tab_ai:
     regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True, key="ai_search_btn")
 
 with tab_manual:
-    from datetime import date
-
-    # --- Origin airport search ---
-    st.markdown("**Origin airport(s)**")
-    col_oq, col_ob = st.columns([4, 1])
-    with col_oq:
-        origin_query = st.text_input(
-            "Search origin",
-            placeholder="e.g. New York, JFK, London...",
-            key="origin_query",
-            label_visibility="collapsed"
+    col_orig, col_dest = st.columns(2)
+    with col_orig:
+        manual_origins = st.multiselect(
+            "Origin airport(s)",
+            options=STATIC_ORIGINS,
+            placeholder="Select origin(s)...",
+            key="manual_origins_select"
         )
-    with col_ob:
-        find_origins = st.button("Find", key="find_origins_btn", use_container_width=True)
+    with col_dest:
+        manual_destinations = st.multiselect(
+            "Destination airport(s)",
+            options=STATIC_DESTINATIONS,
+            placeholder="Select destination(s)...",
+            key="manual_dests_select"
+        )
 
-    if find_origins and origin_query.strip():
-        with st.spinner("Searching airports..."):
-            origin_results = flight_client.search_airports(origin_query.strip(), max_results=15)
-            st.session_state.origin_search_results = [r["label"] for r in origin_results]
-            st.session_state.origin_iata_map = {r["label"]: r["iata_code"] for r in origin_results}
-        if not origin_results:
-            st.warning("No airports found. Try a different search term.")
-
-    origin_labels = st.multiselect(
-        "Select origin airport(s)",
-        options=st.session_state.get("origin_search_results", []),
-        placeholder="Search above, then select...",
-        key="manual_origins_select",
-        label_visibility="collapsed"
+    manual_days = st.multiselect(
+        "Day(s) of week",
+        options=DAYS_OF_WEEK,
+        placeholder="Select day(s)...",
+        key="manual_days_select"
     )
-    manual_origins = [st.session_state.get("origin_iata_map", {}).get(l, "") for l in origin_labels]
-
-    # --- Destination airport search ---
-    st.markdown("**Destination airport(s)**")
-    col_dq, col_db = st.columns([4, 1])
-    with col_dq:
-        dest_query = st.text_input(
-            "Search destination",
-            placeholder="e.g. Los Angeles, LAX, Paris...",
-            key="dest_query",
-            label_visibility="collapsed"
-        )
-    with col_db:
-        find_dests = st.button("Find", key="find_dests_btn", use_container_width=True)
-
-    if find_dests and dest_query.strip():
-        with st.spinner("Searching airports..."):
-            dest_results = flight_client.search_airports(dest_query.strip(), max_results=15)
-            st.session_state.dest_search_results = [r["label"] for r in dest_results]
-            st.session_state.dest_iata_map = {r["label"]: r["iata_code"] for r in dest_results}
-        if not dest_results:
-            st.warning("No airports found. Try a different search term.")
-
-    dest_labels = st.multiselect(
-        "Select destination airport(s)",
-        options=st.session_state.get("dest_search_results", []),
-        placeholder="Search above, then select...",
-        key="manual_dests_select",
-        label_visibility="collapsed"
-    )
-    manual_destinations = [st.session_state.get("dest_iata_map", {}).get(l, "") for l in dest_labels]
-
-    # --- Date pickers ---
-    col_dep, col_ret = st.columns(2)
-    with col_dep:
-        manual_dep_date = st.date_input(
-            "Departure date",
-            value=None,
-            min_value=date.today(),
-            key="manual_dep_date"
-        )
-    with col_ret:
-        manual_ret_date = st.date_input(
-            "Return date (optional)",
-            value=None,
-            min_value=date.today(),
-            key="manual_ret_date"
-        )
 
     manual_prompt = st.text_area(
         "Describe any additional preferences (optional)",
@@ -1779,8 +1743,8 @@ if regular_search or manual_search_btn or auto_search:
             validation_errors.append("Please select at least one origin airport")
         if not manual_destinations:
             validation_errors.append("Please select at least one destination airport")
-        if not manual_dep_date:
-            validation_errors.append("Please select a departure date")
+        if not manual_days:
+            validation_errors.append("Please select at least one day of the week")
     else:
         if not prompt or not prompt.strip():
             validation_errors.append("Please describe your flight needs")
@@ -1805,170 +1769,170 @@ if regular_search or manual_search_btn or auto_search:
         with st.spinner("✨ Searching flights..."):
             try:
                 if st.session_state.search_mode == "manual":
-                    # Build parsed dict from manual form inputs (skip LLM)
-                    parsed = build_manual_parsed(
-                        origins=manual_origins,
-                        destinations=manual_destinations,
-                        departure_date=manual_dep_date,
-                        return_date=manual_ret_date
-                    )
-                    st.session_state.parsed_params = parsed
-                    # Store structured description + any extra preferences the user typed
+                    # Filter from pre-fetched static flight database (no API call)
+                    all_flights = [
+                        f for f in STATIC_FLIGHTS
+                        if f["origin"] in manual_origins
+                        and f["destination"] in manual_destinations
+                        and f["day_of_week"] in manual_days
+                    ]
+                    all_return_flights = []
+                    has_return = False
+                    st.session_state.has_return = False
+
                     extra = f" | Preferences: {manual_prompt}" if manual_prompt and manual_prompt.strip() else ""
-                    st.session_state.original_prompt = parsed['original_prompt'] + extra
+                    days_str = ", ".join(manual_days)
+                    st.session_state.original_prompt = (
+                        f"Manual search: {', '.join(manual_origins)} to "
+                        f"{', '.join(manual_destinations)} on {days_str}{extra}"
+                    )
+
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.info(f"**From:** {' or '.join(manual_origins)}")
+                    with col2:
+                        st.info(f"**To:** {' or '.join(manual_destinations)}")
+                    with col3:
+                        st.info(f"**Days:** {days_str}")
+
                 else:
-                    # Store original prompt
+                    # AI mode: parse with LLM then search Amadeus API
                     st.session_state.original_prompt = prompt
 
-                    # Parse prompt with LLM
                     st.info("🤖 Parsing your request with Gemini...")
                     parsed = parse_flight_prompt_with_llm(prompt)
                     st.session_state.parsed_params = parsed
 
-                # Debug: show parsed results
-                with st.expander("🔍 Debug: Parsed Parameters"):
-                    st.json(parsed)
+                    # Debug: show parsed results
+                    with st.expander("🔍 Debug: Parsed Parameters"):
+                        st.json(parsed)
 
-                if not parsed.get('origins') or not parsed.get('destinations'):
-                    st.error("Could not extract origin and destination. Please specify airports or cities.")
-                    st.stop()
+                    if not parsed.get('origins') or not parsed.get('destinations'):
+                        st.error("Could not extract origin and destination. Please specify airports or cities.")
+                        st.stop()
 
-                # Show what we understood
-                st.success("✅ Understood your request!")
+                    st.success("✅ Understood your request!")
 
-                # Check if return flight is present
-                return_dates = parsed.get('return_dates', [])
-                # Fallback to single return_date for backward compatibility
-                if not return_dates and parsed.get('return_date'):
-                    return_dates = [parsed.get('return_date')]
-                has_return = len(return_dates) > 0
-                st.session_state.has_return = has_return
+                    # Check if return flight is present
+                    return_dates = parsed.get('return_dates', [])
+                    if not return_dates and parsed.get('return_date'):
+                        return_dates = [parsed.get('return_date')]
+                    has_return = len(return_dates) > 0
+                    st.session_state.has_return = has_return
 
-                if has_return:
-                    col1, col2, col3, col4 = st.columns(4)
-                else:
-                    col1, col2, col3 = st.columns(3)
+                    if has_return:
+                        col1, col2, col3, col4 = st.columns(4)
+                    else:
+                        col1, col2, col3 = st.columns(3)
 
-                with col1:
-                    origins_str = " or ".join(parsed['origins'])
-                    st.info(f"**From:** {origins_str}")
-                with col2:
-                    dests_str = " or ".join(parsed['destinations'])
-                    st.info(f"**To:** {dests_str}")
-                with col3:
+                    with col1:
+                        origins_str = " or ".join(parsed['origins'])
+                        st.info(f"**From:** {origins_str}")
+                    with col2:
+                        dests_str = " or ".join(parsed['destinations'])
+                        st.info(f"**To:** {dests_str}")
+                    with col3:
+                        departure_dates = parsed.get('departure_dates', [])
+                        dates_str = ", ".join(departure_dates) if departure_dates else 'Not specified'
+                        st.info(f"**Depart:** {dates_str}")
+
+                    if has_return:
+                        with col4:
+                            return_dates_str = ", ".join(return_dates)
+                            st.info(f"**Return:** {return_dates_str}")
+
+                    # Search flights from all origin/destination combinations
+                    all_flights = []
+                    all_return_flights = []
+
+                    provider_name = "Amadeus API" if flight_client.provider == "amadeus" else "SerpAPI (Google Flights)"
+                    st.info(f"✈️ Searching outbound flights from {provider_name}...")
+
                     departure_dates = parsed.get('departure_dates', [])
-                    dates_str = ", ".join(departure_dates) if departure_dates else 'Not specified'
-                    st.info(f"**Depart:** {dates_str}")
+                    if not departure_dates:
+                        st.error("No departure dates found. Please specify when you want to fly.")
+                        st.stop()
 
-                if has_return:
-                    with col4:
-                        return_dates_str = ", ".join(return_dates)
-                        st.info(f"**Return:** {return_dates_str}")
+                    for origin_code in parsed['origins']:
+                        for dest_code in parsed['destinations']:
+                            origin, origin_warning = get_test_api_fallback(origin_code)
+                            dest, dest_warning = get_test_api_fallback(dest_code)
 
-                # Search flights from all origin/destination combinations
-                all_flights = []
-                all_return_flights = []
+                            if origin_warning:
+                                st.warning(origin_warning)
+                            if dest_warning:
+                                st.warning(dest_warning)
 
-                provider_name = "Amadeus API" if flight_client.provider == "amadeus" else "SerpAPI (Google Flights)"
-                st.info(f"✈️ Searching outbound flights from {provider_name}...")
+                            for departure_date in departure_dates:
+                                st.info(f"Searching: {origin} → {dest} on {departure_date}")
 
-                # Get departure dates (list)
-                departure_dates = parsed.get('departure_dates', [])
-                if not departure_dates:
-                    st.error("No departure dates found. Please specify when you want to fly.")
-                    st.stop()
-
-                for origin_code in parsed['origins']:  # Search all origins (e.g., JFK, EWR, LGA for NYC)
-                    for dest_code in parsed['destinations']:  # Search all destinations
-                        # Check test API compatibility
-                        origin, origin_warning = get_test_api_fallback(origin_code)
-                        dest, dest_warning = get_test_api_fallback(dest_code)
-
-                        if origin_warning:
-                            st.warning(origin_warning)
-                        if dest_warning:
-                            st.warning(dest_warning)
-
-                        # Search flights for ALL departure dates
-                        for departure_date in departure_dates:
-                            st.info(f"Searching: {origin} → {dest} on {departure_date}")
-
-                            # Search outbound flights
-                            results = flight_client.search_flights(
-                                origin=origin,
-                                destination=dest,
-                                departure_date=departure_date,
-                                adults=1,
-                                max_results=250  # Get ALL available flights (increased from 50)
-                            )
-
-                            # Debug: show raw results
-                            with st.expander(f"🔍 Debug: {provider_name} Response ({origin}→{dest} on {departure_date})"):
-                                st.write(f"Type: {type(results)}")
-                                if isinstance(results, dict):
-                                    st.write(f"Keys: {results.keys()}")
-                                    if 'data' in results:
-                                        st.write(f"Number of flights: {len(results['data'])}")
-                                elif isinstance(results, list):
-                                    st.write(f"Number of flights: {len(results)}")
-                                st.json(results if isinstance(results, (dict, list)) else str(results))
-
-                            # Parse results using unified client
-                            if isinstance(results, list):
-                                flight_offers = results
-                            elif isinstance(results, dict) and 'data' in results:
-                                flight_offers = results['data']
-                            else:
-                                flight_offers = []
-
-                            for offer in flight_offers:
-                                # Use unified client's parse method
-                                flight_info = flight_client.parse_flight_offer(offer)
-                                if flight_info:
-                                    all_flights.append(flight_info)
-
-                        # If return flight requested, search return flights for ALL return dates
-                        if has_return:
-                            return_dates = parsed.get('return_dates', [])
-                            # Fallback to single return_date for backward compatibility
-                            if not return_dates and parsed.get('return_date'):
-                                return_dates = [parsed.get('return_date')]
-
-                            for return_date in return_dates:
-                                st.info(f"✈️ Searching return flights: {dest} → {origin} on {return_date}")
-
-                                return_results = flight_client.search_flights(
-                                    origin=dest,  # Swap: destination becomes origin
-                                    destination=origin,  # Swap: origin becomes destination
-                                    departure_date=return_date,
+                                results = flight_client.search_flights(
+                                    origin=origin,
+                                    destination=dest,
+                                    departure_date=departure_date,
                                     adults=1,
                                     max_results=250
                                 )
 
-                                # Debug: show return flight results
-                                with st.expander(f"🔍 Debug: Return Flight Response ({dest}→{origin} on {return_date})"):
-                                    st.write(f"Type: {type(return_results)}")
-                                    if isinstance(return_results, dict):
-                                        st.write(f"Keys: {return_results.keys()}")
-                                        if 'data' in return_results:
-                                            st.write(f"Number of flights: {len(return_results['data'])}")
-                                    elif isinstance(return_results, list):
-                                        st.write(f"Number of flights: {len(return_results)}")
-                                    st.json(return_results if isinstance(return_results, (dict, list)) else str(return_results))
+                                with st.expander(f"🔍 Debug: {provider_name} Response ({origin}→{dest} on {departure_date})"):
+                                    st.write(f"Type: {type(results)}")
+                                    if isinstance(results, dict):
+                                        st.write(f"Keys: {results.keys()}")
+                                        if 'data' in results:
+                                            st.write(f"Number of flights: {len(results['data'])}")
+                                    elif isinstance(results, list):
+                                        st.write(f"Number of flights: {len(results)}")
+                                    st.json(results if isinstance(results, (dict, list)) else str(results))
 
-                                # Parse return flight results
-                                if isinstance(return_results, list):
-                                    return_flight_offers = return_results
-                                elif isinstance(return_results, dict) and 'data' in return_results:
-                                    return_flight_offers = return_results['data']
+                                if isinstance(results, list):
+                                    flight_offers = results
+                                elif isinstance(results, dict) and 'data' in results:
+                                    flight_offers = results['data']
                                 else:
-                                    return_flight_offers = []
+                                    flight_offers = []
 
-                                for offer in return_flight_offers:
-                                    # Use unified client's parse method
+                                for offer in flight_offers:
                                     flight_info = flight_client.parse_flight_offer(offer)
                                     if flight_info:
-                                        all_return_flights.append(flight_info)
+                                        all_flights.append(flight_info)
+
+                            if has_return:
+                                return_dates = parsed.get('return_dates', [])
+                                if not return_dates and parsed.get('return_date'):
+                                    return_dates = [parsed.get('return_date')]
+
+                                for return_date in return_dates:
+                                    st.info(f"✈️ Searching return flights: {dest} → {origin} on {return_date}")
+
+                                    return_results = flight_client.search_flights(
+                                        origin=dest,
+                                        destination=origin,
+                                        departure_date=return_date,
+                                        adults=1,
+                                        max_results=250
+                                    )
+
+                                    with st.expander(f"🔍 Debug: Return Flight Response ({dest}→{origin} on {return_date})"):
+                                        st.write(f"Type: {type(return_results)}")
+                                        if isinstance(return_results, dict):
+                                            st.write(f"Keys: {return_results.keys()}")
+                                            if 'data' in return_results:
+                                                st.write(f"Number of flights: {len(return_results['data'])}")
+                                        elif isinstance(return_results, list):
+                                            st.write(f"Number of flights: {len(return_results)}")
+                                        st.json(return_results if isinstance(return_results, (dict, list)) else str(return_results))
+
+                                    if isinstance(return_results, list):
+                                        return_flight_offers = return_results
+                                    elif isinstance(return_results, dict) and 'data' in return_results:
+                                        return_flight_offers = return_results['data']
+                                    else:
+                                        return_flight_offers = []
+
+                                    for offer in return_flight_offers:
+                                        flight_info = flight_client.parse_flight_offer(offer)
+                                        if flight_info:
+                                            all_return_flights.append(flight_info)
 
                 if not all_flights:
                     st.error("No outbound flights found. Try different dates or airports.")
