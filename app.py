@@ -188,7 +188,7 @@ STATIC_ORIGINS = []
 STATIC_DESTINATIONS = []
 DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 try:
-    _static_path = os.path.join(os.path.dirname(__file__), 'static_flights.json')
+    _static_path = os.path.join(os.path.dirname(__file__), 'static_flights_filtered.json')
     with open(_static_path) as _f:
         STATIC_FLIGHTS = _json.load(_f)
     STATIC_ORIGINS = sorted(set(f['origin'] for f in STATIC_FLIGHTS))
@@ -196,7 +196,7 @@ try:
     print(f"✓ Loaded {len(STATIC_FLIGHTS)} static flights "
           f"({len(STATIC_ORIGINS)} origins, {len(STATIC_DESTINATIONS)} destinations)")
 except FileNotFoundError:
-    print("⚠ static_flights.json not found. Run fetch_static_flights.py first.")
+    print("⚠ static_flights_filtered.json not found. Run fetch_static_flights.py first.")
 
 
 def build_manual_parsed(origins, destinations, departure_date, return_date=None):
@@ -1066,7 +1066,7 @@ with st.expander("💡 Tips for Writing a Good Prompt"):
     """)
 
 st.markdown("""
-2. **Review results** - Browse all available flights using Standard Search or AI Search. After you submit your prompt, use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports. *Note: AI Search results may be less accurate while we continue to improve the system.*
+2. **Review results** - Browse all available flights using the manual search. Use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports.
 3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
 4. **Drag to rank** - Reorder your selections by dragging them in the right panel
 5. **Submit** - Click submit to save your rankings (download as CSV optional)
@@ -1696,8 +1696,8 @@ with tab_manual:
     )
 
     manual_prompt = st.text_area(
-        "Describe any additional preferences (optional)",
-        placeholder="e.g. I prefer nonstop flights, cheapest option, morning departures...",
+        "Describe your flight preferences (optional)",
+        placeholder="e.g. I prefer nonstop flights, cheapest option, morning departures — no need to repeat your dates or airports here...",
         height=80,
         key="manual_prompt_input"
     )
