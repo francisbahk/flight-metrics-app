@@ -193,9 +193,14 @@ try:
         STATIC_FLIGHTS = _json.load(_f)
     STATIC_ORIGINS = sorted(set(f['origin'] for f in STATIC_FLIGHTS))
     STATIC_DESTINATIONS = sorted(set(f['destination'] for f in STATIC_FLIGHTS))
+    STATIC_ROUTE_DAYS = {}
+    for _f in STATIC_FLIGHTS:
+        _key = (_f['origin'], _f['destination'])
+        STATIC_ROUTE_DAYS.setdefault(_key, set()).add(_f['day_of_week'])
     print(f"✓ Loaded {len(STATIC_FLIGHTS)} static flights "
           f"({len(STATIC_ORIGINS)} origins, {len(STATIC_DESTINATIONS)} destinations)")
 except FileNotFoundError:
+    STATIC_ROUTE_DAYS = {}
     print("⚠ static_flights_filtered.json not found. Run fetch_static_flights.py first.")
 
 
@@ -1688,9 +1693,18 @@ with tab_manual:
             key="manual_dests_select"
         )
 
+    if manual_origins and manual_destinations:
+        available_days = set()
+        for _o in manual_origins:
+            for _d in manual_destinations:
+                available_days |= STATIC_ROUTE_DAYS.get((_o, _d), set())
+        day_options = [d for d in DAYS_OF_WEEK if d in available_days]
+    else:
+        day_options = DAYS_OF_WEEK
+
     manual_days = st.multiselect(
         "Day(s) of week",
-        options=DAYS_OF_WEEK,
+        options=day_options,
         placeholder="Select day(s)...",
         key="manual_days_select"
     )
