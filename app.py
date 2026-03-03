@@ -1785,8 +1785,7 @@ if regular_search or manual_search_btn or auto_search:
                     has_return = False
                     st.session_state.has_return = False
 
-                    extra = f" | Preferences: {manual_prompt}" if manual_prompt and manual_prompt.strip() else ""
-                    st.session_state.original_prompt = f"Manual search: {manual_route}{extra}"
+                    st.session_state.original_prompt = manual_prompt.strip() if manual_prompt and manual_prompt.strip() else ""
 
                     col1, col2, col3 = st.columns(3)
                     with col1:
@@ -2986,52 +2985,39 @@ if st.session_state.all_flights:
         else:
             st.markdown(f"### ✈️ Found {len(st.session_state.all_flights)} Flights")
 
-        # Show current prompt with edit option (expanded by default so users see it)
-        with st.expander("📝 Your Search Prompt (click to edit)", expanded=True):
-            st.markdown("**Your prompt:**")
-            st.info(st.session_state.get('original_prompt', ''))
+        # Show current prompt with edit option (only for AI searches)
+        if st.session_state.get('search_mode') != 'manual':
+            with st.expander("📝 Your Search Prompt (click to edit)", expanded=True):
+                st.markdown("**Your prompt:**")
+                st.info(st.session_state.get('original_prompt', ''))
 
-            # Edit prompt toggle
-            if 'editing_prompt_main' not in st.session_state:
-                st.session_state.editing_prompt_main = False
+                # Edit prompt toggle
+                if 'editing_prompt_main' not in st.session_state:
+                    st.session_state.editing_prompt_main = False
 
-            if not st.session_state.editing_prompt_main:
-                if st.button("✏️ Make Edits", key="edit_prompt_main_btn"):
-                    st.session_state.editing_prompt_main = True
-                    st.rerun()
-            else:
-                edited_prompt_main = st.text_area(
-                    "Edit your prompt:",
-                    value=st.session_state.get('original_prompt', ''),
-                    height=150,
-                    key="edited_prompt_main"
-                )
+                if not st.session_state.editing_prompt_main:
+                    if st.button("✏️ Make Edits", key="edit_prompt_main_btn"):
+                        st.session_state.editing_prompt_main = True
+                        st.rerun()
+                else:
+                    edited_prompt_main = st.text_area(
+                        "Edit your prompt:",
+                        value=st.session_state.get('original_prompt', ''),
+                        height=150,
+                        key="edited_prompt_main"
+                    )
 
-                col_save1, col_save2, col_cancel = st.columns([1, 1, 1])
-                with col_save1:
-                    if st.button("💾 Save", key="save_prompt_main"):
-                        st.session_state.original_prompt = edited_prompt_main
-                        st.session_state.editing_prompt_main = False
-                        st.success("Prompt saved!")
-                        st.rerun()
-                with col_save2:
-                    if st.button("🔄 Save & Search Again", key="save_search_prompt_main"):
-                        st.session_state.original_prompt = edited_prompt_main
-                        st.session_state.editing_prompt_main = False
-                        # Set flag to auto-search with the new prompt
-                        st.session_state.auto_search_requested = True
-                        st.session_state.auto_search_prompt = edited_prompt_main
-                        # Clear flight data
-                        st.session_state.all_flights = []
-                        st.session_state.all_return_flights = []
-                        st.session_state.selected_flights = []
-                        st.session_state.selected_return_flights = []
-                        st.session_state.search_complete = False
-                        st.rerun()
-                with col_cancel:
-                    if st.button("❌ Cancel", key="cancel_prompt_main"):
-                        st.session_state.editing_prompt_main = False
-                        st.rerun()
+                    col_save1, col_cancel = st.columns([1, 1])
+                    with col_save1:
+                        if st.button("💾 Save", key="save_prompt_main"):
+                            st.session_state.original_prompt = edited_prompt_main
+                            st.session_state.editing_prompt_main = False
+                            st.success("Prompt saved!")
+                            st.rerun()
+                    with col_cancel:
+                        if st.button("❌ Cancel", key="cancel_prompt_main"):
+                            st.session_state.editing_prompt_main = False
+                            st.rerun()
 
         # Flight selection instructions
         if has_return:
