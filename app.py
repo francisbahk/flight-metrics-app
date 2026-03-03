@@ -194,13 +194,30 @@ try:
     STATIC_ORIGINS = sorted(set(f['origin'] for f in STATIC_FLIGHTS))
     STATIC_DESTINATIONS = sorted(set(f['destination'] for f in STATIC_FLIGHTS))
     STATIC_ROUTE_DAYS = {}
+    STATIC_ROUTE_MAP = {}  # origin -> set of valid destinations
+    _route_day_counts = {}
     for _f in STATIC_FLIGHTS:
         _key = (_f['origin'], _f['destination'])
         STATIC_ROUTE_DAYS.setdefault(_key, set()).add(_f['day_of_week'])
+        STATIC_ROUTE_MAP.setdefault(_f['origin'], set()).add(_f['destination'])
+        _rdk = (_f['origin'], _f['destination'], _f['day_of_week'])
+        _route_day_counts[_rdk] = _route_day_counts.get(_rdk, 0) + 1
+    # Sorted list of "ORIG → DEST (Day)" labels with >= 50 flights
+    STATIC_ROUTE_DAY_OPTIONS = [
+        f"{_o} \u2192 {_d} ({_dow})"
+        for (_o, _d, _dow) in sorted(
+            _route_day_counts,
+            key=lambda x: (x[0], x[1], DAYS_OF_WEEK.index(x[2]))
+        )
+        if _route_day_counts[(_o, _d, _dow)] >= 50
+    ]
     print(f"✓ Loaded {len(STATIC_FLIGHTS)} static flights "
-          f"({len(STATIC_ORIGINS)} origins, {len(STATIC_DESTINATIONS)} destinations)")
+          f"({len(STATIC_ORIGINS)} origins, {len(STATIC_DESTINATIONS)} destinations, "
+          f"{len(STATIC_ROUTE_DAY_OPTIONS)} route+day options)")
 except FileNotFoundError:
     STATIC_ROUTE_DAYS = {}
+    STATIC_ROUTE_MAP = {}
+    STATIC_ROUTE_DAY_OPTIONS = []
     print("⚠ static_flights_filtered.json not found. Run fetch_static_flights.py first.")
 
 
@@ -1488,9 +1505,7 @@ components.html(placeholder_html, height=178)
 regular_search = False
 manual_search_btn = False
 manual_prompt = ""
-manual_origins = []
-manual_destinations = []
-manual_days = []
+manual_route = None
 ai_search = False
 
 if False:  # AI search tab - disabled for pilot study. Re-enable by restoring st.tabs above.
@@ -1677,36 +1692,11 @@ if False:  # AI search tab - disabled for pilot study. Re-enable by restoring st
     regular_search = st.button("🔍 Search Flights", type="primary", use_container_width=True, key="ai_search_btn")
 
 with tab_manual:
-    col_orig, col_dest = st.columns(2)
-    with col_orig:
-        manual_origins = st.multiselect(
-            "Origin airport(s)",
-            options=STATIC_ORIGINS,
-            placeholder="Select origin(s)...",
-            key="manual_origins_select"
-        )
-    with col_dest:
-        manual_destinations = st.multiselect(
-            "Destination airport(s)",
-            options=STATIC_DESTINATIONS,
-            placeholder="Select destination(s)...",
-            key="manual_dests_select"
-        )
-
-    if manual_origins and manual_destinations:
-        available_days = set()
-        for _o in manual_origins:
-            for _d in manual_destinations:
-                available_days |= STATIC_ROUTE_DAYS.get((_o, _d), set())
-        day_options = [d for d in DAYS_OF_WEEK if d in available_days]
-    else:
-        day_options = DAYS_OF_WEEK
-
-    manual_days = st.multiselect(
-        "Day(s) of week",
-        options=day_options,
-        placeholder="Select day(s)...",
-        key="manual_days_select"
+    manual_route = st.selectbox(
+        "Select a route",
+        options=[None] + STATIC_ROUTE_DAY_OPTIONS,
+        format_func=lambda x: "Select a route..." if x is None else x,
+        key="manual_route_select"
     )
 
     manual_prompt = st.text_area(
@@ -1753,12 +1743,8 @@ if regular_search or manual_search_btn or auto_search:
     validation_errors = []
 
     if st.session_state.search_mode == "manual":
-        if not manual_origins:
-            validation_errors.append("Please select at least one origin airport")
-        if not manual_destinations:
-            validation_errors.append("Please select at least one destination airport")
-        if not manual_days:
-            validation_errors.append("Please select at least one day of the week")
+        if not manual_route:
+            validation_errors.append("Please select a route")
     else:
         if not prompt or not prompt.strip():
             validation_errors.append("Please describe your flight needs")
@@ -1783,31 +1769,32 @@ if regular_search or manual_search_btn or auto_search:
         with st.spinner("✨ Searching flights..."):
             try:
                 if st.session_state.search_mode == "manual":
+                    # Parse "ORIG → DEST (Day)" label
+                    _r_origin, _r_rest = manual_route.split(" → ")
+                    _r_dest, _r_day = _r_rest.split(" (")
+                    _r_day = _r_day.rstrip(")")
+
                     # Filter from pre-fetched static flight database (no API call)
                     all_flights = [
                         f for f in STATIC_FLIGHTS
-                        if f["origin"] in manual_origins
-                        and f["destination"] in manual_destinations
-                        and f["day_of_week"] in manual_days
+                        if f["origin"] == _r_origin
+                        and f["destination"] == _r_dest
+                        and f["day_of_week"] == _r_day
                     ]
                     all_return_flights = []
                     has_return = False
                     st.session_state.has_return = False
 
                     extra = f" | Preferences: {manual_prompt}" if manual_prompt and manual_prompt.strip() else ""
-                    days_str = ", ".join(manual_days)
-                    st.session_state.original_prompt = (
-                        f"Manual search: {', '.join(manual_origins)} to "
-                        f"{', '.join(manual_destinations)} on {days_str}{extra}"
-                    )
+                    st.session_state.original_prompt = f"Manual search: {manual_route}{extra}"
 
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        st.info(f"**From:** {' or '.join(manual_origins)}")
+                        st.info(f"**From:** {_r_origin}")
                     with col2:
-                        st.info(f"**To:** {' or '.join(manual_destinations)}")
+                        st.info(f"**To:** {_r_dest}")
                     with col3:
-                        st.info(f"**Days:** {days_str}")
+                        st.info(f"**Day:** {_r_day}")
 
                 else:
                     # AI mode: parse with LLM then search Amadeus API
