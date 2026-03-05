@@ -3,7 +3,7 @@ Utility functions for parsing durations, calculating distances, and flight data 
 """
 import re
 import math
-from typing import Tuple, List, Dict
+from typing import Tuple
 
 
 # Airport coordinates (latitude, longitude) for major airports
@@ -189,51 +189,6 @@ def calculate_flight_distances(origin: str, destination: str) -> Tuple[float, fl
 
     return dis_from_origin, dis_from_dest
 
-
-def interleave_rankings(ranking_a: List[int], ranking_b: List[int]) -> List[Dict]:
-    """
-    Interleave two ranked lists for Team Draft evaluation.
-
-    Creates an interleaved list alternating between the two rankings,
-    tracking which algorithm each item came from.
-
-    Args:
-        ranking_a: List of flight IDs from algorithm A
-        ranking_b: List of flight IDs from algorithm B
-
-    Returns:
-        List of dictionaries with 'flight_id' and 'source' ('a' or 'b')
-
-    Example:
-        ranking_a = [1, 2, 3]
-        ranking_b = [4, 5, 6]
-        Result: [
-            {'flight_id': 1, 'source': 'a'},
-            {'flight_id': 4, 'source': 'b'},
-            {'flight_id': 2, 'source': 'a'},
-            {'flight_id': 5, 'source': 'b'},
-            ...
-        ]
-    """
-    interleaved = []
-    max_len = max(len(ranking_a), len(ranking_b))
-
-    for i in range(max_len):
-        # Add from ranking A
-        if i < len(ranking_a):
-            interleaved.append({
-                'flight_id': ranking_a[i],
-                'source': 'a'
-            })
-
-        # Add from ranking B
-        if i < len(ranking_b):
-            interleaved.append({
-                'flight_id': ranking_b[i],
-                'source': 'b'
-            })
-
-    return interleaved
 
 
 def calculate_time_of_day_seconds(time_str: str) -> int:

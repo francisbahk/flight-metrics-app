@@ -145,9 +145,7 @@ class FlightShown(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=False, index=True)
     flight_data = Column(JSON, nullable=False)  # Full flight object
-    algorithm = Column(String(50), nullable=False)  # 'Cheapest', 'Fastest', 'LISTEN-U'
-    algorithm_rank = Column(Integer, nullable=False)  # Position in that algorithm (1-10)
-    display_position = Column(Integer, nullable=False)  # Position shown to user (1-30)
+    display_position = Column(Integer, nullable=True)  # Position shown to user (1-based)
 
     # Relationships
     search = relationship("Search", back_populates="flights_shown")
@@ -200,58 +198,6 @@ class EvaluationSession(Base):
     completed_at = Column(DateTime, nullable=True)
 
 
-class InteractionEvent(Base):
-    """Stores user interaction events for offline analysis."""
-    __tablename__ = 'interaction_events'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(String(255), nullable=False, index=True)
-    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=True, index=True)
-    event_type = Column(String(50), nullable=False, index=True)  # 'flight_click', 'flight_view', etc.
-    event_data = Column(JSON, nullable=False)  # Flexible: flight_id, timestamp, etc.
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-
-
-class SequentialEvaluation(Base):
-    """Stores sequential evaluation workflow: Manual → LISTEN → LILO."""
-    __tablename__ = 'sequential_evaluations'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(String(255), unique=True, nullable=False, index=True)
-    user_id = Column(String(255), nullable=True)
-
-    # Manual method (baseline)
-    manual_search_results = Column(JSON, nullable=True)  # All flights from Amadeus
-    manual_rankings = Column(JSON, nullable=True)  # Top 5 rankings
-    manual_completed_at = Column(DateTime, nullable=True)
-
-    # LISTEN method
-    listen_prompt = Column(Text, nullable=True)  # Natural language prompt
-    listen_search_results = Column(JSON, nullable=True)  # All flights from Amadeus
-    listen_ranked_flights = Column(JSON, nullable=True)  # LISTEN-U ranked flights
-    listen_rankings = Column(JSON, nullable=True)  # Top 5 rankings
-    listen_completed_at = Column(DateTime, nullable=True)
-
-    # LILO method (3 iterations)
-    lilo_prompt = Column(Text, nullable=True)  # Natural language prompt
-    lilo_search_results = Column(JSON, nullable=True)  # All flights from Amadeus
-    lilo_initial_answers = Column(JSON, nullable=True)  # Answers to Prompt 1 questions
-    lilo_iteration1_flights = Column(JSON, nullable=True)  # 15 random flights
-    lilo_iteration1_feedback = Column(Text, nullable=True)  # User feedback iteration 1
-    lilo_iteration2_flights = Column(JSON, nullable=True)  # 15 utility-ranked flights
-    lilo_iteration2_feedback = Column(Text, nullable=True)  # User feedback iteration 2
-    lilo_iteration3_flights = Column(JSON, nullable=True)  # 15 final utility-ranked flights
-    lilo_rankings = Column(JSON, nullable=True)  # Top 5 final rankings
-    lilo_completed_at = Column(DateTime, nullable=True)
-
-    # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
-    completed_at = Column(DateTime, nullable=True)
-
-    # Analysis/comparison results
-    comparison_metrics = Column(JSON, nullable=True)  # Overlap, NDCG, etc.
-
-
 class FlightCSV(Base):
     """Stores CSV exports for each user session."""
     __tablename__ = 'flight_csvs'
@@ -262,39 +208,6 @@ class FlightCSV(Base):
     csv_data = Column(Text, nullable=False)  # The actual CSV content
     num_flights = Column(Integer, nullable=False)  # Total number of flights
     num_selected = Column(Integer, nullable=False)  # Number of selected flights (should be 5)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-
-
-class SurveyResponse(Base):
-    """Stores post-completion survey responses."""
-    __tablename__ = 'survey_responses'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(String(255), nullable=False, index=True)
-    completion_token = Column(String(255), nullable=True, index=True)  # Completion token (NOT access token)
-
-    # Satisfaction & Usability (Q1-Q3)
-    satisfaction = Column(Integer, nullable=True)  # 1-5
-    ease_of_use = Column(Integer, nullable=True)  # 1-5
-    encountered_issues = Column(String(10), nullable=True)  # Yes/No
-    issues_description = Column(Text, nullable=True)  # Optional open-ended
-
-    # Feature Value (Q4-Q7)
-    search_method = Column(String(50), nullable=True)  # Regular/AI/Both
-    understood_ranking = Column(Integer, nullable=True)  # 1-5
-    helpful_features = Column(JSON, nullable=True)  # List of selected features
-    flights_matched = Column(Integer, nullable=True)  # 1-5
-
-    # Friction & Missing (Q8-Q10)
-    confusing_frustrating = Column(Text, nullable=True)  # Open-ended
-    missing_features = Column(Text, nullable=True)  # Open-ended
-    would_use_again = Column(String(10), nullable=True)  # Yes/No/Maybe
-    would_use_again_reason = Column(Text, nullable=True)  # Optional open-ended
-
-    # Comparison & Final (Q11-Q12)
-    compared_to_others = Column(Integer, nullable=True)  # 1-5
-    additional_comments = Column(Text, nullable=True)  # Optional open-ended
-
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
@@ -495,9 +408,7 @@ def save_search_and_rankings(
             flight_shown = FlightShown(
                 search_id=search_id,
                 flight_data=item['flight'],
-                algorithm=item['algorithm'],
-                algorithm_rank=item['rank'],
-                display_position=position
+                display_position=position,
             )
             db.add(flight_shown)
             db.flush()
@@ -534,38 +445,6 @@ def save_search_and_rankings(
         db.rollback()
         print(f"✗ Error saving to database: {str(e)}")
         raise
-
-    finally:
-        db.close()
-
-
-def get_algorithm_stats() -> Dict:
-    """
-    Get statistics on algorithm performance.
-
-    Returns:
-        Dict with algorithm stats
-    """
-    db = SessionLocal()
-
-    try:
-        from sqlalchemy import func
-
-        # Count how many times each algorithm appears in user's top 5
-        stats = db.query(
-            FlightShown.algorithm,
-            func.count(UserRanking.id).label('times_selected'),
-            func.avg(UserRanking.user_rank).label('avg_rank')
-        ).join(UserRanking).group_by(FlightShown.algorithm).all()
-
-        result = {}
-        for algo, count, avg_rank in stats:
-            result[algo] = {
-                'times_selected': count,
-                'avg_rank': float(avg_rank) if avg_rank else None
-            }
-
-        return result
 
     finally:
         db.close()
@@ -629,9 +508,7 @@ def save_search_and_csv(
             flight_shown = FlightShown(
                 search_id=search_id,
                 flight_data=flight,
-                algorithm='unranked',  # Unranked mode
-                algorithm_rank=idx + 1,
-                display_position=idx + 1
+                display_position=idx + 1,
             )
             db.add(flight_shown)
             db.flush()
@@ -1121,53 +998,6 @@ def generate_completion_token(session_id: str, access_token: Optional[str] = Non
         db.rollback()
         print(f"✗ Error generating completion token: {str(e)}")
         return None
-
-    finally:
-        db.close()
-
-
-def save_survey_response(session_id: str, survey_data: Dict, completion_token: Optional[str] = None) -> bool:
-    """
-    Save a survey response to the database.
-
-    Args:
-        session_id: Unique session identifier
-        survey_data: Dictionary containing all survey responses
-        completion_token: Completion token (optional)
-
-    Returns:
-        True if successful, False otherwise
-    """
-    db = SessionLocal()
-
-    try:
-        survey = SurveyResponse(
-            session_id=session_id,
-            completion_token=completion_token,
-            satisfaction=survey_data.get('satisfaction'),
-            ease_of_use=survey_data.get('ease_of_use'),
-            encountered_issues=survey_data.get('encountered_issues'),
-            issues_description=survey_data.get('issues_description'),
-            search_method=survey_data.get('search_method'),
-            understood_ranking=survey_data.get('understood_ranking'),
-            helpful_features=survey_data.get('helpful_features'),
-            flights_matched=survey_data.get('flights_matched'),
-            confusing_frustrating=survey_data.get('confusing_frustrating'),
-            missing_features=survey_data.get('missing_features'),
-            would_use_again=survey_data.get('would_use_again'),
-            would_use_again_reason=survey_data.get('would_use_again_reason'),
-            compared_to_others=survey_data.get('compared_to_others'),
-            additional_comments=survey_data.get('additional_comments')
-        )
-        db.add(survey)
-        db.commit()
-        print(f"✓ Saved survey response for session {session_id}")
-        return True
-
-    except Exception as e:
-        db.rollback()
-        print(f"✗ Error saving survey response: {str(e)}")
-        return False
 
     finally:
         db.close()
