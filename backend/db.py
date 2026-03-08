@@ -146,6 +146,7 @@ class FlightShown(Base):
     search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=False, index=True)
     flight_data = Column(JSON, nullable=False)  # Full flight object
     display_position = Column(Integer, nullable=True)  # Position shown to user (1-based)
+    algorithm = Column(String(100), nullable=False, default='manual')  # Source algorithm label
 
     # Relationships
     search = relationship("Search", back_populates="flights_shown")
