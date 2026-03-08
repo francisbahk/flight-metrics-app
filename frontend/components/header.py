@@ -223,12 +223,26 @@ def render_token_gate():
     Phase tokens (PHASEONE_<prolific_id>, PHASETWO_<prolific_id>) pass through
     silently — the Prolific ID gate already handled identity verification.
     """
-    from phases import is_phase_token
+    from phases import is_phase_token, is_phase_url
 
     token = st.session_state.token or ''
 
     # Phase participants: verified via Prolific gate — pass through silently
     if is_phase_token(token):
+        return
+
+    # Fallback: if the URL is a phase URL, show the gate instead of "Access Denied"
+    try:
+        _params = st.experimental_get_query_params()
+        _url_id = (_params.get('id', [''])[0] or '').upper()
+    except Exception:
+        _url_id = ''
+
+    if is_phase_url(_url_id):
+        if not st.session_state.get('prolific_id'):
+            from frontend.pages.prolific_gate import render_prolific_id_gate
+            render_prolific_id_gate(_url_id)
+            st.stop()
         return
 
     # Special admin/demo tokens

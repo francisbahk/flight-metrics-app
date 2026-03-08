@@ -54,11 +54,11 @@ def trigger_backup_on_completion(token: str):
 # ============================================================================
 def get_query_param(key, default=None):
     try:
-        return st.query_params.get(key, default)
-    except AttributeError:
         params = st.experimental_get_query_params()
         values = params.get(key, [default])
         return values[0] if values else default
+    except Exception:
+        return default
 
 
 # ============================================================================
@@ -119,7 +119,6 @@ st.set_page_config(
 
 # ============================================================================
 # PHASE GATE — check immediately after set_page_config, before anything renders
-# Uses an inline set so this works even if phases.py has an import issue.
 # ============================================================================
 _PHASE_IDS = {'PHASEONE', 'PHASETWO'}
 _raw_id = (get_query_param('id', '') or '').upper()
