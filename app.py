@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.dirname(__file__))
 load_dotenv()
 
-from phases import is_phase_url, get_phase_group, make_effective_token, is_phase_token
 
 # ============================================================================
 # CONFIGURATION
@@ -120,12 +119,9 @@ st.set_page_config(
 # ============================================================================
 # PHASE GATE — check immediately after set_page_config, before anything renders
 # ============================================================================
-_PHASE_IDS = {'PHASEONE', 'PHASETWO'}
-_raw_id = (get_query_param('id', '') or '').upper()
-
-if _raw_id in _PHASE_IDS and not st.session_state.get('prolific_id'):
+if not st.session_state.get('prolific_id'):
     from frontend.pages.prolific_gate import render_prolific_id_gate
-    render_prolific_id_gate(_raw_id)
+    render_prolific_id_gate()
     st.stop()
 
 # Inject global CSS (only reached after gate check passes)
@@ -184,93 +180,23 @@ for key, value in _defaults.items():
 
 
 # ============================================================================
-# TOKEN / PHASE HANDLING
+# SESSION TOKEN (keyed off Prolific ID)
 # ============================================================================
-raw_url_id = get_query_param('id') or ''
+prolific_id = st.session_state.prolific_id
+effective_token = f"PHASEONE_{prolific_id}"
 
-if is_phase_url(raw_url_id):
-    # ----------------------------------------------------------------
-    # PHASE-BASED FLOW  (?id=PHASEONE  or  ?id=PHASETWO)
-    # Prolific ID gate: show form before anything else if ID not yet set.
-    # ----------------------------------------------------------------
-    phase_url = raw_url_id.upper()
+st.session_state.token = effective_token
+st.session_state.token_valid = True
+st.session_state.token_group = 'A'
+st.session_state.rerank_targets = []
 
-    if not st.session_state.get('prolific_id'):
-        # Inject page config CSS so the gate page looks clean
-        from frontend.styles import GLOBAL_CSS
-        st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
-        from frontend.pages.prolific_gate import render_prolific_id_gate
-        render_prolific_id_gate(phase_url)
-        st.stop()
-
-    # Prolific ID already collected — build effective token
-    prolific_id = st.session_state.prolific_id
-    effective_token = make_effective_token(phase_url, prolific_id)
-
-    st.session_state.token = effective_token
-    st.session_state.token_valid = True
-    st.session_state.token_message = 'Phase participant'
-    st.session_state.phase_url = phase_url
-
-    # Group/rerank config from phases.py (no pre-assigned rerank_targets for phases)
-    st.session_state.token_group = get_phase_group(phase_url)
-    st.session_state.rerank_targets = []   # Dynamic matching at runtime for Phase 2
-
-    print(f"[PHASE] {phase_url} participant - Prolific ID: {prolific_id[:6]}*** "
-          f"- Group: {st.session_state.token_group}")
-
-    # Session restore (keyed off effective token)
-    if 'session_restored' not in st.session_state:
-        try:
-            from backend.db import get_session_progress
-            existing_progress = get_session_progress(effective_token)
-            if existing_progress:
-                st.session_state.session_id = existing_progress['session_id']
-                if existing_progress.get('all_flights'):
-                    st.session_state.all_flights = existing_progress['all_flights']
-                if existing_progress.get('selected_flights'):
-                    st.session_state.selected_flights = existing_progress['selected_flights']
-                if existing_progress.get('search_id'):
-                    st.session_state.search_id = existing_progress['search_id']
-                if existing_progress.get('flight_selection_confirmed'):
-                    st.session_state.review_confirmed = True
-                if existing_progress.get('all_reranks_completed'):
-                    st.session_state.all_reranks_completed = True
-                    st.session_state.cross_validation_completed = True
-                print(f"[PHASE] Restored session progress for {effective_token[:12]}***")
-        except Exception as e:
-            print(f"[PHASE] Session restore skipped: {e}")
-        st.session_state.session_restored = True
-
-elif raw_url_id:
-    # ----------------------------------------------------------------
-    # LEGACY TOKEN FLOW  (?id=DEMO / ?id=DATA / ?id=GA01 / etc.)
-    # ----------------------------------------------------------------
-    token_from_url = raw_url_id
-    from backend.db import validate_token
-    token_status = validate_token(token_from_url)
-    st.session_state.token = token_from_url
-    st.session_state.token_valid = token_status['valid']
-    st.session_state.token_message = token_status['message']
-
-    from pilot_tokens import is_pilot_token, get_token_group, get_rerank_targets
-    if is_pilot_token(token_from_url):
-        st.session_state.token_group = get_token_group(token_from_url)
-        st.session_state.rerank_targets = get_rerank_targets(token_from_url)
-        print(f"[PILOT] Token {token_from_url} - Group {st.session_state.token_group}, "
-              f"Targets: {st.session_state.rerank_targets}")
-    else:
-        st.session_state.token_group = None
-        st.session_state.rerank_targets = []
-
-    # Restore progress on page refresh
-    if 'session_restored' not in st.session_state:
+# Restore progress on page refresh
+if 'session_restored' not in st.session_state:
+    try:
         from backend.db import get_session_progress
-        existing_progress = get_session_progress(token_from_url)
+        existing_progress = get_session_progress(effective_token)
         if existing_progress:
             st.session_state.session_id = existing_progress['session_id']
-            if existing_progress.get('user_prompt'):
-                st.session_state.user_prompt = existing_progress['user_prompt']
             if existing_progress.get('all_flights'):
                 st.session_state.all_flights = existing_progress['all_flights']
             if existing_progress.get('selected_flights'):
@@ -279,15 +205,12 @@ elif raw_url_id:
                 st.session_state.search_id = existing_progress['search_id']
             if existing_progress.get('flight_selection_confirmed'):
                 st.session_state.review_confirmed = True
-            if existing_progress.get('current_rerank_index'):
-                st.session_state.current_rerank_index = existing_progress['current_rerank_index']
-            if existing_progress.get('completed_reranks'):
-                st.session_state.completed_reranks = existing_progress['completed_reranks']
             if existing_progress.get('all_reranks_completed'):
                 st.session_state.all_reranks_completed = True
                 st.session_state.cross_validation_completed = True
-            print(f"[PILOT] Restored session progress for {token_from_url}")
-        st.session_state.session_restored = True
+    except Exception as e:
+        print(f"[SESSION] Restore skipped: {e}")
+    st.session_state.session_restored = True
 
 
 # ============================================================================
@@ -305,10 +228,9 @@ flight_client = get_flight_client()
 # ============================================================================
 # RENDER: HEADER + TOKEN GATE (always)
 # ============================================================================
-from frontend.components.header import render_header, render_token_gate
+from frontend.components.header import render_header
 
 render_header()
-render_token_gate()
 
 
 # ============================================================================
