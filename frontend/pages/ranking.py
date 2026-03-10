@@ -259,8 +259,11 @@ def render_ranking_section():
         codeshare_map = detect_codeshares(filtered_outbound)
 
         for idx, flight in enumerate(filtered_outbound):
-            flight['_ui_index'] = idx
-            is_selected = any(f.get('_ui_index') == idx for f in st.session_state.selected_flights)
+            flight_key = f"{flight['id']}_{flight['departure_time']}"
+            is_selected = any(
+                f"{f['id']}_{f['departure_time']}" == flight_key
+                for f in st.session_state.selected_flights
+            )
 
             col1, col2 = st.columns([1, 5])
 
@@ -278,7 +281,7 @@ def render_ranking_section():
                 elif not selected and is_selected:
                     st.session_state.selected_flights = [
                         f for f in st.session_state.selected_flights
-                        if f.get('_ui_index') != idx
+                        if f"{f['id']}_{f['departure_time']}" != flight_key
                     ]
 
             with col2:
