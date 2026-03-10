@@ -190,9 +190,8 @@ for key, value in _defaults.items():
 # SESSION TOKEN (keyed off Prolific ID)
 # ============================================================================
 prolific_id = st.session_state.prolific_id
-effective_token = f"PHASEONE_{prolific_id}"
 
-st.session_state.token = effective_token
+st.session_state.token = prolific_id
 st.session_state.token_valid = True
 st.session_state.token_group = 'A'
 st.session_state.rerank_targets = []
@@ -201,7 +200,7 @@ st.session_state.rerank_targets = []
 if 'session_restored' not in st.session_state:
     try:
         from backend.db import get_session_progress
-        existing_progress = get_session_progress(effective_token)
+        existing_progress = get_session_progress(prolific_id)
         if existing_progress:
             st.session_state.session_id = existing_progress['session_id']
             if existing_progress.get('all_flights'):

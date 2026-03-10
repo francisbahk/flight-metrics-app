@@ -315,12 +315,12 @@ class LILOFinalRanking(Base):
 class SessionProgress(Base):
     """
     Stores session progress for recovery on page refresh.
-    Keyed by access_token to enable restoration of session state.
+    Keyed by prolific_id to enable restoration of session state.
     """
     __tablename__ = 'session_progress'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    access_token = Column(String(255), unique=True, nullable=False, index=True)
+    prolific_id = Column(String(255), unique=True, nullable=False, index=True)
     session_id = Column(String(255), nullable=False)  # The UUID session_id
 
     # Progress tracking
@@ -1187,12 +1187,12 @@ def update_search_flight_results(
 # Session Progress Functions (for page refresh recovery)
 # ============================================================================
 
-def save_session_progress(access_token: str, progress_data: Dict) -> bool:
+def save_session_progress(prolific_id: str, progress_data: Dict) -> bool:
     """
-    Save or update session progress for a token.
+    Save or update session progress for a participant.
 
     Args:
-        access_token: The access token to save progress for
+        prolific_id: The participant's Prolific ID
         progress_data: Dictionary of progress fields to update
 
     Returns:
@@ -1202,7 +1202,7 @@ def save_session_progress(access_token: str, progress_data: Dict) -> bool:
 
     try:
         existing = db.query(SessionProgress).filter(
-            SessionProgress.access_token == access_token
+            SessionProgress.prolific_id == prolific_id
         ).first()
 
         if existing:
@@ -1214,7 +1214,7 @@ def save_session_progress(access_token: str, progress_data: Dict) -> bool:
         else:
             # Create new record
             new_progress = SessionProgress(
-                access_token=access_token,
+                prolific_id=prolific_id,
                 **progress_data
             )
             db.add(new_progress)
@@ -1231,12 +1231,12 @@ def save_session_progress(access_token: str, progress_data: Dict) -> bool:
         db.close()
 
 
-def get_session_progress(access_token: str) -> Optional[Dict]:
+def get_session_progress(prolific_id: str) -> Optional[Dict]:
     """
-    Retrieve session progress for a token.
+    Retrieve session progress for a participant.
 
     Args:
-        access_token: The access token to look up
+        prolific_id: The participant's Prolific ID
 
     Returns:
         Dictionary with progress data or None if not found
@@ -1245,7 +1245,7 @@ def get_session_progress(access_token: str) -> Optional[Dict]:
 
     try:
         progress = db.query(SessionProgress).filter(
-            SessionProgress.access_token == access_token
+            SessionProgress.prolific_id == prolific_id
         ).first()
 
         if progress:
