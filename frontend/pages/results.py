@@ -186,28 +186,8 @@ def render_completion_section():
         st.warning("Rankings submitted but database save failed")
         st.error(f"Database error: {st.session_state.db_save_error}")
     else:
-        st.error(f"""
-        Rankings submitted but no search ID!
+        st.error("Something went wrong saving your rankings. Please refresh the page and try again, or contact listen.cornell@gmail.com.")
 
-        Debug info:
-        - csv_generated: {st.session_state.get('csv_generated')}
-        - search_id: {st.session_state.get('search_id')}
-        - db_save_error: {st.session_state.get('db_save_error')}
-        - csv_data_outbound exists: {bool(st.session_state.get('csv_data_outbound'))}
-        - all_flights count: {len(st.session_state.all_flights) if st.session_state.all_flights else 0}
-        - selected_flights count: {len(st.session_state.selected_flights) if st.session_state.selected_flights else 0}
-
-        Failsafe should have triggered! Please screenshot this and report the bug.
-        """)
-
-    # ------------------------------------------------------------------
-    # 5. NEW SEARCH BUTTON
-    # ------------------------------------------------------------------
-    if st.session_state.get('search_id'):
-        st.markdown("### What would you like to do next?")
-        if st.button("New Search", use_container_width=True, type="primary"):
-            _reset_for_new_search()
-            st.rerun()
 
 
 # ---------------------------------------------------------------------------

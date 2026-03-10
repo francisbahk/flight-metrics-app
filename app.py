@@ -210,6 +210,12 @@ if 'session_restored' not in st.session_state:
                 st.session_state.original_prompt = participant['prompt']
             if participant.get('all_flights'):
                 st.session_state.all_flights = participant['all_flights']
+                # Restore locked search summary from flight data
+                if not st.session_state.get('selected_route') and participant['all_flights']:
+                    _f0 = participant['all_flights'][0]
+                    st.session_state.selected_route = (
+                        f"{_f0['origin']} \u2192 {_f0['destination']} ({_f0.get('day_of_week', '')})"
+                    )
             if participant.get('ranking_confirmed'):
                 rankings = get_rankings(prolific_id)
                 if rankings:

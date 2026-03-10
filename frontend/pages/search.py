@@ -336,6 +336,18 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     """
     from backend.prompt_parser import parse_flight_prompt_with_llm, get_test_api_fallback
 
+    # Once flights are loaded the search is locked — show a read-only summary
+    # instead of the full form so participants can't change their route/prompt.
+    if st.session_state.get('all_flights'):
+        route = st.session_state.get('selected_route', '')
+        prompt = st.session_state.get('original_prompt', '')
+        st.markdown(
+            f"**Route:** {route}  \n"
+            f"**Preferences:** {prompt if prompt else '*(none specified)*'}",
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
     render_how_to_use()
 
     # CSS for textarea styling
@@ -441,6 +453,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                 st.session_state.original_prompt = (
                     manual_prompt.strip() if manual_prompt and manual_prompt.strip() else ""
                 )
+                st.session_state.selected_route = manual_route
 
                 col1, col2, col3 = st.columns(3)
                 with col1:
