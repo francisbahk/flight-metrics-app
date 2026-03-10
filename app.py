@@ -311,6 +311,85 @@ def apply_filters(flights, airlines=None, connections=None, price_range=None, du
     return filtered
 
 
+def _validate_prompt_with_groq(prompt: str) -> tuple[bool, str]:
+    """Use Groq llama-70b to judge whether the prompt is a detailed flight preference description.
+    Returns (is_detailed, feedback_message)."""
+    import os, json
+    from groq import Groq
+
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        return True, ""
+
+    client = Groq(api_key=api_key)
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a validator for a flight-ranking study. "
+                    "Decide whether the participant's description of their flight preferences is sufficiently detailed. "
+                    "A good description mentions at least some of: airline preference, departure/arrival time preference, "
+                    "price vs speed priority, layover tolerance, or seat class. "
+                    "Gibberish, random words, or descriptions that don't mention any actual flight preferences are NOT detailed. "
+                    "Reply with ONLY a JSON object, no other text: "
+                    "{\"detailed\": true or false, \"feedback\": \"one sentence of specific encouragement if not detailed, else empty string\"}"
+                ),
+            },
+            {"role": "user", "content": f"Participant's description:\n\n{prompt}"},
+        ],
+        temperature=0,
+        response_format={"type": "json_object"},
+    )
+    data = json.loads(response.choices[0].message.content)
+    if data.get("detailed"):
+        return True, ""
+    return False, data.get("feedback", "")
+
+
+def check_prompt_length(min_chars=100):
+    """Block submission if prompt is too short or not detailed enough per Gemini.
+    When rejected, renders an inline editor so the user can update their description."""
+    prompt = st.session_state.get('original_prompt', '')
+    prompt_len = len(prompt)
+
+    if prompt_len < min_chars:
+        st.warning(f"Your flight preference description is too short ({prompt_len}/{min_chars} characters). Please edit it below before submitting.")
+        _show_prompt_editor()
+        return False
+
+    is_detailed, feedback = _validate_prompt_with_groq(prompt)
+    if not is_detailed:
+        msg = "Your description isn't detailed enough yet. "
+        if feedback:
+            msg += feedback + " "
+        msg += "Try mentioning your preference for airline, departure or arrival time, or whether you prioritize price or speed."
+        st.warning(msg)
+        _show_prompt_editor()
+        return False
+
+    return True
+
+
+def _show_prompt_editor():
+    """Render an inline text area that lets the user update their stored prompt."""
+    edited = st.text_area(
+        "Edit your flight preference description:",
+        value=st.session_state.get('original_prompt', ''),
+        height=120,
+        key="prompt_editor_inline",
+    )
+    char_count = len(edited)
+    if char_count < 100:
+        st.caption(f":red[{char_count}/100 characters]")
+    else:
+        st.caption(f":green[{char_count} characters ✓]")
+    if st.button("Update description", key="prompt_editor_save"):
+        st.session_state.original_prompt = edited
+        st.rerun()
+
+
 # CSV Generation Function
 def generate_flight_csv(all_flights, selected_flights, k=5):
     """
@@ -428,11 +507,26 @@ st.set_page_config(
     layout="wide"
 )
 
+# ============================================================================
+# PROLIFIC ID GATE — check immediately after set_page_config, before anything renders
+# ============================================================================
+# Auto-fill from Prolific URL parameter (set study URL as
+# https://app.listen-flightrank.com/?PROLIFIC_PID={{%PROLIFIC_PID%}})
+if not st.session_state.get('prolific_id'):
+    _auto_pid = get_query_param('PROLIFIC_PID') or get_query_param('prolific_pid')
+    if _auto_pid:
+        st.session_state.prolific_id = _auto_pid.strip()
+
+if not st.session_state.get('prolific_id'):
+    from prolific_gate import render_prolific_id_gate
+    render_prolific_id_gate()
+    st.stop()
+
 # Initialize session state
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
-# TOKEN-BASED AUTH: Read and validate token from URL
+# TOKEN-BASED AUTH: derive token from Prolific ID (or fall back to ?id= param)
 if 'token' not in st.session_state:
     st.session_state.token = None
 if 'token_valid' not in st.session_state:
@@ -440,17 +534,21 @@ if 'token_valid' not in st.session_state:
 if 'token_message' not in st.session_state:
     st.session_state.token_message = ''
 
-# Get token from URL parameter (?id=TOKEN)
-# Re-validate on every page load to detect if token was used
-token_from_url = get_query_param('id')
-if token_from_url:
-    # Validate token (checks database to see if it's been used)
-    from backend.db import validate_token
-    token_status = validate_token(token_from_url)
-
-    st.session_state.token = token_from_url
-    st.session_state.token_valid = token_status['valid']
-    st.session_state.token_message = token_status['message']
+# If a Prolific ID is present, generate token automatically
+if st.session_state.get('prolific_id'):
+    _prolific_token = f"PHASEONE_{st.session_state.prolific_id}"
+    st.session_state.token = _prolific_token
+    st.session_state.token_valid = True
+    st.session_state.token_message = ''
+else:
+    # Fallback: manual ?id=TOKEN for researchers / demo
+    token_from_url = get_query_param('id')
+    if token_from_url:
+        from backend.db import validate_token
+        token_status = validate_token(token_from_url)
+        st.session_state.token = token_from_url
+        st.session_state.token_valid = token_status['valid']
+        st.session_state.token_message = token_status['message']
 
     # Pilot study: Detect token group and re-rank assignments
     from pilot_tokens import is_pilot_token, get_token_group, get_rerank_targets
@@ -1603,11 +1701,16 @@ with tab_manual:
     )
 
     manual_prompt = st.text_area(
-        "Describe your flight preferences (optional)",
+        "Describe your flight preferences (minimum 100 characters required)",
         placeholder="e.g. I prefer nonstop flights, cheapest option, morning departures — no need to repeat your dates or airports here...",
         height=80,
         key="manual_prompt_input"
     )
+    _manual_prompt_len = len(manual_prompt) if manual_prompt else 0
+    if _manual_prompt_len < 100:
+        st.caption(f":red[{_manual_prompt_len}/100 characters — please write at least 100 characters before submitting your ranking.]")
+    else:
+        st.caption(f":green[{_manual_prompt_len} characters ✓]")
 
     manual_search_btn = st.button("🔍 Search Flights", type="primary", use_container_width=True, key="manual_search_btn")
 
@@ -3486,7 +3589,7 @@ if st.session_state.all_flights:
 
                     # Submit button for outbound
                     if len(st.session_state.selected_flights) == 5 and not st.session_state.outbound_submitted:
-                        if st.button("✅ Submit Outbound Rankings", key="submit_outbound", type="primary", use_container_width=True):
+                        if check_prompt_length() and st.button("✅ Submit Outbound Rankings", key="submit_outbound", type="primary", use_container_width=True):
                             # Generate CSV
                             csv_data = generate_flight_csv(
                                 st.session_state.all_flights,
@@ -3688,7 +3791,7 @@ if st.session_state.all_flights:
 
                     # Submit button for return
                     if len(st.session_state.selected_return_flights) == 5 and not st.session_state.return_submitted:
-                        if st.button("✅ Submit Return Rankings", key="submit_return", type="primary", use_container_width=True):
+                        if check_prompt_length() and st.button("✅ Submit Return Rankings", key="submit_return", type="primary", use_container_width=True):
                             # Generate CSV
                             csv_data = generate_flight_csv(
                                 st.session_state.all_return_flights,
@@ -3989,7 +4092,7 @@ if st.session_state.all_flights:
 
                     # Submit button
                     if len(st.session_state.selected_flights) == 5 and not st.session_state.outbound_submitted:
-                        if st.button("✅ Submit Rankings", key="submit_single", type="primary", use_container_width=True):
+                        if check_prompt_length() and st.button("✅ Submit Rankings", key="submit_single", type="primary", use_container_width=True):
                             print(f"[DEBUG] Submit button clicked - Preparing for review")
                             print(f"[DEBUG] Session ID: {st.session_state.session_id}")
                             print(f"[DEBUG] Selected flights: {len(st.session_state.selected_flights)}")
@@ -4015,143 +4118,5 @@ if st.session_state.all_flights:
                 else:
                     st.info("Check boxes on the left to select flights")
 
-#             # Subway-line navigation on the left side (simplified for one-way)
-#             nav_items = ['How to Use', 'Outbound']
-#             nav_ids = ['how-to-use', 'outbound-flights']
-# 
-#             st.markdown(f"""
-#                 <style>
-#                     .subway-nav {{
-#                         position: fixed;
-#                         left: 30px;
-#                         top: 50%;
-#                         transform: translateY(-50%);
-#                         z-index: 1000;
-#                         padding: 0;
-#                         transition: left 0.3s ease;
-#                     }}
-#                     /* Adjust position when sidebar is open */
-#                     [data-testid="stSidebar"]:not([aria-hidden="true"]) ~ div .subway-nav {{
-#                         left: 340px;  /* 280px sidebar + 30px margin + 30px spacing = 340px */
-#                     }}
-#                     .subway-nav ul {{
-#                         list-style: none;
-#                         padding: 0;
-#                         margin: 0;
-#                         position: relative;
-#                     }}
-#                     /* Vertical line connecting stations */
-#                     .subway-nav ul::before {{
-#                         content: '';
-#                         position: absolute;
-#                         left: 12px;
-#                         top: 20px;
-#                         bottom: 20px;
-#                         width: 2px;
-#                         background-color: rgba(150, 150, 150, 0.3);
-#                         z-index: 0;
-#                     }}
-#                     .subway-nav li {{
-#                         position: relative;
-#                         margin: 40px 0;
-#                     }}
-#                     .subway-nav li:first-child {{
-#                         margin-top: 0;
-#                     }}
-#                     .subway-nav li:last-child {{
-#                         margin-bottom: 0;
-#                     }}
-#                     /* Station circles */
-#                     .subway-nav a {{
-#                         display: flex;
-#                         align-items: center;
-#                         text-decoration: none;
-#                         position: relative;
-#                         z-index: 1;
-#                     }}
-#                     .subway-nav a .station-circle {{
-#                         width: 20px;
-#                         height: 20px;
-#                         border-radius: 50%;
-#                         background-color: rgba(255, 255, 255, 0.7);
-#                         border: 4px solid #FF6B35;
-#                         position: relative;
-#                         transition: all 0.3s ease;
-#                         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-#                         flex-shrink: 0;
-#                     }}
-#                     .subway-nav a:hover .station-circle {{
-#                         background-color: #FF6B35;
-#                         border-color: #FF6B35;
-#                         box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.2), 0 2px 6px rgba(0, 0, 0, 0.25);
-#                         transform: scale(1.15);
-#                     }}
-#                     .subway-nav a.active .station-circle {{
-#                         background-color: #FF6B35;
-#                         border-color: #FF6B35;
-#                         box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.3), 0 2px 6px rgba(0, 0, 0, 0.25);
-#                         transform: scale(1.2);
-#                     }}
-#                     /* Station labels */
-#                     .subway-nav a .station-label {{
-#                         position: absolute;
-#                         left: 35px;
-#                         white-space: nowrap;
-#                         background-color: rgba(0, 0, 0, 0.85);
-#                         color: white;
-#                         padding: 6px 12px;
-#                         border-radius: 6px;
-#                         font-size: 13px;
-#                         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-#                         font-weight: 500;
-#                         opacity: 0;
-#                         pointer-events: none;
-#                         transition: opacity 0.2s ease;
-#                         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-#                     }}
-#                     .subway-nav a:hover .station-label {{
-#                         opacity: 1;
-#                     }}
-#                     .subway-nav a.active .station-label {{
-#                         opacity: 1;
-#                         background-color: rgba(255, 107, 53, 0.95);
-#                     }}
-#                 </style>
-#                 <div class="subway-nav">
-#                     <ul>
-#                         {''.join(f'<li><a href="#{nav_ids[i]}"><div class="station-circle"></div><div class="station-label">{nav_items[i]}</div></a></li>' for i in range(len(nav_items)))}
-#                     </ul>
-#                 </div>
-#                 <script>
-#                     // Update active state based on scroll position
-#                     function updateSubwayNav() {{
-#                         const sections = {nav_ids};
-#                         const navLinks = document.querySelectorAll('.subway-nav a');
-# 
-#                         let currentSection = '';
-#                         sections.forEach((sectionId, index) => {{
-#                             const section = document.getElementById(sectionId);
-#                             if (section) {{
-#                                 const rect = section.getBoundingClientRect();
-#                                 if (rect.top <= window.innerHeight / 3) {{
-#                                     currentSection = sectionId;
-#                                 }}
-#                             }}
-#                         }});
-# 
-#                         navLinks.forEach(link => {{
-#                             link.classList.remove('active');
-#                             if (link.getAttribute('href') === '#' + currentSection) {{
-#                                 link.classList.add('active');
-#                             }}
-#                         }});
-#                     }}
-# 
-#                     window.addEventListener('scroll', updateSubwayNav);
-#                     setTimeout(updateSubwayNav, 200);
-#                 </script>
-#             """, unsafe_allow_html=True)
-
-# Footer
 st.markdown("---")
 st.caption("Built for flight ranking research • Data collected for algorithm evaluation • Contact: listen.cornell@gmail.com")
