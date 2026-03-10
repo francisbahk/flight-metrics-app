@@ -10,7 +10,7 @@ import json
 from typing import Dict, List, Optional
 from backend.db import (
     SessionLocal, AccessToken, Search, LILOSession, LILOIteration,
-    LILOFinalRanking, SurveyResponse, CrossValidation, FlightShown, UserRanking,
+    LILOFinalRanking, CrossValidation, FlightShown, UserRanking,
     LILOChatMessage
 )
 
@@ -173,41 +173,12 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
             cv_flights = cv_data[0]['flights'] if cv_data else []
             cv_rankings = cv_data[0]['rankings'] if cv_data else {}
 
-            # Get survey responses
-            survey = db.query(SurveyResponse).filter_by(
-                session_id=search.session_id
-            ).first()
-
-            survey_questions = []
-            survey_answers = []
-            if survey:
-                survey_data = {
-                    'Satisfaction (1-5)': survey.satisfaction,
-                    'Ease of Use (1-5)': survey.ease_of_use,
-                    'Encountered Issues': survey.encountered_issues,
-                    'Issues Description': survey.issues_description or '',
-                    'Search Method': survey.search_method,
-                    'Understood Ranking (1-5)': survey.understood_ranking,
-                    'Helpful Features': str(survey.helpful_features) if survey.helpful_features else '',
-                    'Flights Matched (1-5)': survey.flights_matched,
-                    'Confusing/Frustrating': survey.confusing_frustrating or '',
-                    'Missing Features': survey.missing_features or '',
-                    'Would Use Again': survey.would_use_again,
-                    'Would Use Again Reason': survey.would_use_again_reason or '',
-                    'Compared to Others (1-5)': survey.compared_to_others,
-                    'Additional Comments': survey.additional_comments or ''
-                }
-                for q, a in survey_data.items():
-                    survey_questions.append(q)
-                    survey_answers.append(str(a) if a is not None else '')
-
             # Determine total number of rows (including all CV datasets)
             max_cv_flights = max(len(cv['flights']) for cv in cv_data) if cv_data else 0
             num_rows = max(
                 len(all_flights),
                 len(lilo_question_texts),
                 max_cv_flights,
-                len(survey_questions)
             )
 
             # Build rows
@@ -242,39 +213,6 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                         'destination': '', 'departure_time': '', 'arrival_time': '',
                         'stops': '', 'price': '', 'duration_min': '',
                     })
-
-                # LILO section (commented out for pilot study)
-                # row['questions'] = lilo_question_texts[idx] if idx < len(lilo_question_texts) else ''
-                # row['responses'] = lilo_responses[idx] if idx < len(lilo_responses) else ''
-                # row['utility_function'] = utility_function if idx == 0 else ''
-
-                # Cross validation section (legacy - first CV only) - commented out for pilot study
-                # row['prompt_cross'] = cv_prompt if idx == 0 else ''
-                # row['id_cross'] = cv_token if idx == 0 else ''
-                #
-                # if idx < len(cv_flights):
-                #     cv_flight = cv_flights[idx]
-                #     cv_flight_id = cv_flight.get('id')
-                #     row.update({
-                #         'unique_id_cross': cv_flight_id,
-                #         'rank_cross': cv_rankings.get(cv_flight_id, ''),
-                #         'name_cross': cv_flight.get('airline', ''),
-                #         'origin_cross': cv_flight.get('origin', ''),
-                #         'destination_cross': cv_flight.get('destination', ''),
-                #         'departure_time_cross': cv_flight.get('departure_time', ''),
-                #         'arrival_time_cross': cv_flight.get('arrival_time', ''),
-                #         'stops_cross': cv_flight.get('stops', ''),
-                #         'price_cross': cv_flight.get('price', ''),
-                #         'duration_min_cross': cv_flight.get('duration_min', ''),
-                #     })
-                # else:
-                #     # Empty cross validation data
-                #     row.update({
-                #         'unique_id_cross': '', 'rank_cross': '', 'name_cross': '',
-                #         'origin_cross': '', 'destination_cross': '',
-                #         'departure_time_cross': '', 'arrival_time_cross': '',
-                #         'stops_cross': '', 'price_cross': '', 'duration_min_cross': '',
-                #     })
 
                 # PILOT STUDY: 4 CV datasets (cv1_, cv2_, cv3_, cv4_)
                 for cv_num in range(1, 5):
@@ -313,10 +251,6 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                             f'{prefix}stops': '', f'{prefix}price': '', f'{prefix}duration_min': '',
                         })
 
-                # Survey section (commented out for pilot study)
-                # row['survey_questions'] = survey_questions[idx] if idx < len(survey_questions) else ''
-                # row['survey_answers'] = survey_answers[idx] if idx < len(survey_answers) else ''
-
                 all_rows.append(row)
 
         # Write CSV
@@ -328,15 +262,6 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                 # Flight data section
                 'unique_id', 'rank', 'name', 'origin', 'destination',
                 'departure_time', 'arrival_time', 'stops', 'price', 'duration_min',
-
-                # LILO section (commented out for pilot study)
-                # 'questions', 'responses', 'utility_function',
-
-                # Cross validation section (legacy - first CV only) - commented out for pilot study
-                # 'prompt_cross', 'id_cross',
-                # 'unique_id_cross', 'rank_cross', 'name_cross', 'origin_cross',
-                # 'destination_cross', 'departure_time_cross', 'arrival_time_cross',
-                # 'stops_cross', 'price_cross', 'duration_min_cross',
 
                 # PILOT STUDY: 4 CV datasets
                 # CV 1
@@ -362,9 +287,6 @@ def export_session_to_csv(token: str, output_file: str = None) -> str:
                 'cv4_unique_id', 'cv4_rank', 'cv4_name', 'cv4_origin',
                 'cv4_destination', 'cv4_departure_time', 'cv4_arrival_time',
                 'cv4_stops', 'cv4_price', 'cv4_duration_min',
-
-                # Survey section (commented out for pilot study)
-                # 'survey_questions', 'survey_answers'
             ]
 
             with open(output_file, 'w', newline='', encoding='utf-8') as f:

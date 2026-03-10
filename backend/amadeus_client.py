@@ -169,7 +169,7 @@ class AmadeusClient:
             try:
                 error_detail = e.response.json()
                 error_msg += f" - {error_detail}"
-            except:
+            except Exception:
                 error_msg += f" - {e.response.text}"
             raise Exception(error_msg)
 
@@ -355,5 +355,5 @@ class AmadeusClient:
                 minutes = int(minute_match.group(1))
 
             return hours * 60 + minutes
-        except:
+        except Exception:
             return 0

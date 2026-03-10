@@ -170,15 +170,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n✗ SerpAPI test failed: {e}")
 
-    # Test with Amadeus (commented out to avoid errors if not configured)
-    # try:
-    #     client = FlightSearchClient(provider="amadeus")
-    #     flights = client.search_flights(
-    #         origin="JFK",
-    #         destination="LAX",
-    #         departure_date="2025-01-15",
-    #         max_results=5
-    #     )
-    #     print(f"\n✓ Amadeus: Found {len(flights)} flights")
-    # except Exception as e:
-    #     print(f"\n✗ Amadeus test failed: {e}")
+

@@ -146,6 +146,7 @@ class FlightShown(Base):
     search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=False, index=True)
     flight_data = Column(JSON, nullable=False)  # Full flight object
     display_position = Column(Integer, nullable=True)  # Position shown to user (1-based)
+    algorithm = Column(String(50), nullable=True)  # Algorithm that produced this flight
 
     # Relationships
     search = relationship("Search", back_populates="flights_shown")
@@ -409,6 +410,7 @@ def save_search_and_rankings(
                 search_id=search_id,
                 flight_data=item['flight'],
                 display_position=position,
+                algorithm=item.get('algorithm'),
             )
             db.add(flight_shown)
             db.flush()
@@ -509,6 +511,7 @@ def save_search_and_csv(
                 search_id=search_id,
                 flight_data=flight,
                 display_position=idx + 1,
+                algorithm=None,
             )
             db.add(flight_shown)
             db.flush()
@@ -937,7 +940,7 @@ def mark_access_token_used(access_token: str) -> bool:
         token_record.is_used = 1
         token_record.used_at = datetime.utcnow()
         db.commit()
-        print(f"✓ Token marked as used: {token}")
+        print(f"✓ Token marked as used: {access_token}")
         return True
 
     except Exception as e:
