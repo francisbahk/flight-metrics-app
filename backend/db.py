@@ -1,1352 +1,251 @@
 """
-Database functions for storing flight searches and user rankings.
-Uses SQLAlchemy ORM with MySQL.
+Database — 3 clean tables: routes, participants, rankings.
+Uses SQLAlchemy ORM with MySQL (or SQLite for local dev).
 """
 import os
 import json
 from datetime import datetime
-from typing import List, Dict, Optional
 from urllib.parse import quote_plus
-from sqlalchemy import create_engine, Column, Integer, String, Text, JSON, DateTime, ForeignKey, Index
+from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
-from sqlalchemy.pool import NullPool, QueuePool
+from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Helper function to get config from Streamlit secrets or environment
+
+# ============================================================================
+# CONFIG
+# ============================================================================
 def get_config(key, default=''):
     """Get config from Streamlit secrets first, then environment variables."""
-    # Try to get from Streamlit secrets if running in Streamlit
     try:
         import streamlit as st
-        # Access secrets using bracket notation (more reliable across versions)
         if hasattr(st, 'secrets') and key in st.secrets:
             return st.secrets[key]
-    except (ImportError, FileNotFoundError, AttributeError, RuntimeError, KeyError):
+    except Exception:
         pass
-
-    # Fall back to environment variable
     return os.getenv(key, default)
 
-# Database connection
-DB_TYPE = get_config('DB_TYPE', 'sqlite')  # 'sqlite' or 'mysql'
+
+DB_TYPE = get_config('DB_TYPE', 'sqlite')
 
 if DB_TYPE == 'mysql':
-    MYSQL_HOST = get_config('MYSQL_HOST', 'localhost')
-    MYSQL_PORT = get_config('MYSQL_PORT', '3306')
+    MYSQL_HOST     = get_config('MYSQL_HOST', 'localhost')
+    MYSQL_PORT     = get_config('MYSQL_PORT', '3306')
     MYSQL_DATABASE = get_config('MYSQL_DATABASE', 'flight_rankings')
-    MYSQL_USER = get_config('MYSQL_USER', 'root')
+    MYSQL_USER     = get_config('MYSQL_USER', 'root')
     MYSQL_PASSWORD = get_config('MYSQL_PASSWORD', '')
-    # URL-encode password to handle special characters
-    MYSQL_PASSWORD_ENCODED = quote_plus(MYSQL_PASSWORD) if MYSQL_PASSWORD else ''
-    DATABASE_URL = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD_ENCODED}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
-else:
-    # Use SQLite (file-based, no installation required)
-    DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'flight_rankings.db')
-    DATABASE_URL = f"sqlite:///{DB_PATH}"
-
-# Create engine with appropriate settings for each database type
-if DB_TYPE == 'mysql':
-    # MySQL/Railway: Use connection pooling with health checks and SSL
-    import ssl
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE  # Railway uses self-signed certs
-
+    _pw = quote_plus(MYSQL_PASSWORD)
+    DATABASE_URL = (
+        f"mysql+pymysql://{MYSQL_USER}:{_pw}"
+        f"@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
+    )
     engine = create_engine(
         DATABASE_URL,
-        pool_pre_ping=True,  # Verify connection before use (prevents stale connections)
-        pool_recycle=300,    # Recycle connections after 5 minutes
-        pool_size=5,         # Maintain 5 connections in pool
-        max_overflow=10,     # Allow up to 10 additional connections
-        pool_timeout=30,     # Wait up to 30 seconds for a connection
-        connect_args={
-            'connect_timeout': 30,      # 30 second connection timeout
-            'read_timeout': 30,         # 30 second read timeout
-            'write_timeout': 30,        # 30 second write timeout
-            'ssl': ssl_context,         # Enable SSL for Railway
-        },
-        echo=False
+        pool_pre_ping=True,
+        pool_recycle=3600,
+        pool_size=5,
+        max_overflow=10,
     )
 else:
-    # SQLite: Use NullPool (no persistent connections needed)
-    engine = create_engine(
-        DATABASE_URL,
-        poolclass=NullPool,
-        echo=False
-    )
+    _db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'flight_rankings.db')
+    DATABASE_URL = f"sqlite:///{_db_path}"
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
-# Create session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Base class for models
+SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
 
-# Models
-class AccessToken(Base):
-    """
-    Stores one-time access tokens for study entry.
-    These tokens control access but are NOT linked to research data.
-    """
-    __tablename__ = 'access_tokens'
-
-    token = Column(String(255), primary_key=True)  # Unique access token
-    created_at = Column(DateTime, default=datetime.utcnow)
-    used_at = Column(DateTime, nullable=True)  # When token was used to enter study
-    is_used = Column(Integer, default=0)  # 0 = unused, 1 = used
-    completion_token = Column(String(255), nullable=True)  # Generated upon study completion
-
-
-class CompletionToken(Base):
-    """
-    Stores completion tokens generated when participants finish the study.
-    Research data is stored ONLY under completion tokens (no PII).
-    These tokens are used for payment verification.
-    """
-    __tablename__ = 'completion_tokens'
-
-    token = Column(String(255), primary_key=True)  # Unique completion token
-    created_at = Column(DateTime, default=datetime.utcnow)  # When study was completed
-    session_id = Column(String(255), nullable=False, index=True)  # Anonymous session ID
-
-
-class Search(Base):
-    """Stores each search query."""
-    __tablename__ = 'searches'
-
-    search_id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(String(255), nullable=False, index=True)
-    completion_token = Column(String(255), nullable=True, index=True)  # Completion token (NOT access token)
-    # user_name = Column(String(255), nullable=True)  # COMMENTED OUT - No longer collecting
-    # user_email = Column(String(255), nullable=True)  # COMMENTED OUT - No longer collecting
-    user_prompt = Column(Text, nullable=False)
-    parsed_origins = Column(JSON)
-    parsed_destinations = Column(JSON)
-    parsed_preferences = Column(JSON)
-    departure_date = Column(String(50))
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-
-    # Flight results for cross-validation
-    amadeus_flights_json = Column(JSON, nullable=True)  # Raw Amadeus API results
-    listen_ranked_flights_json = Column(JSON, nullable=True)  # LISTEN-ranked flights shown to user
-
-    # Relationships
-    flights_shown = relationship("FlightShown", back_populates="search", cascade="all, delete-orphan")
-    rankings = relationship("UserRanking", back_populates="search", cascade="all, delete-orphan")
-
-
-class FlightShown(Base):
-    """Stores all flights shown to user."""
-    __tablename__ = 'flights_shown'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=False, index=True)
-    flight_data = Column(JSON, nullable=False)  # Full flight object
-    display_position = Column(Integer, nullable=True)  # Position shown to user (1-based)
-    algorithm = Column(String(100), nullable=False, default='manual')  # Source algorithm label
-
-    # Relationships
-    search = relationship("Search", back_populates="flights_shown")
-    rankings = relationship("UserRanking", back_populates="flight", cascade="all, delete-orphan")
-
-
-class UserRanking(Base):
-    """Stores user's top 5 ranked flights."""
-    __tablename__ = 'user_rankings'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=False, index=True)
-    flight_id = Column(Integer, ForeignKey('flights_shown.id', ondelete='CASCADE'), nullable=False)
-    user_rank = Column(Integer, nullable=False)  # User's ranking (1-5)
-    submitted_at = Column(DateTime, default=datetime.utcnow)
-
-    # Relationships
-    search = relationship("Search", back_populates="rankings")
-    flight = relationship("FlightShown", back_populates="rankings")
-
-
-class EvaluationSession(Base):
-    """Stores human vs LLM evaluation experiments."""
-    __tablename__ = 'evaluation_sessions'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(String(255), unique=True, nullable=False, index=True)
-    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=True)
-
-    # Person A (ground truth provider)
-    person_a_user_id = Column(String(255), nullable=True)
-    person_a_prompt = Column(Text, nullable=False)
-    person_a_rankings = Column(JSON, nullable=False)  # Ground truth top-k
-
-    # Person B (human recommender)
-    person_b_user_id = Column(String(255), nullable=True)
-    person_b_rankings = Column(JSON, nullable=True)  # Person B's guesses
-
-    # Algorithm rankings
-    listen_u_rankings = Column(JSON, nullable=True)  # LISTEN-U recommendations
-    lilo_rankings = Column(JSON, nullable=True)  # LILO recommendations
-    cheapest_rankings = Column(JSON, nullable=True)  # Cheapest algorithm
-    fastest_rankings = Column(JSON, nullable=True)  # Fastest algorithm
-
-    # Comparison results
-    team_draft_results = Column(JSON, nullable=True)  # Who won each comparison
-    metrics = Column(JSON, nullable=True)  # NDCG, Precision@k, etc.
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-    completed_at = Column(DateTime, nullable=True)
-
-
-class FlightCSV(Base):
-    """Stores CSV exports for each user session."""
-    __tablename__ = 'flight_csvs'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(String(255), nullable=False, index=True)
-    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=True, index=True)
-    csv_data = Column(Text, nullable=False)  # The actual CSV content
-    num_flights = Column(Integer, nullable=False)  # Total number of flights
-    num_selected = Column(Integer, nullable=False)  # Number of selected flights (should be 5)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-
-
-class CrossValidation(Base):
-    """Stores cross-validation rankings: User A ranks User B's flights."""
-    __tablename__ = 'cross_validations'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    reviewer_session_id = Column(String(255), nullable=False, index=True)  # User A (reviewer)
-    reviewer_token = Column(String(255), nullable=True, index=True)
-    reviewed_session_id = Column(String(255), nullable=False, index=True)  # User B (being reviewed)
-    reviewed_search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=True)
-
-    # Copy of reviewed user's data (for display to reviewer)
-    reviewed_prompt = Column(Text, nullable=False)  # User B's original prompt
-    reviewed_flights_json = Column(JSON, nullable=False)  # User B's LISTEN-ranked flights
-
-    # Reviewer's selections
-    selected_flight_ids = Column(JSON, nullable=False)  # User A's top 5 picks (list of flight IDs)
-    selected_flights_data = Column(JSON, nullable=True)  # Full flight data for selected flights
-
-    # Pilot study fields (for sequential re-rankings)
-    rerank_sequence = Column(Integer, nullable=True)  # Which of 4 re-rankings (1-4), NULL for legacy
-    source_token = Column(String(255), nullable=True, index=True)  # Token being reviewed (e.g., 'GA01')
-
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-
-
-class LILOSession(Base):
-    """Stores LILO (Language-Informed Latent Optimization) session metadata."""
-    __tablename__ = 'lilo_sessions'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(String(255), nullable=False, index=True)  # Links to search session
-    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=False)
-    completion_token = Column(String(255), nullable=True, index=True)
-
-    # LILO configuration
-    num_iterations = Column(Integer, nullable=False)  # Total iterations (typically 2)
-    questions_per_round = Column(Integer, nullable=False)  # Questions asked per round
-
-    # Timestamps
-    started_at = Column(DateTime, default=datetime.utcnow)
-    completed_at = Column(DateTime, nullable=True)
-
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-
-
-class LILOChatMessage(Base):
-    """Stores full chat transcript from LILO conversation."""
-    __tablename__ = 'lilo_chat_messages'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    lilo_session_id = Column(Integer, ForeignKey('lilo_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
-
-    round_number = Column(Integer, nullable=False)  # 0, 1, or 2
-    message_index = Column(Integer, nullable=False)  # Order within the round
-    is_bot = Column(Integer, nullable=False)  # 1 if bot message, 0 if user message
-    message_text = Column(Text, nullable=False)
-
-    # Optional: Store flight comparison if message includes flights
-    flight_a_data = Column(JSON, nullable=True)
-    flight_b_data = Column(JSON, nullable=True)
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class LILOIteration(Base):
-    """Stores utility values and model state at each LILO iteration."""
-    __tablename__ = 'lilo_iterations'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    lilo_session_id = Column(Integer, ForeignKey('lilo_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
-
-    iteration_number = Column(Integer, nullable=False)  # 0, 1, 2
-
-    # User responses for this iteration
-    user_responses = Column(JSON, nullable=False)  # Dict of Q&A pairs
-
-    # Flights shown in this iteration
-    flights_shown = Column(JSON, nullable=True)  # List of flight dicts
-
-    # Model state
-    utility_function_params = Column(JSON, nullable=True)  # Learned utility parameters
-    acquisition_value = Column(JSON, nullable=True)  # Acquisition function values
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class LILOFinalRanking(Base):
-    """Stores final flight rankings by learned utility function."""
-    __tablename__ = 'lilo_final_rankings'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    lilo_session_id = Column(Integer, ForeignKey('lilo_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
-
-    flight_data = Column(JSON, nullable=False)  # Full flight object
-    utility_score = Column(JSON, nullable=False)  # Final utility score (can be float or array)
-    rank = Column(Integer, nullable=False)  # 1 = best, 2 = second best, etc.
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class SessionProgress(Base):
-    """
-    Stores session progress for recovery on page refresh.
-    Keyed by prolific_id to enable restoration of session state.
-    """
-    __tablename__ = 'session_progress'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    prolific_id = Column(String(255), unique=True, nullable=False, index=True)
-    session_id = Column(String(255), nullable=False)  # The UUID session_id
-
-    # Progress tracking
-    current_phase = Column(String(50), nullable=False, default='search')
-    # Phases: 'search', 'flight_selection', 'lilo', 'cross_validation', 'complete'
-
-    # Search state
-    search_completed = Column(Integer, default=0)
-    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='SET NULL'), nullable=True)
-    user_prompt = Column(Text, nullable=True)
-    all_flights_json = Column(JSON, nullable=True)
-
-    # Flight selection state
-    selected_flights_json = Column(JSON, nullable=True)
-    flight_selection_confirmed = Column(Integer, default=0)
-
-    # LILO state (for future use when LILO is re-enabled)
-    lilo_completed = Column(Integer, default=0)
-    lilo_session_id = Column(Integer, nullable=True)
-    lilo_round = Column(Integer, default=0)
-    lilo_chat_history_json = Column(JSON, nullable=True)
-    lilo_answers_json = Column(JSON, nullable=True)
-
-    # Cross-validation state (for pilot study sequential re-rankings)
-    current_rerank_index = Column(Integer, default=0)  # Which re-ranking (0-3)
-    completed_reranks_json = Column(JSON, nullable=True)  # List of completed target tokens
-    all_reranks_completed = Column(Integer, default=0)
-
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-
-# Database functions
+# ============================================================================
+# MODELS
+# ============================================================================
+class Route(Base):
+    """One row per route+date (lightweight catalog — actual flights stay in file)."""
+    __tablename__ = 'routes'
+
+    route_id     = Column(String(64), primary_key=True)   # e.g. "JFK-LAX-20260301"
+    origin       = Column(String(8),  nullable=False)
+    destination  = Column(String(8),  nullable=False)
+    date         = Column(String(16), nullable=False)
+    flight_count = Column(Integer,    default=0)
+
+
+class Participant(Base):
+    """One row per Prolific participant."""
+    __tablename__ = 'participants'
+
+    prolific_id       = Column(String(128), primary_key=True)
+    session_id        = Column(String(64))
+    route_id          = Column(String(64))
+    prompt            = Column(Text)
+    # AI-filtered flights shown to this participant (MEDIUMTEXT for MySQL, Text for SQLite)
+    all_flights_json  = Column(Text)
+    ranking_confirmed = Column(Boolean, default=False)
+    created_at        = Column(DateTime, default=datetime.utcnow)
+    updated_at        = Column(DateTime, default=datetime.utcnow)
+
+
+class Ranking(Base):
+    """One row per ranked flight per participant (5 rows when complete)."""
+    __tablename__ = 'rankings'
+
+    row_number  = Column(Integer, primary_key=True, autoincrement=True)
+    prolific_id = Column(String(128), nullable=False, index=True)
+    rank        = Column(Integer, nullable=False)           # 1 = top choice
+    flight_key  = Column(String(256), nullable=False)       # "{id}_{departure_time}"
+    flight_json = Column(Text, nullable=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+
+# ============================================================================
+# INIT
+# ============================================================================
 def init_db():
-    """
-    Create all tables in the database.
-    Call this once to set up the schema.
-    """
-    Base.metadata.create_all(bind=engine)
-    db_name = "SQLite" if DB_TYPE == 'sqlite' else MYSQL_DATABASE
-    print(f"✓ Database tables created in {db_name}")
-
-
-def save_search_and_rankings(
-    session_id: str,
-    user_prompt: str,
-    parsed_params: Dict,
-    interleaved_results: List[Dict],
-    user_shortlist: List[Dict]
-) -> int:
-    """
-    Save a complete search session with results and user rankings.
-
-    Args:
-        session_id: Unique session identifier
-        user_prompt: Original natural language query
-        parsed_params: Parsed search parameters from LLM
-        interleaved_results: All 30 flights shown (with algorithm labels)
-        user_shortlist: User's top 5 selected flights (in ranked order)
-
-    Returns:
-        search_id of the created search record
-    """
-    db = SessionLocal()
-
-    try:
-        # Create search record
-        search = Search(
-            session_id=session_id,
-            user_prompt=user_prompt,
-            parsed_origins=parsed_params.get('origins'),
-            parsed_destinations=parsed_params.get('destinations'),
-            parsed_preferences=parsed_params.get('preferences'),
-            departure_date=parsed_params.get('departure_date')
-        )
-        db.add(search)
-        db.flush()  # Get search_id
-
-        search_id = search.search_id
-
-        # Save all flights shown
-        flight_id_map = {}  # Map (algorithm, rank) -> flight_id
-
-        for position, item in enumerate(interleaved_results, 1):
-            flight_shown = FlightShown(
-                search_id=search_id,
-                flight_data=item['flight'],
-                display_position=position,
-            )
-            db.add(flight_shown)
-            db.flush()
-
-            # Store mapping for later lookup
-            key = (item['algorithm'], item['rank'])
-            flight_id_map[key] = flight_shown.id
-
-        # Save user rankings
-        for user_rank, shortlist_item in enumerate(user_shortlist, 1):
-            # Find the corresponding flight_id
-            # shortlist_item has 'key', 'flight', 'algorithm', 'rank'
-            algo = shortlist_item['algorithm']
-            algo_rank = shortlist_item['rank']
-            key = (algo, algo_rank)
-
-            flight_id = flight_id_map.get(key)
-
-            if flight_id:
-                ranking = UserRanking(
-                    search_id=search_id,
-                    flight_id=flight_id,
-                    user_rank=user_rank
-                )
-                db.add(ranking)
-            else:
-                print(f"Warning: Could not find flight_id for {key}")
-
-        db.commit()
-        print(f"✓ Saved search {search_id} with {len(user_shortlist)} rankings")
-        return search_id
-
-    except Exception as e:
-        db.rollback()
-        print(f"✗ Error saving to database: {str(e)}")
-        raise
-
-    finally:
-        db.close()
-
-
-def save_search_and_csv(
-    session_id: str,
-    user_prompt: str,
-    parsed_params: Dict,
-    all_flights: List[Dict],
-    selected_flights: List[Dict],
-    csv_data: str,
-    token: Optional[str] = None
-) -> int:
-    """
-    Save a search session with CSV export (token-based version).
-
-    Args:
-        session_id: Unique session identifier
-        user_prompt: Original natural language query
-        parsed_params: Parsed search parameters from LLM
-        all_flights: All flights returned by Amadeus
-        selected_flights: User's top 5 selected flights (in ranked order)
-        csv_data: Generated CSV content
-        token: Participant token (optional)
-
-    Returns:
-        search_id of the created search record
-    """
-    db = SessionLocal()
-
-    try:
-        # Create search record
-        search = Search(
-            session_id=session_id,
-            completion_token=token,
-            user_prompt=user_prompt,
-            parsed_origins=parsed_params.get('origins'),
-            parsed_destinations=parsed_params.get('destinations'),
-            parsed_preferences=parsed_params.get('preferences'),
-            departure_date=parsed_params.get('departure_date')
-        )
-        db.add(search)
-        db.flush()  # Get search_id
-
-        search_id = search.search_id
-
-        # Save CSV data
-        csv_record = FlightCSV(
-            session_id=session_id,
-            search_id=search_id,
-            csv_data=csv_data,
-            num_flights=len(all_flights),
-            num_selected=len(selected_flights)
-        )
-        db.add(csv_record)
-
-        # Save FlightShown records for all flights
-        flight_id_map = {}  # Map flight index -> database ID
-        for idx, flight in enumerate(all_flights):
-            flight_shown = FlightShown(
-                search_id=search_id,
-                flight_data=flight,
-                display_position=idx + 1,
-            )
-            db.add(flight_shown)
-            db.flush()
-            flight_id_map[idx] = flight_shown.id
-
-        # Save UserRanking records for selected flights
-        # selected_flights is in ranked order (best first)
-        for user_rank, selected_flight in enumerate(selected_flights, 1):
-            # Find this flight in all_flights to get its index
-            flight_idx = None
-            for idx, flight in enumerate(all_flights):
-                # Match using same composite key as CSV generation
-                if (flight['id'] == selected_flight['id'] and
-                    flight.get('departure_time') == selected_flight.get('departure_time') and
-                    flight.get('price') == selected_flight.get('price')):
-                    flight_idx = idx
-                    break
-
-            if flight_idx is not None and flight_idx in flight_id_map:
-                ranking = UserRanking(
-                    search_id=search_id,
-                    flight_id=flight_id_map[flight_idx],
-                    user_rank=user_rank
-                )
-                db.add(ranking)
-            else:
-                print(f"Warning: Could not find flight_idx for ranked flight {user_rank}")
-
-        db.commit()
-        print(f"✓ Saved search {search_id} with CSV export ({len(all_flights)} flights, {len(selected_flights)} rankings)")
-        return search_id
-
-    except Exception as e:
-        db.rollback()
-        print(f"✗ Error saving to database: {str(e)}")
-        raise
-
-    finally:
-        db.close()
+    """Create all tables (no-op if they already exist)."""
+    Base.metadata.create_all(engine)
+    print("[DB] Tables ready.")
 
 
 # ============================================================================
-# LILO Database Functions
+# ROUTE FUNCTIONS
 # ============================================================================
-
-def save_lilo_session(
-    session_id: str,
-    search_id: int,
-    completion_token: Optional[str] = None,
-    num_iterations: int = 2,
-    questions_per_round: int = 2
-) -> Optional[int]:
-    """
-    Create a LILO session record.
-
-    Args:
-        session_id: Unique LILO session identifier
-        search_id: Foreign key to searches table
-        completion_token: Optional participant token
-        num_iterations: Total LILO iterations (default 2)
-        questions_per_round: Questions per round (default 2)
-
-    Returns:
-        lilo_session_id if successful, None otherwise
-    """
+def seed_route(route_id: str, origin: str, destination: str, date: str, flight_count: int):
+    """Insert route metadata row. No-op if route already exists."""
     db = SessionLocal()
-
     try:
-        lilo_session = LILOSession(
-            session_id=session_id,
-            search_id=search_id,
-            completion_token=completion_token,
-            num_iterations=num_iterations,
-            questions_per_round=questions_per_round
-        )
-        db.add(lilo_session)
-        db.commit()
-        db.refresh(lilo_session)
-
-        print(f"✓ Created LILO session {lilo_session.id} for search {search_id}")
-        return lilo_session.id
-
-    except Exception as e:
-        db.rollback()
-        print(f"✗ Error creating LILO session: {str(e)}")
-        return None
-
-    finally:
-        db.close()
-
-
-def save_lilo_chat_message(
-    lilo_session_id: int,
-    round_number: int,
-    message_index: int,
-    is_bot: bool,
-    message_text: str,
-    flight_a_data: Optional[Dict] = None,
-    flight_b_data: Optional[Dict] = None
-) -> bool:
-    """
-    Save a single chat message from LILO conversation.
-
-    Args:
-        lilo_session_id: Foreign key to lilo_sessions
-        round_number: Round number (0, 1, or 2)
-        message_index: Order within the round
-        is_bot: True if bot message, False if user message
-        message_text: The message content
-        flight_a_data: Optional flight data for comparisons
-        flight_b_data: Optional flight data for comparisons
-
-    Returns:
-        True if successful, False otherwise
-    """
-    db = SessionLocal()
-
-    try:
-        chat_message = LILOChatMessage(
-            lilo_session_id=lilo_session_id,
-            round_number=round_number,
-            message_index=message_index,
-            is_bot=1 if is_bot else 0,
-            message_text=message_text,
-            flight_a_data=flight_a_data,
-            flight_b_data=flight_b_data
-        )
-        db.add(chat_message)
-        db.commit()
-        return True
-
-    except Exception as e:
-        db.rollback()
-        print(f"✗ Error saving chat message: {str(e)}")
-        return False
-
-    finally:
-        db.close()
-
-
-def save_lilo_chat_transcript(
-    lilo_session_id: int,
-    chat_history: List[Dict]
-) -> bool:
-    """
-    Save complete chat history at once.
-
-    Args:
-        lilo_session_id: Foreign key to lilo_sessions
-        chat_history: List of chat messages with structure:
-            [{'text': str, 'is_bot': bool, 'round': int, 'index': int,
-              'flight_a': dict (optional), 'flight_b': dict (optional)}, ...]
-
-    Returns:
-        True if successful, False otherwise
-    """
-    db = SessionLocal()
-
-    try:
-        for msg in chat_history:
-            chat_message = LILOChatMessage(
-                lilo_session_id=lilo_session_id,
-                round_number=msg.get('round', 0),
-                message_index=msg.get('index', 0),
-                is_bot=1 if msg.get('is_bot', False) else 0,
-                message_text=msg.get('text', ''),
-                flight_a_data=msg.get('flight_a'),
-                flight_b_data=msg.get('flight_b')
-            )
-            db.add(chat_message)
-
-        db.commit()
-        print(f"✓ Saved {len(chat_history)} chat messages for LILO session {lilo_session_id}")
-        return True
-
-    except Exception as e:
-        db.rollback()
-        print(f"✗ Error saving chat transcript: {str(e)}")
-        return False
-
-    finally:
-        db.close()
-
-
-def save_lilo_iteration(
-    lilo_session_id: int,
-    iteration_number: int,
-    user_responses: Dict[str, str],
-    flights_shown: Optional[List[Dict]] = None,
-    utility_params: Optional[Dict] = None,
-    acquisition_values: Optional[Dict] = None
-) -> bool:
-    """
-    Save LILO iteration data including utility values.
-
-    Args:
-        lilo_session_id: Foreign key to lilo_sessions
-        iteration_number: Iteration number (0, 1, 2)
-        user_responses: Dict mapping questions to answers
-        flights_shown: List of flights shown in this iteration
-        utility_params: Learned utility function parameters
-        acquisition_values: Acquisition function values
-
-    Returns:
-        True if successful, False otherwise
-    """
-    db = SessionLocal()
-
-    try:
-        iteration = LILOIteration(
-            lilo_session_id=lilo_session_id,
-            iteration_number=iteration_number,
-            user_responses=user_responses,
-            flights_shown=flights_shown,
-            utility_function_params=utility_params,
-            acquisition_value=acquisition_values
-        )
-        db.add(iteration)
-        db.commit()
-
-        print(f"✓ Saved LILO iteration {iteration_number} for session {lilo_session_id}")
-        return True
-
-    except Exception as e:
-        db.rollback()
-        print(f"✗ Error saving LILO iteration: {str(e)}")
-        return False
-
-    finally:
-        db.close()
-
-
-def save_lilo_final_rankings(
-    lilo_session_id: int,
-    ranked_flights: List[Dict]
-) -> Optional[str]:
-    """
-    Save final flight rankings by learned utility function.
-    Also generates CSV data with utility scores.
-
-    Args:
-        lilo_session_id: Foreign key to lilo_sessions
-        ranked_flights: List of dicts with structure:
-            [{'flight': flight_dict, 'utility_score': float, 'rank': int}, ...]
-            Must be sorted by rank (best first)
-
-    Returns:
-        CSV string if successful, None otherwise
-    """
-    db = SessionLocal()
-
-    try:
-        # Save rankings to database
-        for flight_info in ranked_flights:
-            ranking = LILOFinalRanking(
-                lilo_session_id=lilo_session_id,
-                flight_data=flight_info['flight'],
-                utility_score=flight_info['utility_score'],
-                rank=flight_info['rank']
-            )
-            db.add(ranking)
-
-        db.commit()
-
-        # Generate CSV
-        import csv
-        from io import StringIO
-
-        output = StringIO()
-        writer = csv.writer(output)
-
-        # Write header
-        header = [
-            'Rank', 'Utility Score', 'Price', 'Duration (min)', 'Stops',
-            'Departure Time', 'Arrival Time', 'Airline', 'Flight ID'
-        ]
-        writer.writerow(header)
-
-        # Write data
-        for flight_info in ranked_flights:
-            flight = flight_info['flight']
-            row = [
-                flight_info['rank'],
-                f"{flight_info['utility_score']:.6f}" if isinstance(flight_info['utility_score'], (int, float)) else str(flight_info['utility_score']),
-                flight.get('price', 'N/A'),
-                flight.get('duration_min', 'N/A'),
-                flight.get('stops', 'N/A'),
-                flight.get('departure_time', 'N/A'),
-                flight.get('arrival_time', 'N/A'),
-                flight.get('airline', 'N/A'),
-                flight.get('id', 'N/A')
-            ]
-            writer.writerow(row)
-
-        csv_data = output.getvalue()
-        output.close()
-
-        print(f"✓ Saved {len(ranked_flights)} final rankings for LILO session {lilo_session_id}")
-        return csv_data
-
-    except Exception as e:
-        db.rollback()
-        print(f"✗ Error saving final rankings: {str(e)}")
-        return None
-
-    finally:
-        db.close()
-
-
-def complete_lilo_session(lilo_session_id: int) -> bool:
-    """
-    Mark a LILO session as completed.
-
-    Args:
-        lilo_session_id: ID of the LILO session to complete
-
-    Returns:
-        True if successful, False otherwise
-    """
-    db = SessionLocal()
-
-    try:
-        lilo_session = db.query(LILOSession).filter(LILOSession.id == lilo_session_id).first()
-        if lilo_session:
-            lilo_session.completed_at = datetime.utcnow()
+        if not db.query(Route).filter_by(route_id=route_id).first():
+            db.add(Route(
+                route_id=route_id,
+                origin=origin,
+                destination=destination,
+                date=date,
+                flight_count=flight_count,
+            ))
             db.commit()
-            print(f"✓ Completed LILO session {lilo_session_id}")
-            return True
-        else:
-            print(f"✗ LILO session {lilo_session_id} not found")
-            return False
-
+            print(f"[DB] Seeded route {route_id} ({flight_count} flights).")
     except Exception as e:
         db.rollback()
-        print(f"✗ Error completing LILO session: {str(e)}")
-        return False
-
+        print(f"[DB] seed_route error: {e}")
     finally:
         db.close()
 
 
-def get_lilo_session_by_search(search_id: int) -> Optional[int]:
-    """
-    Get LILO session ID for a given search ID.
-
-    Args:
-        search_id: The search_id to look up
-
-    Returns:
-        lilo_session_id if found, None otherwise
-    """
-    db = SessionLocal()
-
-    try:
-        lilo_session = db.query(LILOSession).filter(LILOSession.search_id == search_id).first()
-        return lilo_session.id if lilo_session else None
-
-    finally:
-        db.close()
-
-
-def validate_access_token(token: str) -> Dict:
-    """
-    Validate an access token for study entry.
-
-    Args:
-        token: The access token to validate
-
-    Returns:
-        Dict with 'valid' (bool), 'is_used' (bool), 'message' (str)
-    """
-    db = SessionLocal()
-
-    try:
-        token_record = db.query(AccessToken).filter(AccessToken.token == token).first()
-
-        if not token_record:
-            return {
-                'valid': False,
-                'is_used': False,
-                'message': 'Invalid token: Token not found'
-            }
-
-        if token_record.is_used:
-            return {
-                'valid': False,
-                'is_used': True,
-                'message': f'Token already used on {token_record.used_at}'
-            }
-
-        return {
-            'valid': True,
-            'is_used': False,
-            'message': 'Token is valid and unused'
-        }
-
-    finally:
-        db.close()
-
-
-# Legacy function for backwards compatibility
-def validate_token(token: str) -> Dict:
-    """Legacy function - redirects to validate_access_token."""
-    return validate_access_token(token)
-
-
-def mark_access_token_used(access_token: str) -> bool:
-    """
-    Mark an access token as used when participant enters the study.
-
-    Args:
-        access_token: The access token to mark as used
-
-    Returns:
-        True if successful, False otherwise
-    """
-    db = SessionLocal()
-
-    try:
-        token_record = db.query(AccessToken).filter(AccessToken.token == access_token).first()
-
-        if not token_record:
-            print(f"✗ Access token not found: {access_token}")
-            return False
-
-        token_record.is_used = 1
-        token_record.used_at = datetime.utcnow()
-        db.commit()
-        print(f"✓ Token marked as used: {token}")
-        return True
-
-    except Exception as e:
-        db.rollback()
-        print(f"✗ Error marking token as used: {str(e)}")
-        return False
-
-    finally:
-        db.close()
-
-
-# Legacy function for backwards compatibility
-def mark_token_used(token: str) -> bool:
-    """Legacy function - redirects to mark_access_token_used."""
-    return mark_access_token_used(token)
-
-
-def generate_completion_token(session_id: str, access_token: Optional[str] = None) -> Optional[str]:
-    """
-    Generate a completion token when participant finishes the study.
-    This token is used for payment verification and links to research data.
-
-    Args:
-        session_id: The anonymous session ID
-        access_token: Optional access token to link (for tracking purposes only)
-
-    Returns:
-        The generated completion token, or None if failed
-    """
-    import secrets
-
-    db = SessionLocal()
-
-    try:
-        # Generate a random completion token (8 characters, alphanumeric)
-        completion_token = secrets.token_urlsafe(6).upper()  # ~8 chars
-
-        # Create completion token record
-        token_record = CompletionToken(
-            token=completion_token,
-            session_id=session_id,
-            created_at=datetime.utcnow()
-        )
-
-        db.add(token_record)
-
-        # If access token provided, link it to completion token
-        if access_token:
-            access_record = db.query(AccessToken).filter(AccessToken.token == access_token).first()
-            if access_record:
-                access_record.completion_token = completion_token
-
-        db.commit()
-        print(f"✓ Generated completion token: {completion_token} for session {session_id}")
-        return completion_token
-
-    except Exception as e:
-        db.rollback()
-        print(f"✗ Error generating completion token: {str(e)}")
-        return None
-
-    finally:
-        db.close()
-
-
-def get_previous_search_for_validation(current_session_id: str, current_token: str = None) -> Optional[Dict]:
-    """
-    Get the most recent search (excluding current session) for cross-validation.
-    Only returns searches that have completed LILO sessions.
-
-    Implements separate queues by token type:
-    - DATA tokens only see prompts from other DATA sessions
-    - DEMO tokens only see prompts from other DEMO sessions
-    - Regular tokens only see prompts from regular (non-DATA, non-DEMO) sessions
-
-    Args:
-        current_session_id: Current user's session ID to exclude
-        current_token: Current user's token to determine queue type
-
-    Returns:
-        Dictionary with search data or None if no previous search found
-    """
-    db = SessionLocal()
-
-    try:
-        # Build base query
-        query = db.query(Search).join(
-            LILOSession, Search.search_id == LILOSession.search_id
-        ).filter(
-            Search.session_id != current_session_id,
-            Search.listen_ranked_flights_json.isnot(None),
-            LILOSession.completed_at.isnot(None)  # Only completed LILO sessions
-        )
-
-        # Apply token type filter for separate queues
-        if current_token:
-            token_upper = current_token.upper()
-            if token_upper == "DATA":
-                # DATA tokens only see other DATA prompts
-                query = query.filter(Search.completion_token.ilike("DATA"))
-                print(f"[CV] DATA token - filtering to DATA prompts only")
-            elif token_upper == "DEMO":
-                # DEMO tokens only see other DEMO prompts
-                query = query.filter(Search.completion_token.ilike("DEMO"))
-                print(f"[CV] DEMO token - filtering to DEMO prompts only")
-            else:
-                # Regular tokens exclude DATA and DEMO prompts
-                query = query.filter(
-                    ~Search.completion_token.ilike("DATA"),
-                    ~Search.completion_token.ilike("DEMO")
-                )
-                print(f"[CV] Regular token - excluding DATA/DEMO prompts")
-
-        search = query.order_by(Search.created_at.desc()).first()
-
-        if not search:
-            print(f"✗ No completed previous search found for cross-validation")
-            return None
-
-        result = {
-            'search_id': search.search_id,
-            'session_id': search.session_id,
-            'prompt': search.user_prompt,
-            'flights': search.listen_ranked_flights_json
-        }
-
-        print(f"✓ Found completed previous search for validation: session {search.session_id}")
-        return result
-
-    except Exception as e:
-        print(f"✗ Error fetching previous search: {str(e)}")
-        return None
-
-    finally:
-        db.close()
-
-
-def save_cross_validation(
-    reviewer_session_id: str,
-    reviewed_session_id: str,
-    reviewed_search_id: int,
-    reviewed_prompt: str,
-    reviewed_flights: List[Dict],
-    selected_flights: List[Dict],
-    reviewer_token: Optional[str] = None,
-    rerank_sequence: Optional[int] = None,
-    source_token: Optional[str] = None
-) -> bool:
-    """
-    Save cross-validation rankings.
-
-    Args:
-        reviewer_session_id: Session ID of the user doing the review
-        reviewed_session_id: Session ID of the user being reviewed
-        reviewed_search_id: Search ID being reviewed
-        reviewed_prompt: Original prompt from reviewed user
-        reviewed_flights: All flights shown to reviewed user
-        selected_flights: Top 5 flights selected by reviewer
-        reviewer_token: Optional token of reviewer
-        rerank_sequence: Which of 4 re-rankings (1-4) for pilot study, None for legacy
-        source_token: Token being reviewed (e.g., 'GA01') for pilot study
-
-    Returns:
-        True if successful, False otherwise
-    """
-    db = SessionLocal()
-
-    try:
-        # Extract flight IDs from selected flights
-        selected_flight_ids = [f.get('id') for f in selected_flights]
-
-        cross_val = CrossValidation(
-            reviewer_session_id=reviewer_session_id,
-            reviewer_token=reviewer_token,
-            reviewed_session_id=reviewed_session_id,
-            reviewed_search_id=reviewed_search_id,
-            reviewed_prompt=reviewed_prompt,
-            reviewed_flights_json=reviewed_flights,
-            selected_flight_ids=selected_flight_ids,
-            selected_flights_data=selected_flights,
-            rerank_sequence=rerank_sequence,
-            source_token=source_token
-        )
-
-        db.add(cross_val)
-        db.commit()
-        if rerank_sequence:
-            print(f"✓ Saved cross-validation #{rerank_sequence}: {reviewer_token} reviewed {source_token}")
-        else:
-            print(f"✓ Saved cross-validation: {reviewer_session_id} reviewed {reviewed_session_id}")
-        return True
-
-    except Exception as e:
-        db.rollback()
-        print(f"✗ Error saving cross-validation: {str(e)}")
-        return False
-
-    finally:
-        db.close()
-
-
-def update_search_flight_results(
+# ============================================================================
+# PARTICIPANT FUNCTIONS
+# ============================================================================
+def save_participant_progress(
+    prolific_id: str,
     session_id: str,
-    amadeus_flights: Optional[List[Dict]] = None,
-    listen_ranked_flights: Optional[List[Dict]] = None
-) -> bool:
-    """
-    Update a search record with flight results.
-
-    Args:
-        session_id: Session ID to update
-        amadeus_flights: Raw Amadeus API results
-        listen_ranked_flights: LISTEN-ranked flights
-
-    Returns:
-        True if successful, False otherwise
-    """
+    prompt: str = None,
+    route_id: str = None,
+    all_flights: list = None,
+):
+    """Upsert participant row. Creates on first call, updates on subsequent."""
     db = SessionLocal()
-
     try:
-        search = db.query(Search).filter(Search.session_id == session_id).order_by(Search.created_at.desc()).first()
-
-        if not search:
-            print(f"✗ No search found for session {session_id}")
-            return False
-
-        if amadeus_flights is not None:
-            search.amadeus_flights_json = amadeus_flights
-        if listen_ranked_flights is not None:
-            search.listen_ranked_flights_json = listen_ranked_flights
-
-        db.commit()
-        print(f"✓ Updated flight results for session {session_id}")
-        return True
-
-    except Exception as e:
-        db.rollback()
-        print(f"✗ Error updating flight results: {str(e)}")
-        return False
-
-    finally:
-        db.close()
-
-
-# ============================================================================
-# Session Progress Functions (for page refresh recovery)
-# ============================================================================
-
-def save_session_progress(prolific_id: str, progress_data: Dict) -> bool:
-    """
-    Save or update session progress for a participant.
-
-    Args:
-        prolific_id: The participant's Prolific ID
-        progress_data: Dictionary of progress fields to update
-
-    Returns:
-        True if successful, False otherwise
-    """
-    db = SessionLocal()
-
-    try:
-        existing = db.query(SessionProgress).filter(
-            SessionProgress.prolific_id == prolific_id
-        ).first()
-
-        if existing:
-            # Update existing record
-            for key, value in progress_data.items():
-                if hasattr(existing, key):
-                    setattr(existing, key, value)
-            existing.updated_at = datetime.utcnow()
+        p = db.query(Participant).filter_by(prolific_id=prolific_id).first()
+        if p:
+            p.session_id = session_id
+            p.updated_at = datetime.utcnow()
+            if prompt is not None:
+                p.prompt = prompt
+            if route_id is not None:
+                p.route_id = route_id
+            if all_flights is not None:
+                p.all_flights_json = json.dumps(all_flights)
         else:
-            # Create new record
-            new_progress = SessionProgress(
+            db.add(Participant(
                 prolific_id=prolific_id,
-                **progress_data
-            )
-            db.add(new_progress)
-
+                session_id=session_id,
+                route_id=route_id,
+                prompt=prompt,
+                all_flights_json=json.dumps(all_flights) if all_flights is not None else None,
+                ranking_confirmed=False,
+            ))
         db.commit()
-        return True
-
     except Exception as e:
         db.rollback()
-        print(f"✗ Error saving session progress: {str(e)}")
-        return False
-
+        print(f"[DB] save_participant_progress error: {e}")
     finally:
         db.close()
 
 
-def get_session_progress(prolific_id: str) -> Optional[Dict]:
-    """
-    Retrieve session progress for a participant.
-
-    Args:
-        prolific_id: The participant's Prolific ID
-
-    Returns:
-        Dictionary with progress data or None if not found
-    """
+def get_participant(prolific_id: str) -> dict:
+    """Return participant data dict (with all_flights list parsed), or {} if not found."""
     db = SessionLocal()
-
     try:
-        progress = db.query(SessionProgress).filter(
-            SessionProgress.prolific_id == prolific_id
-        ).first()
-
-        if progress:
-            return {
-                'session_id': progress.session_id,
-                'current_phase': progress.current_phase,
-                'search_completed': bool(progress.search_completed),
-                'search_id': progress.search_id,
-                'user_prompt': progress.user_prompt,
-                'all_flights': progress.all_flights_json,
-                'selected_flights': progress.selected_flights_json,
-                'flight_selection_confirmed': bool(progress.flight_selection_confirmed),
-                'lilo_completed': bool(progress.lilo_completed),
-                'lilo_round': progress.lilo_round,
-                'lilo_chat_history': progress.lilo_chat_history_json,
-                'lilo_answers': progress.lilo_answers_json,
-                'current_rerank_index': progress.current_rerank_index,
-                'completed_reranks': progress.completed_reranks_json or [],
-                'all_reranks_completed': bool(progress.all_reranks_completed),
-            }
-        return None
-
-    finally:
-        db.close()
-
-
-def get_assigned_search_for_validation(
-    current_token: str,
-    target_token: str
-) -> Optional[Dict]:
-    """
-    Get a specific user's search data for cross-validation.
-    Used in pilot study to get pre-assigned prompts for re-ranking.
-
-    Args:
-        current_token: Current user's pilot token (e.g., 'GB01')
-        target_token: Target user's pilot token to review (e.g., 'GA02')
-
-    Returns:
-        Dictionary with search data or None if target hasn't completed yet
-    """
-    db = SessionLocal()
-
-    try:
-        # Find completed session for target token
-        # Look for searches where completion_token matches the target
-        search = db.query(Search).filter(
-            Search.completion_token == target_token,
-            Search.listen_ranked_flights_json.isnot(None)
-        ).order_by(Search.created_at.desc()).first()
-
-        if not search:
-            print(f"✗ No completed search found for target token {target_token}")
-            return None
-
+        p = db.query(Participant).filter_by(prolific_id=prolific_id).first()
+        if not p:
+            return {}
         return {
-            'search_id': search.search_id,
-            'session_id': search.session_id,
-            'source_token': target_token,  # Track which token this came from
-            'prompt': search.user_prompt,
-            'flights': search.listen_ranked_flights_json
+            'prolific_id':        p.prolific_id,
+            'session_id':         p.session_id,
+            'route_id':           p.route_id,
+            'prompt':             p.prompt,
+            'all_flights':        json.loads(p.all_flights_json) if p.all_flights_json else [],
+            'ranking_confirmed':  bool(p.ranking_confirmed),
         }
-
-    except Exception as e:
-        print(f"✗ Error fetching assigned search: {str(e)}")
-        return None
-
     finally:
         db.close()
 
 
-def test_connection() -> bool:
+# ============================================================================
+# RANKING FUNCTIONS
+# ============================================================================
+def save_rankings(prolific_id: str, selected_flights: list, prompt: str) -> bool:
     """
-    Test database connection.
-
-    Returns:
-        True if connection successful, False otherwise
+    Save participant's ranked flights (replaces any previous rankings).
+    Also updates participant prompt and marks ranking_confirmed = True.
+    Returns True on success.
     """
+    db = SessionLocal()
     try:
-        from sqlalchemy import text
-        db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
-        print(f"✓ Database connection successful: {DATABASE_URL}")
+        # Replace any previous rankings
+        db.query(Ranking).filter_by(prolific_id=prolific_id).delete()
+        for rank, flight in enumerate(selected_flights, start=1):
+            flight_key = f"{flight['id']}_{flight['departure_time']}"
+            db.add(Ranking(
+                prolific_id=prolific_id,
+                rank=rank,
+                flight_key=flight_key,
+                flight_json=json.dumps(flight),
+            ))
+        # Mark participant confirmed
+        p = db.query(Participant).filter_by(prolific_id=prolific_id).first()
+        if p:
+            p.prompt = prompt
+            p.ranking_confirmed = True
+            p.updated_at = datetime.utcnow()
+        db.commit()
+        print(f"[DB] Saved {len(selected_flights)} rankings for {prolific_id}.")
         return True
     except Exception as e:
-        print(f"✗ Database connection failed: {str(e)}")
+        db.rollback()
+        print(f"[DB] save_rankings error: {e}")
         return False
+    finally:
+        db.close()
 
 
-# For testing
-if __name__ == "__main__":
-    print("Testing database connection...")
-    if test_connection():
-        print("\nCreating tables...")
-        init_db()
-        print("\nDatabase setup complete!")
-    else:
-        print("\n✗ Database setup failed. Check your .env configuration:")
-        print(f"  MYSQL_HOST={MYSQL_HOST}")
-        print(f"  MYSQL_PORT={MYSQL_PORT}")
-        print(f"  MYSQL_DATABASE={MYSQL_DATABASE}")
-        print(f"  MYSQL_USER={MYSQL_USER}")
-        print(f"  MYSQL_PASSWORD={'***' if MYSQL_PASSWORD else '(empty)'}")
+# ============================================================================
+# COMPATIBILITY STUBS (no-ops kept so dead code paths don't crash)
+# ============================================================================
+def mark_token_used(token: str):
+    """No-op — token system removed. Kept for import compatibility."""
+    pass
+
+
+def get_rankings(prolific_id: str) -> list:
+    """Return list of ranked flight dicts (in rank order) for a participant."""
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(Ranking)
+            .filter_by(prolific_id=prolific_id)
+            .order_by(Ranking.rank)
+            .all()
+        )
+        return [json.loads(r.flight_json) for r in rows]
+    finally:
+        db.close()

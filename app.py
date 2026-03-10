@@ -92,19 +92,21 @@ except FileNotFoundError:
 
 
 # ============================================================================
-# ONE-TIME STARTUP (DB init + seed)
+# ONE-TIME STARTUP (DB init + seed route metadata)
 # ============================================================================
 try:
-    from backend.db import init_db
+    from backend.db import init_db, seed_route
     init_db()
+    if STATIC_FLIGHTS:
+        seed_route(
+            route_id='JFK-LAX-20260301',
+            origin='JFK',
+            destination='LAX',
+            date='20260301',
+            flight_count=len(STATIC_FLIGHTS),
+        )
 except Exception as e:
     print(f"Database initialization: {str(e)}")
-
-try:
-    from seed_cross_validation import seed_cross_validation_data
-    seed_cross_validation_data()
-except Exception as e:
-    print(f"Cross-validation seed: {str(e)}")
 
 
 # ============================================================================
@@ -199,19 +201,26 @@ st.session_state.rerank_targets = []
 # Restore progress on page refresh
 if 'session_restored' not in st.session_state:
     try:
-        from backend.db import get_session_progress
-        existing_progress = get_session_progress(prolific_id)
-        if existing_progress:
-            st.session_state.session_id = existing_progress['session_id']
-            if existing_progress.get('all_flights'):
-                st.session_state.all_flights = existing_progress['all_flights']
-            if existing_progress.get('selected_flights'):
-                st.session_state.selected_flights = existing_progress['selected_flights']
-            if existing_progress.get('search_id'):
-                st.session_state.search_id = existing_progress['search_id']
-            if existing_progress.get('flight_selection_confirmed'):
+        from backend.db import get_participant, get_rankings
+        participant = get_participant(prolific_id)
+        if participant:
+            if participant.get('session_id'):
+                st.session_state.session_id = participant['session_id']
+            if participant.get('prompt'):
+                st.session_state.original_prompt = participant['prompt']
+            if participant.get('all_flights'):
+                st.session_state.all_flights = participant['all_flights']
+            if participant.get('ranking_confirmed'):
+                rankings = get_rankings(prolific_id)
+                if rankings:
+                    st.session_state.selected_flights = rankings
+                    # Ensure all_flights is non-empty for the completion section to render
+                    if not st.session_state.all_flights:
+                        st.session_state.all_flights = rankings
                 st.session_state.review_confirmed = True
-            if existing_progress.get('all_reranks_completed'):
+                st.session_state.search_id = prolific_id
+                st.session_state.outbound_submitted = True
+                st.session_state.csv_generated = True
                 st.session_state.all_reranks_completed = True
                 st.session_state.cross_validation_completed = True
     except Exception as e:

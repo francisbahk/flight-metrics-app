@@ -72,14 +72,13 @@ def render_completion_section():
             st.session_state.review_confirmed = True
 
             if st.session_state.get('token'):
-                from backend.db import save_session_progress
-                save_session_progress(st.session_state.token, {
-                    'session_id': st.session_state.session_id,
-                    'current_phase': 'cross_validation',
-                    'flight_selection_confirmed': 1,
-                    'selected_flights_json': st.session_state.selected_flights,
-                })
-                print(f"[PILOT] Saved flight selection for {st.session_state.token}")
+                from backend.db import save_participant_progress
+                save_participant_progress(
+                    prolific_id=st.session_state.token,
+                    session_id=st.session_state.session_id,
+                    prompt=st.session_state.get('original_prompt', ''),
+                )
+                print(f"[PILOT] Saved review confirmation for {st.session_state.token}")
 
             st.rerun()
 
@@ -93,79 +92,25 @@ def render_completion_section():
             and not st.session_state.get('db_save_error')
             and st.session_state.get('review_confirmed')):
 
-        st.info("Attempting to save to database...")
-        print("[DEBUG] FAILSAFE: Attempting database save in completion screen")
+        st.info("Saving your rankings...")
         try:
-            from backend.db import save_search_and_csv
-            import traceback
-
-            csv_data = st.session_state.get('csv_data_outbound')
-
-            if not csv_data:
-                st.session_state.db_save_error = "No CSV data available"
-            elif not st.session_state.all_flights:
-                st.session_state.db_save_error = "No flight data available"
-            elif not st.session_state.selected_flights:
+            if not st.session_state.selected_flights:
                 st.session_state.db_save_error = "No selected flights available"
             else:
-                # DATA token: delete previous submissions to allow overwriting
-                if st.session_state.token.upper() == "DATA":
-                    from backend.db import (SessionLocal, Search, FlightCSV,
-                                            UserRanking, FlightShown,
-                                            CrossValidation, SurveyResponse)
-                    db = SessionLocal()
-                    try:
-                        previous_searches = db.query(Search).filter(
-                            (Search.session_id == st.session_state.token) |
-                            (Search.completion_token == st.session_state.token)
-                        ).all()
-                        for search in previous_searches:
-                            db.query(CrossValidation).filter_by(reviewer_session_id=search.session_id).delete()
-                            db.query(CrossValidation).filter_by(reviewed_session_id=search.session_id).delete()
-                            db.query(SurveyResponse).filter_by(session_id=search.session_id).delete()
-                            rankings = db.query(UserRanking).filter_by(search_id=search.search_id).all()
-                            for ranking in rankings:
-                                db.query(FlightShown).filter_by(id=ranking.flight_id).delete()
-                                db.delete(ranking)
-                            db.query(FlightCSV).filter_by(search_id=search.search_id).delete()
-                            db.delete(search)
-                        db.commit()
-                        print("[DEBUG] Deleted all previous DATA token submissions")
-                    except Exception as e:
-                        db.rollback()
-                        print(f"[DEBUG] Error deleting previous DATA submissions: {str(e)}")
-                    finally:
-                        db.close()
-
-                search_id = save_search_and_csv(
-                    session_id=st.session_state.session_id,
-                    user_prompt=st.session_state.get('original_prompt', ''),
-                    parsed_params=st.session_state.parsed_params or {},
-                    all_flights=st.session_state.all_flights,
+                from backend.db import save_rankings
+                success = save_rankings(
+                    prolific_id=st.session_state.token,
                     selected_flights=st.session_state.selected_flights,
-                    csv_data=csv_data,
-                    token=st.session_state.token
+                    prompt=st.session_state.get('original_prompt', ''),
                 )
-
-                try:
-                    from backend.db import update_search_flight_results
-                    if st.session_state.all_flights:
-                        update_search_flight_results(
-                            session_id=st.session_state.session_id,
-                            listen_ranked_flights=st.session_state.all_flights
-                        )
-                        print("[DEBUG] Saved flight results for cross-validation")
-                except ImportError:
-                    print("[DEBUG] update_search_flight_results not available - skipping")
-
-                st.session_state.search_id = search_id
-                st.session_state.csv_generated = True
-                st.session_state.countdown_started = True
-                print(f"[DEBUG] FAILSAFE: Successfully saved! Search ID: {search_id}")
-                st.rerun()
-
+                if success:
+                    st.session_state.search_id = st.session_state.token
+                    st.session_state.countdown_started = True
+                    print(f"[DB] Rankings saved for {st.session_state.token}")
+                    st.rerun()
+                else:
+                    st.session_state.db_save_error = "save_rankings returned False"
         except Exception as e:
-            print(f"[DEBUG] FAILSAFE: Save failed - {str(e)}")
             import traceback
             print(traceback.format_exc())
             st.session_state.db_save_error = str(e)
@@ -210,13 +155,6 @@ def render_completion_section():
             st.session_state.cross_validation_completed = True
             st.session_state.all_reranks_completed = True
             print("[PILOT] Group A token - skipping cross-validation")
-            if not st.session_state.get('token_marked_used'):
-                from backend.db import mark_token_used
-                t = st.session_state.get('token')
-                if t and t.upper() not in ["DEMO", "DATA"] and not is_phase_token(t):
-                    mark_token_used(t)
-                    st.session_state.token_marked_used = True
-                    print(f"[PILOT] Token {t} marked as used (Group A complete)")
             if not st.session_state.get('backup_triggered'):
                 st.session_state.backup_triggered = True
                 _trigger_backup(st.session_state.get('token', 'unknown'))
@@ -277,16 +215,14 @@ def render_completion_section():
 # ---------------------------------------------------------------------------
 
 def _render_cross_validation(rerank_targets):
-    """Render cross-validation section (Groups B/C pilot tokens)."""
-    try:
-        from backend.db import get_previous_search_for_validation, get_assigned_search_for_validation
-    except ImportError:
-        st.session_state.cross_validation_completed = True
-        st.session_state.cross_val_data = None
-        if not st.session_state.get('backup_triggered'):
-            st.session_state.backup_triggered = True
-            _trigger_backup(st.session_state.get('token', 'unknown'))
-        return
+    """Render cross-validation section (Groups B/C pilot tokens). Currently unused."""
+    # Cross-validation not active — mark complete immediately
+    st.session_state.cross_validation_completed = True
+    st.session_state.cross_val_data = None
+    if not st.session_state.get('backup_triggered'):
+        st.session_state.backup_triggered = True
+        _trigger_backup(st.session_state.get('token', 'unknown'))
+    return
 
     # Dim everything above this section
     st.markdown("""

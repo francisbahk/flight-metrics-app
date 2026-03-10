@@ -520,14 +520,14 @@ def render_search_section(static_route_day_options, flight_client, static_flight
 
             # Save session progress
             if st.session_state.get('token'):
-                from backend.db import save_session_progress
-                save_session_progress(st.session_state.token, {
-                    'session_id': st.session_state.session_id,
-                    'current_phase': 'flight_selection',
-                    'search_completed': 1,
-                    'user_prompt': st.session_state.get('user_prompt', ''),
-                    'all_flights_json': all_flights,
-                })
+                from backend.db import save_participant_progress
+                save_participant_progress(
+                    prolific_id=st.session_state.token,
+                    session_id=st.session_state.session_id,
+                    prompt=st.session_state.get('original_prompt') or st.session_state.get('user_prompt', ''),
+                    route_id='JFK-LAX-20260301',
+                    all_flights=all_flights,
+                )
 
             st.success(f"✅ Found {len(all_flights)} flights!")
 
