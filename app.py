@@ -1603,10 +1603,10 @@ with tab_manual:
     )
 
     manual_prompt = st.text_area(
-        "Describe your flight preferences (optional)",
+        "Describe your flight preferences",
         placeholder="e.g. I prefer nonstop flights, cheapest option, morning departures — no need to repeat your dates or airports here...",
         height=80,
-        key="manual_prompt_input"
+        key="manual_prompt_input",
     )
 
     manual_search_btn = st.button("🔍 Search Flights", type="primary", use_container_width=True, key="manual_search_btn")
@@ -1648,6 +1648,8 @@ if regular_search or manual_search_btn or auto_search:
     if st.session_state.search_mode == "manual":
         if not manual_route:
             validation_errors.append("Please select a route")
+        if not manual_prompt or not manual_prompt.strip():
+            validation_errors.append("Please describe your flight preferences before searching")
     else:
         if not prompt or not prompt.strip():
             validation_errors.append("Please describe your flight needs")
