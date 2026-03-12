@@ -358,16 +358,12 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     st.markdown("**Example prompts:**")
     components.html(CAROUSEL_HTML, height=178)
 
-    # Search mode — AI tab disabled for pilot study
-    (tab_manual,) = st.tabs(["Search by Fields"])
+    tab_manual, tab_ai = st.tabs(["Search by Fields", "🤖 AI Search"])
 
     regular_search = False
     manual_search_btn = False
     manual_prompt = ""
     manual_route = None
-
-    if False:  # AI search tab — disabled for pilot study
-        pass
 
     with tab_manual:
         manual_route = st.selectbox(
@@ -388,6 +384,23 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             "🔍 Search Flights", type="primary",
             use_container_width=True, key="manual_search_btn"
         )
+
+    with tab_ai:
+        st.markdown("Describe your trip in plain English — origin, destination, dates, and any preferences.")
+        ai_prompt_input = st.text_area(
+            "Your trip prompt",
+            placeholder="e.g. Cheapest flight from New York to LA on March 1st, direct preferred, morning departure",
+            height=100,
+            key="ai_prompt_input",
+            label_visibility="collapsed",
+        )
+        ai_search_btn = st.button(
+            "🤖 Search with AI", type="primary",
+            use_container_width=True, key="ai_search_btn"
+        )
+        if ai_search_btn:
+            regular_search = True
+            st.session_state.auto_search_prompt = ai_prompt_input
 
     # Close hideable-survey-content container
     st.markdown('</div>', unsafe_allow_html=True)
@@ -464,34 +477,36 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                     st.info(f"**Day:** {_r_day}")
 
             else:
-                # AI mode (preserved but disabled in production)
+                # AI mode
                 prompt = st.session_state.get('auto_search_prompt', '')
                 st.session_state.original_prompt = prompt
 
-                st.info("🤖 Parsing your request with Gemini...")
+                st.info("🤖 Parsing your request...")
                 parsed = parse_flight_prompt_with_llm(prompt)
                 st.session_state.parsed_params = parsed
 
-                with st.expander("🔍 Debug: Parsed Parameters"):
-                    st.json(parsed)
-
                 if not parsed.get('origins') or not parsed.get('destinations'):
-                    st.error("Could not extract origin and destination. Please specify airports or cities.")
+                    st.error("Could not extract origin and destination. Please include both airports or cities in your prompt.")
                     st.stop()
 
                 st.success("✅ Understood your request!")
 
+                departure_dates = parsed.get('departure_dates', [])
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     st.info(f"**From:** {' or '.join(parsed['origins'])}")
                 with col2:
                     st.info(f"**To:** {' or '.join(parsed['destinations'])}")
                 with col3:
-                    departure_dates = parsed.get('departure_dates', [])
                     st.info(f"**Depart:** {', '.join(departure_dates) if departure_dates else 'Not specified'}")
 
+                # Save for locked summary display
+                st.session_state.selected_route = (
+                    f"{' / '.join(parsed['origins'])} → {' / '.join(parsed['destinations'])}"
+                    + (f" ({', '.join(departure_dates)})" if departure_dates else "")
+                )
+
                 all_flights = []
-                departure_dates = parsed.get('departure_dates', [])
                 if not departure_dates:
                     st.error("No departure dates found. Please specify when you want to fly.")
                     st.stop()
