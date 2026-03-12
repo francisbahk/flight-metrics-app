@@ -549,11 +549,21 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             # Save session progress
             if st.session_state.get('token'):
                 from backend.db import save_participant_progress
+                # For manual mode, route is the static JFK-LAX route.
+                # For AI mode, build a route_id from the parsed origin/destination/date.
+                if st.session_state.search_mode == 'manual':
+                    _save_route_id = 'JFK-LAX-20260301'
+                else:
+                    _parsed = st.session_state.get('parsed_params') or {}
+                    _origins = '-'.join(_parsed.get('origins', ['UNK']))
+                    _dests = '-'.join(_parsed.get('destinations', ['UNK']))
+                    _dates = '-'.join(_parsed.get('departure_dates', ['unknown']))
+                    _save_route_id = f"{_origins}-{_dests}-{_dates}"
                 save_participant_progress(
                     prolific_id=st.session_state.token,
                     session_id=st.session_state.session_id,
                     prompt=st.session_state.get('original_prompt') or st.session_state.get('user_prompt', ''),
-                    route_id='JFK-LAX-20260301',
+                    route_id=_save_route_id,
                     all_flights=all_flights,
                 )
 
