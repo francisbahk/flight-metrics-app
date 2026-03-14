@@ -53,11 +53,16 @@ def trigger_backup_on_completion(token: str):
 # ============================================================================
 def get_query_param(key, default=None):
     try:
-        params = st.experimental_get_query_params()
-        values = params.get(key, [default])
-        return values[0] if values else default
-    except Exception:
-        return default
+        # New API (Streamlit 1.30+)
+        return st.query_params.get(key, default)
+    except AttributeError:
+        # Old API (Streamlit < 1.30)
+        try:
+            params = st.experimental_get_query_params()
+            values = params.get(key, [default])
+            return values[0] if values else default
+        except Exception:
+            return default
 
 
 # ============================================================================
