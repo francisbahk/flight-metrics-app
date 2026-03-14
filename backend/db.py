@@ -168,36 +168,6 @@ class UserRanking(Base):
     flight = relationship("FlightShown", back_populates="rankings")
 
 
-class EvaluationSession(Base):
-    """Stores human vs LLM evaluation experiments."""
-    __tablename__ = 'evaluation_sessions'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(String(255), unique=True, nullable=False, index=True)
-    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=True)
-
-    # Person A (ground truth provider)
-    person_a_user_id = Column(String(255), nullable=True)
-    person_a_prompt = Column(Text, nullable=False)
-    person_a_rankings = Column(JSON, nullable=False)  # Ground truth top-k
-
-    # Person B (human recommender)
-    person_b_user_id = Column(String(255), nullable=True)
-    person_b_rankings = Column(JSON, nullable=True)  # Person B's guesses
-
-    # Algorithm rankings
-    listen_u_rankings = Column(JSON, nullable=True)  # LISTEN-U recommendations
-    lilo_rankings = Column(JSON, nullable=True)  # LILO recommendations
-    cheapest_rankings = Column(JSON, nullable=True)  # Cheapest algorithm
-    fastest_rankings = Column(JSON, nullable=True)  # Fastest algorithm
-
-    # Comparison results
-    team_draft_results = Column(JSON, nullable=True)  # Who won each comparison
-    metrics = Column(JSON, nullable=True)  # NDCG, Precision@k, etc.
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-    completed_at = Column(DateTime, nullable=True)
-
 
 class FlightCSV(Base):
     """Stores CSV exports for each user session."""
@@ -237,80 +207,6 @@ class CrossValidation(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
-class LILOSession(Base):
-    """Stores LILO (Language-Informed Latent Optimization) session metadata."""
-    __tablename__ = 'lilo_sessions'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(String(255), nullable=False, index=True)  # Links to search session
-    search_id = Column(Integer, ForeignKey('searches.search_id', ondelete='CASCADE'), nullable=False)
-    completion_token = Column(String(255), nullable=True, index=True)
-
-    # LILO configuration
-    num_iterations = Column(Integer, nullable=False)  # Total iterations (typically 2)
-    questions_per_round = Column(Integer, nullable=False)  # Questions asked per round
-
-    # Timestamps
-    started_at = Column(DateTime, default=datetime.utcnow)
-    completed_at = Column(DateTime, nullable=True)
-
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-
-
-class LILOChatMessage(Base):
-    """Stores full chat transcript from LILO conversation."""
-    __tablename__ = 'lilo_chat_messages'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    lilo_session_id = Column(Integer, ForeignKey('lilo_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
-
-    round_number = Column(Integer, nullable=False)  # 0, 1, or 2
-    message_index = Column(Integer, nullable=False)  # Order within the round
-    is_bot = Column(Integer, nullable=False)  # 1 if bot message, 0 if user message
-    message_text = Column(Text, nullable=False)
-
-    # Optional: Store flight comparison if message includes flights
-    flight_a_data = Column(JSON, nullable=True)
-    flight_b_data = Column(JSON, nullable=True)
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class LILOIteration(Base):
-    """Stores utility values and model state at each LILO iteration."""
-    __tablename__ = 'lilo_iterations'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    lilo_session_id = Column(Integer, ForeignKey('lilo_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
-
-    iteration_number = Column(Integer, nullable=False)  # 0, 1, 2
-
-    # User responses for this iteration
-    user_responses = Column(JSON, nullable=False)  # Dict of Q&A pairs
-
-    # Flights shown in this iteration
-    flights_shown = Column(JSON, nullable=True)  # List of flight dicts
-
-    # Model state
-    utility_function_params = Column(JSON, nullable=True)  # Learned utility parameters
-    acquisition_value = Column(JSON, nullable=True)  # Acquisition function values
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class LILOFinalRanking(Base):
-    """Stores final flight rankings by learned utility function."""
-    __tablename__ = 'lilo_final_rankings'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    lilo_session_id = Column(Integer, ForeignKey('lilo_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
-
-    flight_data = Column(JSON, nullable=False)  # Full flight object
-    utility_score = Column(JSON, nullable=False)  # Final utility score (can be float or array)
-    rank = Column(Integer, nullable=False)  # 1 = best, 2 = second best, etc.
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-
 
 class SessionProgress(Base):
     """
@@ -336,13 +232,6 @@ class SessionProgress(Base):
     # Flight selection state
     selected_flights_json = Column(JSON, nullable=True)
     flight_selection_confirmed = Column(Integer, default=0)
-
-    # LILO state (for future use when LILO is re-enabled)
-    lilo_completed = Column(Integer, default=0)
-    lilo_session_id = Column(Integer, nullable=True)
-    lilo_round = Column(Integer, default=0)
-    lilo_chat_history_json = Column(JSON, nullable=True)
-    lilo_answers_json = Column(JSON, nullable=True)
 
     # Cross-validation state (for pilot study sequential re-rankings)
     current_rerank_index = Column(Integer, default=0)  # Which re-ranking (0-3)
