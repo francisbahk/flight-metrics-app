@@ -1,0 +1,844 @@
+"""
+Completion / post-submission section.
+
+Covers everything that renders once outbound_submitted is True:
+  - Review-before-save screen
+  - Database save
+  - Cross-validation (Groups B/C re-rankings)
+  - Completion page with CSV download
+  - Countdown timer
+  - "New Search" reset button
+  - Error fallback when save fails
+"""
+import streamlit as st
+from datetime import datetime
+from frontend.utils import apply_filters, get_airline_name, format_price
+from phases import is_phase_token
+
+
+def _trigger_backup(token: str):
+    """Import and call trigger_backup_on_completion from app-level helpers."""
+    try:
+        from app import trigger_backup_on_completion
+        trigger_backup_on_completion(token)
+    except Exception:
+        pass
+
+
+def render_completion_section():
+    """
+    Render the post-submission flow.  Must only be called when
+    st.session_state.outbound_submitted is True.
+    """
+    ready_to_save = st.session_state.get('csv_generated')
+
+    # ------------------------------------------------------------------
+    # 1. REVIEW SCREEN (before saving to DB)
+    # ------------------------------------------------------------------
+    if (ready_to_save
+            and not st.session_state.get('search_id')
+            and not st.session_state.get('db_save_error')
+            and not st.session_state.get('review_confirmed')):
+
+        st.markdown("---")
+        st.markdown("## Review Your Results")
+        st.markdown("Before finalizing your submission, please review your prompt and ensure it accurately captures your preferences.")
+
+        st.markdown("### Your Current Prompt:")
+        st.info(st.session_state.get('original_prompt', ''))
+
+        with st.expander("Review Questions", expanded=True):
+            st.markdown("""
+            Please consider the following:
+            - Does your prompt accurately describe your persona and preferences?
+            - Did you include all the preferences you used when selecting flights?
+            - Are your trade-offs and priorities clearly stated?
+            - Is there anything you forgot to mention that influenced your rankings?
+
+            **Example:** If you prioritized cheap flights but didn't mention it in your prompt, you should add it!
+            """)
+
+        st.markdown("### Edit Your Prompt (Optional)")
+        edited_prompt = st.text_area(
+            "If you'd like to revise your prompt, edit it here:",
+            value=st.session_state.get('original_prompt', ''),
+            height=150,
+            key="edited_prompt"
+        )
+
+        if st.button("Confirm & Submit Final Results", type="primary", use_container_width=True):
+            if edited_prompt != st.session_state.get('original_prompt', ''):
+                st.session_state.original_prompt = edited_prompt
+            st.session_state.review_confirmed = True
+
+            if st.session_state.get('token'):
+                from backend.db import save_session_progress
+                save_session_progress(st.session_state.token, {
+                    'session_id': st.session_state.session_id,
+                    'current_phase': 'cross_validation',
+                    'flight_selection_confirmed': 1,
+                    'selected_flights_json': st.session_state.selected_flights,
+                })
+                print(f"[PILOT] Saved flight selection for {st.session_state.token}")
+
+            st.rerun()
+
+        st.stop()
+
+    # ------------------------------------------------------------------
+    # 2. SAVE TO DATABASE (after review confirmed)
+    # ------------------------------------------------------------------
+    if (ready_to_save
+            and not st.session_state.get('search_id')
+            and not st.session_state.get('db_save_error')
+            and st.session_state.get('review_confirmed')):
+
+        st.info("Attempting to save to database...")
+        print("[DEBUG] FAILSAFE: Attempting database save in completion screen")
+        try:
+            from backend.db import save_search_and_csv
+            import traceback
+
+            csv_data = st.session_state.get('csv_data_outbound')
+
+            if not csv_data:
+                st.session_state.db_save_error = "No CSV data available"
+            elif not st.session_state.all_flights:
+                st.session_state.db_save_error = "No flight data available"
+            elif not st.session_state.selected_flights:
+                st.session_state.db_save_error = "No selected flights available"
+            else:
+                # DATA token: delete previous submissions to allow overwriting
+                if st.session_state.token.upper() == "DATA":
+                    from backend.db import (SessionLocal, Search, FlightCSV,
+                                            UserRanking, FlightShown,
+                                            CrossValidation, SurveyResponse)
+                    db = SessionLocal()
+                    try:
+                        previous_searches = db.query(Search).filter(
+                            (Search.session_id == st.session_state.token) |
+                            (Search.completion_token == st.session_state.token)
+                        ).all()
+                        for search in previous_searches:
+                            db.query(CrossValidation).filter_by(reviewer_session_id=search.session_id).delete()
+                            db.query(CrossValidation).filter_by(reviewed_session_id=search.session_id).delete()
+                            db.query(SurveyResponse).filter_by(session_id=search.session_id).delete()
+                            rankings = db.query(UserRanking).filter_by(search_id=search.search_id).all()
+                            for ranking in rankings:
+                                db.query(FlightShown).filter_by(id=ranking.flight_id).delete()
+                                db.delete(ranking)
+                            db.query(FlightCSV).filter_by(search_id=search.search_id).delete()
+                            db.delete(search)
+                        db.commit()
+                        print("[DEBUG] Deleted all previous DATA token submissions")
+                    except Exception as e:
+                        db.rollback()
+                        print(f"[DEBUG] Error deleting previous DATA submissions: {str(e)}")
+                    finally:
+                        db.close()
+
+                search_id = save_search_and_csv(
+                    session_id=st.session_state.session_id,
+                    user_prompt=st.session_state.get('original_prompt', ''),
+                    parsed_params=st.session_state.parsed_params or {},
+                    all_flights=st.session_state.all_flights,
+                    selected_flights=st.session_state.selected_flights,
+                    csv_data=csv_data,
+                    token=st.session_state.token
+                )
+
+                try:
+                    from backend.db import update_search_flight_results
+                    if st.session_state.all_flights:
+                        update_search_flight_results(
+                            session_id=st.session_state.session_id,
+                            listen_ranked_flights=st.session_state.all_flights
+                        )
+                        print("[DEBUG] Saved flight results for cross-validation")
+                except ImportError:
+                    print("[DEBUG] update_search_flight_results not available - skipping")
+
+                st.session_state.search_id = search_id
+                st.session_state.csv_generated = True
+                st.session_state.countdown_started = True
+                print(f"[DEBUG] FAILSAFE: Successfully saved! Search ID: {search_id}")
+                st.rerun()
+
+        except Exception as e:
+            print(f"[DEBUG] FAILSAFE: Save failed - {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            st.session_state.db_save_error = str(e)
+
+    # ------------------------------------------------------------------
+    # 3. SUCCESS + DOWNLOAD + CROSS-VALIDATION
+    # ------------------------------------------------------------------
+    if st.session_state.get('search_id'):
+        st.success("All rankings submitted successfully!")
+
+        token = st.session_state.get('token')
+        if token:
+            try:
+                from export_session_data import export_simple_rankings_csv
+                simple_csv_file = export_simple_rankings_csv(token, output_file=None)
+                if simple_csv_file:
+                    with open(simple_csv_file, 'r', encoding='utf-8') as f:
+                        simple_csv_data = f.read()
+                    st.download_button(
+                        label="Download Your Rankings (CSV)",
+                        data=simple_csv_data,
+                        file_name=f"rankings_{token}.csv",
+                        mime="text/csv",
+                        help="Contains: prompt, flights, and your rankings"
+                    )
+                    import os
+                    if os.path.exists(simple_csv_file):
+                        os.remove(simple_csv_file)
+            except Exception:
+                pass
+
+        st.markdown("---")
+
+        # ------------------------------------------------------------------
+        # 3a. CROSS-VALIDATION
+        # ------------------------------------------------------------------
+        token_group = st.session_state.get('token_group')
+        rerank_targets = st.session_state.get('rerank_targets', [])
+
+        # Group A: skip cross-validation
+        if token_group == 'A' and not st.session_state.get('cross_validation_completed'):
+            st.session_state.cross_validation_completed = True
+            st.session_state.all_reranks_completed = True
+            print("[PILOT] Group A token - skipping cross-validation")
+            if not st.session_state.get('token_marked_used'):
+                from backend.db import mark_token_used
+                t = st.session_state.get('token')
+                if t and t.upper() not in ["DEMO", "DATA"] and not is_phase_token(t):
+                    mark_token_used(t)
+                    st.session_state.token_marked_used = True
+                    print(f"[PILOT] Token {t} marked as used (Group A complete)")
+            if not st.session_state.get('backup_triggered'):
+                st.session_state.backup_triggered = True
+                _trigger_backup(st.session_state.get('token', 'unknown'))
+
+        if not st.session_state.get('cross_validation_completed'):
+            _render_cross_validation(rerank_targets)
+
+        # ------------------------------------------------------------------
+        # 3b. COMPLETION PAGE
+        # ------------------------------------------------------------------
+        if (st.session_state.get('cross_validation_completed')
+                and not st.session_state.get('completion_page_dismissed')):
+            _render_completion_page()
+
+        # ------------------------------------------------------------------
+        # 3c. COUNTDOWN TIMER
+        # ------------------------------------------------------------------
+        if (st.session_state.get('cross_validation_completed')
+                and st.session_state.get('survey_completed')
+                and st.session_state.get('completion_page_dismissed')
+                and st.session_state.get('countdown_started')
+                and not st.session_state.get('countdown_completed')):
+            _render_countdown()
+
+    # ------------------------------------------------------------------
+    # 4. DB ERROR / MISSING SEARCH ID FALLBACK
+    # ------------------------------------------------------------------
+    elif st.session_state.get('db_save_error'):
+        st.warning("Rankings submitted but database save failed")
+        st.error(f"Database error: {st.session_state.db_save_error}")
+    else:
+        st.error(f"""
+        Rankings submitted but no search ID!
+
+        Debug info:
+        - csv_generated: {st.session_state.get('csv_generated')}
+        - search_id: {st.session_state.get('search_id')}
+        - db_save_error: {st.session_state.get('db_save_error')}
+        - csv_data_outbound exists: {bool(st.session_state.get('csv_data_outbound'))}
+        - all_flights count: {len(st.session_state.all_flights) if st.session_state.all_flights else 0}
+        - selected_flights count: {len(st.session_state.selected_flights) if st.session_state.selected_flights else 0}
+
+        Failsafe should have triggered! Please screenshot this and report the bug.
+        """)
+
+    # ------------------------------------------------------------------
+    # 5. NEW SEARCH BUTTON
+    # ------------------------------------------------------------------
+    if st.session_state.get('search_id'):
+        st.markdown("### What would you like to do next?")
+        if st.button("New Search", use_container_width=True, type="primary"):
+            _reset_for_new_search()
+            st.rerun()
+
+
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
+
+def _render_cross_validation(rerank_targets):
+    """Render cross-validation section (Groups B/C pilot tokens)."""
+    try:
+        from backend.db import get_previous_search_for_validation, get_assigned_search_for_validation
+    except ImportError:
+        st.session_state.cross_validation_completed = True
+        st.session_state.cross_val_data = None
+        if not st.session_state.get('backup_triggered'):
+            st.session_state.backup_triggered = True
+            _trigger_backup(st.session_state.get('token', 'unknown'))
+        return
+
+    # Dim everything above this section
+    st.markdown("""
+    <style>
+        .stApp > header,
+        .main > div:not(:has(.cross-validation-section)) {
+            opacity: 0.1;
+            pointer-events: none;
+        }
+        [data-testid="stSidebar"] {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+        .cross-validation-section {
+            background: white;
+            position: relative;
+            z-index: 1000;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown('<div class="cross-validation-section">', unsafe_allow_html=True)
+
+    if rerank_targets:
+        completed_reranks = st.session_state.get('completed_reranks', [])
+        remaining_targets = [t for t in rerank_targets if t not in completed_reranks]
+        current_rerank_num = len(completed_reranks) + 1
+        total_reranks = len(rerank_targets)
+
+        if not remaining_targets:
+            st.session_state.all_reranks_completed = True
+            st.session_state.cross_validation_completed = True
+            if not st.session_state.get('backup_triggered'):
+                st.session_state.backup_triggered = True
+                _trigger_backup(st.session_state.get('token', 'unknown'))
+            st.rerun()
+
+        st.progress(len(completed_reranks) / total_reranks)
+        st.markdown(f"### Re-ranking {current_rerank_num} of {total_reranks}")
+        st.markdown("*Help us by ranking flights for another user's search*")
+
+        current_target = remaining_targets[0]
+        if ('cross_val_data' not in st.session_state
+                or st.session_state.get('current_cv_target') != current_target):
+            st.session_state.cross_val_data = get_assigned_search_for_validation(
+                st.session_state.get('token'), current_target
+            )
+            st.session_state.current_cv_target = current_target
+            st.session_state.cross_val_selected_flights = []
+            st.session_state.cv_checkbox_version = st.session_state.get('cv_checkbox_version', 0) + 1
+    else:
+        st.markdown("### Help Validate Another Search")
+        st.markdown("*Before completing your session, please help us by ranking flights for another user's search*")
+        if 'cross_val_data' not in st.session_state:
+            st.session_state.cross_val_data = get_previous_search_for_validation(
+                st.session_state.session_id,
+                st.session_state.get('token')
+            )
+
+    if st.session_state.get('cross_val_data') is not None:
+        if not st.session_state.cross_val_data:
+            st.info("No previous searches available for validation. You're one of the first users!")
+            st.session_state.cross_validation_completed = True
+            if not st.session_state.get('backup_triggered'):
+                st.session_state.backup_triggered = True
+                _trigger_backup(st.session_state.get('token', 'unknown'))
+            st.rerun()
+        else:
+            _render_cv_flight_selection(rerank_targets)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def _render_cv_flight_selection(rerank_targets):
+    """Render the flight-selection UI inside cross-validation."""
+    from streamlit_sortables import sort_items
+
+    cross_val = st.session_state.cross_val_data
+    cv_flights = cross_val['flights']
+
+    # Init CV session state
+    for key, default in [
+        ('cross_val_selected_flights', []),
+        ('cv_filter_reset_counter', 0),
+        ('cv_sort_version', 0),
+        ('cv_checkbox_version', 0),
+        ('cv_sort_price_dir', 'asc'),
+        ('cv_sort_duration_dir', 'asc'),
+    ]:
+        if key not in st.session_state:
+            st.session_state[key] = default
+
+    st.info(f"**Another user's search prompt:**\n\n> {cross_val['prompt']}")
+    st.markdown("**Task:** Review their flights and select your top 5 that best match their needs, then drag to rank them.")
+    st.markdown("---")
+
+    st.markdown(f"### Found {len(cv_flights)} Flights")
+    st.markdown("**Select your top 5 flights and drag to rank them**")
+
+    # Sidebar filters for CV
+    unique_airlines_cv = sorted(set(f['airline'] for f in cv_flights))
+    airline_names_map_cv = {code: get_airline_name(code) for code in unique_airlines_cv}
+    unique_connections_cv = sorted(set(f['stops'] for f in cv_flights))
+    prices_cv = [f['price'] for f in cv_flights]
+    min_price_cv, max_price_cv = (min(prices_cv), max(prices_cv)) if prices_cv else (0, 1000)
+    durations_cv = [f['duration_min'] for f in cv_flights]
+    min_duration_cv, max_duration_cv = (min(durations_cv), max(durations_cv)) if durations_cv else (0, 1440)
+
+    def hours_to_time(h):
+        hours = int(h)
+        mins = int((h - hours) * 60)
+        return f"{hours:02d}:{mins:02d}"
+
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown('<h2><span class="filter-heading-neon">Filters</span></h2>', unsafe_allow_html=True)
+
+        with st.expander("Airlines", expanded=False):
+            selected_airlines_cv = []
+            for code in unique_airlines_cv:
+                if st.checkbox(airline_names_map_cv[code], key=f"cv_airline_{code}_{st.session_state.cv_filter_reset_counter}"):
+                    selected_airlines_cv.append(code)
+
+        with st.expander("Connections", expanded=False):
+            selected_connections_cv = []
+            for conn in unique_connections_cv:
+                label = "Direct" if conn == 0 else f"{conn} stop{'s' if conn > 1 else ''}"
+                if st.checkbox(label, key=f"cv_conn_{conn}_{st.session_state.cv_filter_reset_counter}"):
+                    selected_connections_cv.append(conn)
+
+        with st.expander("Price Range", expanded=False):
+            price_range_cv = st.slider(
+                "Select price range",
+                min_value=float(min_price_cv), max_value=float(max_price_cv),
+                value=(float(min_price_cv), float(max_price_cv)),
+                step=10.0, format="$%.0f",
+                key=f"cv_price_{st.session_state.cv_filter_reset_counter}"
+            )
+
+        with st.expander("Flight Duration", expanded=False):
+            duration_range_cv = st.slider(
+                "Select duration range",
+                min_value=int(min_duration_cv), max_value=int(max_duration_cv),
+                value=(int(min_duration_cv), int(max_duration_cv)),
+                step=30, format="%d min",
+                key=f"cv_duration_{st.session_state.cv_filter_reset_counter}"
+            )
+            min_h, min_m = divmod(duration_range_cv[0], 60)
+            max_h, max_m = divmod(duration_range_cv[1], 60)
+            st.caption(f"{min_h}h {min_m}m - {max_h}h {max_m}m")
+
+        with st.expander("Departure Time", expanded=False):
+            dept_range_cv = st.slider(
+                "Select departure time range",
+                min_value=0.0, max_value=24.0, value=(0.0, 24.0),
+                step=0.5, format="%.1f",
+                key=f"cv_dept_{st.session_state.cv_filter_reset_counter}"
+            )
+            st.caption(f"{hours_to_time(dept_range_cv[0])} - {hours_to_time(dept_range_cv[1])}")
+
+        with st.expander("Arrival Time", expanded=False):
+            arr_range_cv = st.slider(
+                "Select arrival time range",
+                min_value=0.0, max_value=24.0, value=(0.0, 24.0),
+                step=0.5, format="%.1f",
+                key=f"cv_arr_{st.session_state.cv_filter_reset_counter}"
+            )
+            st.caption(f"{hours_to_time(arr_range_cv[0])} - {hours_to_time(arr_range_cv[1])}")
+
+        if st.button("Clear All Filters", use_container_width=True, key="clear_cv"):
+            st.session_state.cv_filter_reset_counter += 1
+            st.rerun()
+
+    filtered_cv = apply_filters(
+        cv_flights,
+        airlines=selected_airlines_cv if selected_airlines_cv else None,
+        connections=selected_connections_cv if selected_connections_cv else None,
+        price_range=price_range_cv if price_range_cv != (float(min_price_cv), float(max_price_cv)) else None,
+        duration_range=duration_range_cv if duration_range_cv != (int(min_duration_cv), int(max_duration_cv)) else None,
+        departure_range=dept_range_cv if dept_range_cv != (0.0, 24.0) else None,
+        arrival_range=arr_range_cv if arr_range_cv != (0.0, 24.0) else None,
+    )
+
+    col_flights_cv, col_ranking_cv = st.columns([2, 1])
+
+    with col_flights_cv:
+        st.markdown("#### All Flights")
+        if len(filtered_cv) < len(cv_flights):
+            st.info(f"Filters applied: Showing {len(filtered_cv)} of {len(cv_flights)} flights")
+
+        col_sort1, col_sort2 = st.columns(2)
+        with col_sort1:
+            arrow = "" if st.session_state.cv_sort_price_dir == 'asc' else ""
+            if st.button(f"Sort by Price {arrow}", key="cv_sort_price", use_container_width=True):
+                reverse = st.session_state.cv_sort_price_dir == 'desc'
+                filtered_cv[:] = sorted(filtered_cv, key=lambda x: x['price'], reverse=reverse)
+                st.session_state.cv_sort_price_dir = 'desc' if st.session_state.cv_sort_price_dir == 'asc' else 'asc'
+                st.rerun()
+        with col_sort2:
+            arrow = "" if st.session_state.cv_sort_duration_dir == 'asc' else ""
+            if st.button(f"Sort by Duration {arrow}", key="cv_sort_dur", use_container_width=True):
+                reverse = st.session_state.cv_sort_duration_dir == 'desc'
+                filtered_cv[:] = sorted(filtered_cv, key=lambda x: x['duration_min'], reverse=reverse)
+                st.session_state.cv_sort_duration_dir = 'desc' if st.session_state.cv_sort_duration_dir == 'asc' else 'asc'
+                st.rerun()
+
+        for idx, flight in enumerate(filtered_cv):
+            flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
+            is_selected = any(
+                f"{f['id']}_{f['departure_time']}" == flight_unique_key
+                for f in st.session_state.cross_val_selected_flights
+            )
+
+            col1, col2 = st.columns([1, 5])
+            with col1:
+                selected = st.checkbox(
+                    "Select flight",
+                    value=is_selected,
+                    key=f"cv_chk_{idx}_v{st.session_state.cv_checkbox_version}",
+                    label_visibility="collapsed",
+                    disabled=(not is_selected and len(st.session_state.cross_val_selected_flights) >= 5)
+                )
+                if selected and not is_selected:
+                    if len(st.session_state.cross_val_selected_flights) < 5:
+                        st.session_state.cross_val_selected_flights.append(flight)
+                elif not selected and is_selected:
+                    st.session_state.cross_val_selected_flights = [
+                        f for f in st.session_state.cross_val_selected_flights
+                        if f"{f['id']}_{f['departure_time']}" != flight_unique_key
+                    ]
+
+            with col2:
+                dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
+                arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
+                dept_time_display = dept_dt.strftime("%I:%M %p")
+                arr_time_display = arr_dt.strftime("%I:%M %p")
+                dept_date_display = dept_dt.strftime("%a, %b %d")
+                dh = flight['duration_min'] // 60
+                dm = flight['duration_min'] % 60
+                duration_display = f"{dh} hr {dm} min" if dh > 0 else f"{dm} min"
+                airline_name = get_airline_name(flight['airline'])
+                stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
+
+                st.markdown(f"""
+                <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
+                <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
+                    <span style="font-weight: 700;">{format_price(flight['price'])}</span> •
+                    <span style="font-weight: 600;">{duration_display}</span> •
+                    <span style="font-weight: 500;">{stops_text}</span> •
+                    <span style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
+                </div>
+                <div style="font-size: 0.9em; color: #666;">
+                    <span>{airline_name} {flight['flight_number']}</span> |
+                    <span>{flight['origin']} &rarr; {flight['destination']}</span> |
+                    <span>{dept_date_display}</span>
+                </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    with col_ranking_cv:
+        st.markdown("#### Top 5 (Drag to Rank)")
+        st.markdown(f"**{len(st.session_state.cross_val_selected_flights)}/5 selected**")
+
+        if st.session_state.cross_val_selected_flights:
+            if len(st.session_state.cross_val_selected_flights) > 5:
+                st.session_state.cross_val_selected_flights = st.session_state.cross_val_selected_flights[:5]
+                st.rerun()
+
+            draggable_items = []
+            for i, flight in enumerate(st.session_state.cross_val_selected_flights):
+                airline_name = get_airline_name(flight['airline'])
+                dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
+                arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
+                dh = flight['duration_min'] // 60
+                dm = flight['duration_min'] % 60
+                duration_display = f"{dh}h {dm}m" if dh > 0 else f"{dm}m"
+                stops = int(flight.get('stops', 0))
+                stops_text = "Nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
+                item = (
+                    f"#{i+1}: {format_price(flight['price'])} • {duration_display} • {stops_text}\n"
+                    f"{dept_dt.strftime('%I:%M %p')} - {arr_dt.strftime('%I:%M %p')}\n"
+                    f"{airline_name} {flight['flight_number']}\n"
+                    f"{flight['origin']} -> {flight['destination']} | {dept_dt.strftime('%a, %b %d')}"
+                )
+                draggable_items.append(item)
+
+            sorted_items = sort_items(
+                draggable_items,
+                multi_containers=False,
+                direction='vertical',
+                key=f"cv_sort_v{st.session_state.cv_sort_version}_n{len(st.session_state.cross_val_selected_flights)}"
+            )
+
+            if sorted_items != draggable_items and len(sorted_items) == len(draggable_items):
+                new_order = []
+                for si in sorted_items:
+                    rank = int(si.split(':')[0].replace('#', '')) - 1
+                    if rank < len(st.session_state.cross_val_selected_flights):
+                        new_order.append(st.session_state.cross_val_selected_flights[rank])
+                if len(new_order) == len(st.session_state.cross_val_selected_flights):
+                    st.session_state.cross_val_selected_flights = new_order
+                    st.session_state.cv_sort_version += 1
+                    st.rerun()
+
+            st.markdown("---")
+            cols = st.columns(5)
+            for i, flight in enumerate(st.session_state.cross_val_selected_flights):
+                with cols[i]:
+                    if st.button("X", key=f"cv_remove_{i}_{flight['id']}", help=f"Remove #{i+1}"):
+                        fuk = f"{flight['id']}_{flight['departure_time']}"
+                        st.session_state.cross_val_selected_flights = [
+                            f for f in st.session_state.cross_val_selected_flights
+                            if f"{f['id']}_{f['departure_time']}" != fuk
+                        ]
+                        st.session_state.cv_checkbox_version += 1
+                        st.rerun()
+
+            if len(st.session_state.cross_val_selected_flights) == 5:
+                remaining = len([
+                    t for t in st.session_state.get('rerank_targets', [])
+                    if t not in st.session_state.get('completed_reranks', [])
+                ]) - 1
+                button_label = (
+                    f"Submit Rankings ({remaining} more to go)" if remaining > 0
+                    else "Submit Final Rankings"
+                )
+
+                if st.button(button_label, key="cv_submit", type="primary", use_container_width=True):
+                    _submit_cross_validation(cross_val, rerank_targets)
+        else:
+            st.caption("No flights selected yet")
+
+
+def _submit_cross_validation(cross_val, rerank_targets):
+    """Save cross-validation results and advance state."""
+    from backend.db import save_cross_validation, save_session_progress
+
+    completed_reranks = st.session_state.get('completed_reranks', [])
+    rerank_sequence = len(completed_reranks) + 1 if rerank_targets else None
+    source_token = cross_val.get('source_token')
+
+    success = save_cross_validation(
+        reviewer_session_id=st.session_state.session_id,
+        reviewed_session_id=cross_val['session_id'],
+        reviewed_search_id=cross_val['search_id'],
+        reviewed_prompt=cross_val['prompt'],
+        reviewed_flights=cross_val['flights'],
+        selected_flights=st.session_state.cross_val_selected_flights,
+        reviewer_token=st.session_state.get('token'),
+        rerank_sequence=rerank_sequence,
+        source_token=source_token
+    )
+
+    if success:
+        if rerank_targets:
+            current_target = st.session_state.get('current_cv_target')
+            if current_target:
+                if 'completed_reranks' not in st.session_state:
+                    st.session_state.completed_reranks = []
+                st.session_state.completed_reranks.append(current_target)
+                st.session_state.current_rerank_index = len(st.session_state.completed_reranks)
+
+                save_session_progress(st.session_state.get('token'), {
+                    'current_rerank_index': st.session_state.current_rerank_index,
+                    'completed_reranks_json': st.session_state.completed_reranks,
+                })
+                print(f"[PILOT] Completed re-ranking for {current_target} "
+                      f"({st.session_state.current_rerank_index}/{len(st.session_state.rerank_targets)})")
+
+                del st.session_state.cross_val_data
+                del st.session_state.current_cv_target
+                st.session_state.cross_val_selected_flights = []
+
+                if len(st.session_state.completed_reranks) >= len(st.session_state.rerank_targets):
+                    st.session_state.all_reranks_completed = True
+                    st.session_state.cross_validation_completed = True
+                    save_session_progress(st.session_state.get('token'), {
+                        'all_reranks_completed': 1,
+                        'current_phase': 'complete',
+                    })
+                    if not st.session_state.get('backup_triggered'):
+                        st.session_state.backup_triggered = True
+                        _trigger_backup(st.session_state.get('token', 'unknown'))
+                    if not st.session_state.get('token_marked_used'):
+                        from backend.db import mark_token_used
+                        t = st.session_state.get('token')
+                        if t and t.upper() not in ["DEMO", "DATA"] and not is_phase_token(t):
+                            mark_token_used(t)
+                            st.session_state.token_marked_used = True
+                            print(f"[PILOT] Token {t} marked as used (all re-rankings complete)")
+                    st.success("All re-rankings complete! Thank you!")
+                else:
+                    st.success("Submitted! Moving to next re-ranking...")
+        else:
+            st.session_state.cross_validation_completed = True
+            if not st.session_state.get('backup_triggered'):
+                st.session_state.backup_triggered = True
+                _trigger_backup(st.session_state.get('token', 'unknown'))
+            st.success("Thank you for helping validate!")
+
+        st.rerun()
+    else:
+        st.error("Failed to save. Please try again.")
+
+
+def _render_completion_page():
+    """Show the thank-you page with CSV download options."""
+    st.markdown("""
+    <style>
+        .main > div:not(:last-child) { display: none !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("# Thank You for Participating!")
+    st.markdown("---")
+    st.markdown("""
+    Thank you for completing our flight search study! Your feedback is invaluable
+    to our research on AI-powered preference learning systems.
+
+    **Your session has been saved successfully.**
+    """)
+
+    st.markdown("### Download Your Session Data")
+    st.markdown("You can download your session data in two formats:")
+
+    token = st.session_state.get('token')
+    if token:
+        try:
+            from export_session_data import export_session_to_csv, export_simple_rankings_csv
+            import io, os
+
+            simple_csv_file = export_simple_rankings_csv(token, output_file=None)
+            if simple_csv_file:
+                with open(simple_csv_file, 'r', encoding='utf-8') as f:
+                    simple_csv_data = f.read()
+                st.download_button(
+                    label="Download Rankings Only (Simple CSV)",
+                    data=simple_csv_data,
+                    file_name=f"rankings_{token}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    help="Contains: prompt, flights, and your rankings"
+                )
+                if os.path.exists(simple_csv_file):
+                    os.remove(simple_csv_file)
+
+            csv_file = export_session_to_csv(token, output_file=None)
+            if csv_file:
+                with open(csv_file, 'r', encoding='utf-8') as f:
+                    csv_data = f.read()
+                st.download_button(
+                    label="Download Complete Session Data (Full CSV)",
+                    data=csv_data,
+                    file_name=f"session_data_{token}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    help="Contains: rankings, cross-validation, and survey"
+                )
+                st.success("Your session data is ready for download!")
+                if os.path.exists(csv_file):
+                    os.remove(csv_file)
+            else:
+                st.warning("Could not generate CSV. Session may be incomplete.")
+
+        except Exception as e:
+            st.error(f"Error generating CSV: {str(e)}")
+            import traceback
+            print(f"[CSV ERROR] {traceback.format_exc()}")
+
+    st.markdown("---")
+    if st.button("Continue", type="primary", use_container_width=True):
+        st.session_state.completion_page_dismissed = True
+        st.rerun()
+
+
+def _render_countdown():
+    """Render the 120-second countdown then mark token used."""
+    import time
+    st.info("Please note your Search ID above. This session will end in:")
+
+    countdown_placeholder = st.empty()
+    progress_placeholder = st.empty()
+
+    for remaining in range(120, 0, -1):
+        countdown_placeholder.markdown(f"### {remaining} seconds")
+        progress_placeholder.progress((120 - remaining) / 120)
+        time.sleep(1)
+
+    countdown_placeholder.markdown("### 0 seconds")
+    progress_placeholder.progress(1.0)
+
+    t = st.session_state.token
+    if t and t.upper() not in ["DEMO", "DATA"] and not is_phase_token(t):
+        from backend.db import mark_token_used
+        mark_token_used(t)
+        st.session_state.countdown_completed = True
+        st.warning("Session ended. Thank you for your participation!")
+        st.info("This link can no longer be used. To participate again, please request a new token from the research team.")
+        st.stop()
+    else:
+        st.session_state.countdown_completed = True
+        st.success("Thank you! You can continue using this link to submit more rankings.")
+        tok = st.session_state.token or ''
+        if tok.upper() == "DEMO":
+            st.info("This is a DEMO token - you can use it as many times as you want!")
+        elif tok.upper() == "DATA":
+            st.info("This is a DATA collection token - you can use it for unlimited submissions!")
+        elif is_phase_token(tok):
+            st.info("Thank you for your participation! You may close this window now.")
+        _reset_demo_data_state()
+        st.info("Refresh the page to start a new search!")
+        st.stop()
+
+
+def _reset_demo_data_state():
+    """Reset submission state for DEMO/DATA tokens to allow re-use."""
+    st.session_state.outbound_submitted = False
+    st.session_state.csv_generated = False
+    st.session_state.countdown_started = False
+    st.session_state.countdown_completed = False
+    st.session_state.selected_flights = []
+    st.session_state.all_flights = []
+    st.session_state.review_confirmed = False
+    st.session_state.cross_validation_completed = False
+    st.session_state.cross_val_data = None
+    st.session_state.cross_val_selected = []
+    st.session_state.survey_completed = False
+    st.session_state.completion_page_dismissed = False
+
+
+def _reset_for_new_search():
+    """Reset all submission state when user clicks 'New Search'."""
+    st.session_state.all_flights = []
+    st.session_state.selected_flights = []
+    st.session_state.csv_generated = False
+    st.session_state.outbound_submitted = False
+    st.session_state.csv_data_outbound = None
+    st.session_state.parsed_params = None
+    st.session_state.review_confirmed = False
+    st.session_state.search_id = None
+    st.session_state.db_save_error = None
+    st.session_state.survey_completed = False
+    st.session_state.completion_page_dismissed = False
+    st.session_state.cross_validation_completed = False
+    st.session_state.cross_val_data = None
+    st.session_state.cross_val_selected_flights = []
+    st.session_state.cv_filter_reset_counter = 0
+    st.session_state.cv_sort_version = 0
+    st.session_state.cv_checkbox_version = 0
+    st.session_state.cv_sort_price_dir = 'asc'
+    st.session_state.cv_sort_duration_dir = 'asc'
+    if 'flight_prompt_input' in st.session_state:
+        del st.session_state.flight_prompt_input
