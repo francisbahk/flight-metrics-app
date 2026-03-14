@@ -366,7 +366,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
         )
 
         manual_prompt = st.text_area(
-            "Describe your flight preferences (optional)",
+            "Describe your flight preferences",
             placeholder="e.g. I prefer nonstop flights, cheapest option, morning departures — no need to repeat your dates or airports here...",
             height=80,
             key="manual_prompt_input"
@@ -406,6 +406,8 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     if st.session_state.search_mode == "manual":
         if not manual_route:
             validation_errors.append("Please select a route")
+        if not manual_prompt or not manual_prompt.strip():
+            validation_errors.append("Please describe your flight preferences before searching")
     else:
         prompt = st.session_state.get('auto_search_prompt') or ""
         if not prompt.strip():
