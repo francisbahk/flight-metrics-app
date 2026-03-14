@@ -12,8 +12,8 @@ sql = sys.argv[1]
 
 conn = pymysql.connect(
     host='flight-ranker-db.c274giyammku.us-east-1.rds.amazonaws.com',
-    user='flightrank',
-    password='FlightRankRDS2024',
+    user='appuser',
+    password='AppUserRDS2024',
     database='flight_rankings',
     port=3306,
     ssl={'ssl_ca': None},
