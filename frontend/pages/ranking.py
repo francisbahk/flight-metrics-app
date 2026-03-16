@@ -134,37 +134,36 @@ def render_ranking_section():
 
     st.markdown(f"### Found {len(st.session_state.all_flights)} Flights")
 
-    # Prompt expander (AI searches only)
+    # Prompt display + Make Edits (AI searches only)
     if st.session_state.get('search_mode') != 'manual':
-        with st.expander("Your Search Prompt (click to edit)", expanded=True):
-            st.markdown("**Your prompt:**")
-            st.info(st.session_state.get('original_prompt', ''))
+        if 'editing_prompt_main' not in st.session_state:
+            st.session_state.editing_prompt_main = False
 
-            if 'editing_prompt_main' not in st.session_state:
-                st.session_state.editing_prompt_main = False
-
-            if not st.session_state.editing_prompt_main:
-                if st.button("Make Edits", key="edit_prompt_main_btn"):
+        if not st.session_state.editing_prompt_main:
+            col_prompt, col_btn = st.columns([5, 1])
+            with col_prompt:
+                st.info(f"**Your prompt:** {st.session_state.get('original_prompt', '')}")
+            with col_btn:
+                if st.button("Make Edits", key="edit_prompt_main_btn", use_container_width=True):
                     st.session_state.editing_prompt_main = True
                     st.rerun()
-            else:
-                edited_prompt_main = st.text_area(
-                    "Edit your prompt:",
-                    value=st.session_state.get('original_prompt', ''),
-                    height=150,
-                    key="edited_prompt_main"
-                )
-                col_save1, col_cancel = st.columns([1, 1])
-                with col_save1:
-                    if st.button("Save", key="save_prompt_main"):
-                        st.session_state.original_prompt = edited_prompt_main
-                        st.session_state.editing_prompt_main = False
-                        st.success("Prompt saved!")
-                        st.rerun()
-                with col_cancel:
-                    if st.button("Cancel", key="cancel_prompt_main"):
-                        st.session_state.editing_prompt_main = False
-                        st.rerun()
+        else:
+            edited_prompt_main = st.text_area(
+                "Edit your prompt:",
+                value=st.session_state.get('original_prompt', ''),
+                height=120,
+                key="edited_prompt_main"
+            )
+            col_save1, col_cancel = st.columns([1, 1])
+            with col_save1:
+                if st.button("Save", key="save_prompt_main"):
+                    st.session_state.original_prompt = edited_prompt_main
+                    st.session_state.editing_prompt_main = False
+                    st.rerun()
+            with col_cancel:
+                if st.button("Cancel", key="cancel_prompt_main"):
+                    st.session_state.editing_prompt_main = False
+                    st.rerun()
 
     st.markdown("**Select your top 5 flights and drag to rank them**")
 
@@ -259,8 +258,11 @@ def render_ranking_section():
         codeshare_map = detect_codeshares(filtered_outbound)
 
         for idx, flight in enumerate(filtered_outbound):
-            flight['_ui_index'] = idx
-            is_selected = any(f.get('_ui_index') == idx for f in st.session_state.selected_flights)
+            flight_key = f"{flight['id']}_{flight['departure_time']}"
+            is_selected = any(
+                f"{f['id']}_{f['departure_time']}" == flight_key
+                for f in st.session_state.selected_flights
+            )
 
             col1, col2 = st.columns([1, 5])
 
@@ -278,7 +280,7 @@ def render_ranking_section():
                 elif not selected and is_selected:
                     st.session_state.selected_flights = [
                         f for f in st.session_state.selected_flights
-                        if f.get('_ui_index') != idx
+                        if f"{f['id']}_{f['departure_time']}" != flight_key
                     ]
 
             with col2:

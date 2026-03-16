@@ -39,7 +39,7 @@ def render_prolific_id_gate():
     """Render a full-page Prolific ID entry form. Call before st.stop()."""
     st.markdown(_GATE_CSS, unsafe_allow_html=True)
 
-    st.markdown("## Welcome to the Flight Study")
+    st.markdown("## Welcome to the Listen Study")
     st.markdown(
         "Please enter your **Prolific ID** to continue. "
         "This is used only to verify your participation — it is never shared "
