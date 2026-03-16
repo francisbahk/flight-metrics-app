@@ -7,6 +7,7 @@ import json
 from datetime import datetime
 from urllib.parse import quote_plus
 from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
@@ -77,10 +78,11 @@ class Participant(Base):
 
     prolific_id       = Column(String(128), primary_key=True)
     session_id        = Column(String(64))
+    study_id          = Column(String(128))
     route_id          = Column(String(64))
     prompt            = Column(Text)
-    # AI-filtered flights shown to this participant (MEDIUMTEXT for MySQL, Text for SQLite)
-    all_flights_json  = Column(Text)
+    # AI-filtered flights shown to this participant
+    all_flights_json  = Column(MEDIUMTEXT().with_variant(Text, 'sqlite'))
     ranking_confirmed = Column(Boolean, default=False)
     created_at        = Column(DateTime, default=datetime.utcnow)
     updated_at        = Column(DateTime, default=datetime.utcnow)
@@ -98,12 +100,43 @@ class Ranking(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
 
 
+class ScreeningData(Base):
+    """Screening question answers per participant."""
+    __tablename__ = 'screening_data'
+
+    prolific_id  = Column(String(128), primary_key=True)
+    answers_json = Column(Text, nullable=False)   # JSON dict of q1–q4 answers
+    screened_out = Column(Boolean, default=False)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+
+class PostSurvey(Base):
+    """Post-study freeform feedback per participant."""
+    __tablename__ = 'post_survey'
+
+    prolific_id = Column(String(128), primary_key=True)
+    feedback    = Column(Text, nullable=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+
 # ============================================================================
 # INIT
 # ============================================================================
 def init_db():
-    """Create all tables (no-op if they already exist)."""
+    """Create all tables and apply any missing column migrations."""
     Base.metadata.create_all(engine)
+    # Add study_id column to participants if it doesn't exist yet (SQLite migration)
+    try:
+        with engine.connect() as conn:
+            conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE participants ADD COLUMN study_id VARCHAR(128)"
+                )
+            )
+            conn.commit()
+            print("[DB] Migrated: added study_id column to participants.")
+    except Exception:
+        pass  # Column already exists
     print("[DB] Tables ready.")
 
 
@@ -140,6 +173,7 @@ def save_participant_progress(
     prompt: str = None,
     route_id: str = None,
     all_flights: list = None,
+    study_id: str = None,
 ):
     """Upsert participant row. Creates on first call, updates on subsequent."""
     db = SessionLocal()
@@ -154,10 +188,13 @@ def save_participant_progress(
                 p.route_id = route_id
             if all_flights is not None:
                 p.all_flights_json = json.dumps(all_flights)
+            if study_id is not None:
+                p.study_id = study_id
         else:
             db.add(Participant(
                 prolific_id=prolific_id,
                 session_id=session_id,
+                study_id=study_id,
                 route_id=route_id,
                 prompt=prompt,
                 all_flights_json=json.dumps(all_flights) if all_flights is not None else None,
@@ -234,6 +271,49 @@ def save_rankings(prolific_id: str, selected_flights: list, prompt: str) -> bool
 def mark_token_used(token: str):
     """No-op — token system removed. Kept for import compatibility."""
     pass
+
+
+def save_screening_data(prolific_id: str, answers: dict, screened_out: bool) -> bool:
+    """Save or replace screening question answers for a participant."""
+    db = SessionLocal()
+    try:
+        row = db.query(ScreeningData).filter_by(prolific_id=prolific_id).first()
+        if row:
+            row.answers_json = json.dumps(answers)
+            row.screened_out = screened_out
+        else:
+            db.add(ScreeningData(
+                prolific_id=prolific_id,
+                answers_json=json.dumps(answers),
+                screened_out=screened_out,
+            ))
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"[DB] save_screening_data error: {e}")
+        return False
+    finally:
+        db.close()
+
+
+def save_post_survey(prolific_id: str, feedback: str) -> bool:
+    """Save or replace post-study freeform feedback for a participant."""
+    db = SessionLocal()
+    try:
+        row = db.query(PostSurvey).filter_by(prolific_id=prolific_id).first()
+        if row:
+            row.feedback = feedback
+        else:
+            db.add(PostSurvey(prolific_id=prolific_id, feedback=feedback))
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"[DB] save_post_survey error: {e}")
+        return False
+    finally:
+        db.close()
 
 
 def get_rankings(prolific_id: str) -> list:

@@ -121,27 +121,6 @@ def render_completion_section():
     if st.session_state.get('search_id'):
         st.success("All rankings submitted successfully!")
 
-        token = st.session_state.get('token')
-        if token:
-            try:
-                from export_session_data import export_simple_rankings_csv
-                simple_csv_file = export_simple_rankings_csv(token, output_file=None)
-                if simple_csv_file:
-                    with open(simple_csv_file, 'r', encoding='utf-8') as f:
-                        simple_csv_data = f.read()
-                    st.download_button(
-                        label="Download Your Rankings (CSV)",
-                        data=simple_csv_data,
-                        file_name=f"rankings_{token}.csv",
-                        mime="text/csv",
-                        help="Contains: prompt, flights, and your rankings"
-                    )
-                    import os
-                    if os.path.exists(simple_csv_file):
-                        os.remove(simple_csv_file)
-            except Exception:
-                pass
-
         st.markdown("---")
 
         # ------------------------------------------------------------------
@@ -609,75 +588,66 @@ def _submit_cross_validation(cross_val, rerank_targets):
         st.error("Failed to save. Please try again.")
 
 
+_COMPLETION_URL = "https://app.prolific.com/submissions/complete?cc=C1D07BSK"
+
+
 def _render_completion_page():
-    """Show the thank-you page with CSV download options."""
-    st.markdown("""
-    <style>
-        .main > div:not(:last-child) { display: none !important; }
-    </style>
-    """, unsafe_allow_html=True)
+    """Show the post-study survey, then redirect to Prolific on submit."""
+    import streamlit.components.v1 as components
+
+    # If survey already submitted, show redirect (handles page re-renders)
+    if st.session_state.get('post_survey_completed'):
+        st.markdown("---")
+        st.markdown("# All Done!")
+        st.markdown("---")
+        st.link_button(
+            "Click here to complete your submission on Prolific",
+            _COMPLETION_URL,
+            type="primary",
+            use_container_width=True,
+        )
+        components.html(
+            f'<script>window.top.location.href = "{_COMPLETION_URL}";</script>',
+            height=0,
+        )
+        return
 
     st.markdown("---")
     st.markdown("# Thank You for Participating!")
+    st.markdown("Your rankings have been saved successfully.")
     st.markdown("---")
-    st.markdown("""
-    Thank you for completing our flight search study! Your feedback is invaluable
-    to our research on AI-powered preference learning systems.
+    st.markdown("### One Last Question")
+    st.markdown(
+        "Was anything unclear or could anything be improved about the study? "
+        "Please share any feedback below."
+    )
 
-    **Your session has been saved successfully.**
-    """)
+    with st.form("post_survey_form", clear_on_submit=False):
+        feedback = st.text_area(
+            label="Your feedback",
+            placeholder="Share any thoughts, confusion, or suggestions here...",
+            height=150,
+            label_visibility="collapsed",
+        )
+        submitted = st.form_submit_button(
+            "Submit & Finish", type="primary", use_container_width=True
+        )
 
-    st.markdown("### Download Your Session Data")
-    st.markdown("You can download your session data in two formats:")
+        if submitted:
+            _save_post_survey_feedback(feedback.strip())
+            st.session_state.post_survey_completed = True
+            st.rerun()
 
-    token = st.session_state.get('token')
-    if token:
-        try:
-            from export_session_data import export_session_to_csv, export_simple_rankings_csv
-            import io, os
 
-            simple_csv_file = export_simple_rankings_csv(token, output_file=None)
-            if simple_csv_file:
-                with open(simple_csv_file, 'r', encoding='utf-8') as f:
-                    simple_csv_data = f.read()
-                st.download_button(
-                    label="Download Rankings Only (Simple CSV)",
-                    data=simple_csv_data,
-                    file_name=f"rankings_{token}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    help="Contains: prompt, flights, and your rankings"
-                )
-                if os.path.exists(simple_csv_file):
-                    os.remove(simple_csv_file)
-
-            csv_file = export_session_to_csv(token, output_file=None)
-            if csv_file:
-                with open(csv_file, 'r', encoding='utf-8') as f:
-                    csv_data = f.read()
-                st.download_button(
-                    label="Download Complete Session Data (Full CSV)",
-                    data=csv_data,
-                    file_name=f"session_data_{token}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    help="Contains: rankings, cross-validation, and survey"
-                )
-                st.success("Your session data is ready for download!")
-                if os.path.exists(csv_file):
-                    os.remove(csv_file)
-            else:
-                st.warning("Could not generate CSV. Session may be incomplete.")
-
-        except Exception as e:
-            st.error(f"Error generating CSV: {str(e)}")
-            import traceback
-            print(f"[CSV ERROR] {traceback.format_exc()}")
-
-    st.markdown("---")
-    if st.button("Continue", type="primary", use_container_width=True):
-        st.session_state.completion_page_dismissed = True
-        st.rerun()
+def _save_post_survey_feedback(feedback: str):
+    """Persist post-survey feedback to the database."""
+    try:
+        from backend.db import save_post_survey
+        prolific_id = st.session_state.get('token', '')
+        save_post_survey(prolific_id=prolific_id, feedback=feedback)
+        print(f"[POST_SURVEY] Saved feedback for {prolific_id}")
+    except Exception as e:
+        print(f"[POST_SURVEY] Failed to save feedback: {e}")
 
 
 def _render_countdown():

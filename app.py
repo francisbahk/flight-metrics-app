@@ -121,16 +121,26 @@ st.set_page_config(
 # ============================================================================
 # PHASE GATE — check immediately after set_page_config, before anything renders
 # ============================================================================
-# Auto-fill from Prolific URL parameter (set study URL as
-# https://listen-cornell3.streamlit.app/?PROLIFIC_PID={{%PROLIFIC_PID%}})
+# Auto-fill from Prolific URL parameters
+# Study URL should include: ?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}
 if not st.session_state.get('prolific_id'):
     _auto_pid = get_query_param('PROLIFIC_PID', '') or get_query_param('prolific_pid', '')
     if _auto_pid:
         st.session_state.prolific_id = _auto_pid.strip()
 
+if not st.session_state.get('study_id'):
+    _study_id = get_query_param('STUDY_ID', '') or get_query_param('study_id', '')
+    if _study_id:
+        st.session_state.study_id = _study_id.strip()
+
 if not st.session_state.get('prolific_id'):
     from frontend.pages.prolific_gate import render_prolific_id_gate
     render_prolific_id_gate()
+    st.stop()
+
+if not st.session_state.get('screening_completed'):
+    from frontend.pages.screening import render_screening_page
+    render_screening_page()
     st.stop()
 
 # Inject global CSS (only reached after gate check passes)

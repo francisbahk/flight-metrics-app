@@ -315,12 +315,10 @@ def render_how_to_use():
     """)
 
     st.markdown("""
-2. **Review results** - Browse all available flights using the manual search. Use the filter sidebar on the left to narrow down options by price range, number of connections, flight duration, departure/arrival times, airlines, and airports.
-3. **Select top 5** - Check the boxes next to your 5 favorite flights (for both outbound and return if applicable)
+2. **Review results** - Browse all available flights and use the filter sidebar on the left to narrow down options.
+3. **Select top 5** - Check the boxes next to your 5 favorite flights
 4. **Drag to rank** - Reorder your selections by dragging them in the right panel
-5. **Submit** - Click submit to save your rankings (download as CSV optional)
-
-**Note:** If your search includes a return flight, scroll down after the outbound flights to see the return flights section and submit those rankings separately.
+5. **Submit** - Click submit to save your rankings
 """)
 
 
@@ -339,13 +337,6 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     # Once flights are loaded the search is locked — show a read-only summary
     # instead of the full form so participants can't change their route/prompt.
     if st.session_state.get('all_flights'):
-        route = st.session_state.get('selected_route', '')
-        prompt = st.session_state.get('original_prompt', '')
-        st.markdown(
-            f"**Route:** {route}  \n"
-            f"**Preferences:** {prompt if prompt else '*(none specified)*'}",
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
         return
 
     render_how_to_use()
@@ -358,35 +349,13 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     st.markdown("**Example prompts:**")
     components.html(CAROUSEL_HTML, height=178)
 
-    tab_manual, tab_ai = st.tabs(["Search by Fields", "🤖 AI Search"])
-
     regular_search = False
     manual_search_btn = False
     manual_prompt = ""
     manual_route = None
 
-    with tab_manual:
-        manual_route = st.selectbox(
-            "Select a route",
-            options=[None] + static_route_day_options,
-            format_func=lambda x: "Select a route..." if x is None else x,
-            key="manual_route_select"
-        )
-
-        manual_prompt = st.text_area(
-            "Describe your flight preferences (optional)",
-            placeholder="e.g. I prefer nonstop flights, cheapest option, morning departures — no need to repeat your dates or airports here...",
-            height=80,
-            key="manual_prompt_input"
-        )
-
-        manual_search_btn = st.button(
-            "🔍 Search Flights", type="primary",
-            use_container_width=True, key="manual_search_btn"
-        )
-
-    with tab_ai:
-        st.markdown("Describe your trip in plain English — origin, destination, dates, and any preferences.")
+    st.markdown("Describe your trip in plain English — origin, destination, dates, and any preferences.")
+    with st.form("ai_search_form", clear_on_submit=False):
         ai_prompt_input = st.text_area(
             "Your trip prompt",
             placeholder="e.g. Cheapest flight from New York to LA on March 1st, direct preferred, morning departure",
@@ -394,13 +363,13 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             key="ai_prompt_input",
             label_visibility="collapsed",
         )
-        ai_search_btn = st.button(
-            "🤖 Search with AI", type="primary",
-            use_container_width=True, key="ai_search_btn"
+        ai_search_submitted = st.form_submit_button(
+            "Search", type="primary",
+            use_container_width=True,
         )
-        if ai_search_btn:
-            regular_search = True
-            st.session_state.auto_search_prompt = ai_prompt_input
+    if ai_search_submitted:
+        regular_search = True
+        st.session_state.auto_search_prompt = ai_prompt_input
 
     # Close hideable-survey-content container
     st.markdown('</div>', unsafe_allow_html=True)
@@ -409,7 +378,6 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     auto_search = st.session_state.get('auto_search_requested', False)
     if auto_search:
         st.session_state.auto_search_requested = False
-        st.session_state.auto_search_prompt = None
 
     if manual_search_btn:
         st.session_state.search_mode = "manual"
@@ -549,22 +517,14 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             # Save session progress
             if st.session_state.get('token'):
                 from backend.db import save_participant_progress
-                # For manual mode, route is the static JFK-LAX route.
-                # For AI mode, build a route_id from the parsed origin/destination/date.
-                if st.session_state.search_mode == 'manual':
-                    _save_route_id = 'JFK-LAX-20260301'
-                else:
-                    _parsed = st.session_state.get('parsed_params') or {}
-                    _origins = '-'.join(_parsed.get('origins', ['UNK']))
-                    _dests = '-'.join(_parsed.get('destinations', ['UNK']))
-                    _dates = '-'.join(_parsed.get('departure_dates', ['unknown']))
-                    _save_route_id = f"{_origins}-{_dests}-{_dates}"
+                _save_route_id = 'JFK-LAX-20260301' if st.session_state.search_mode == 'manual' else 'ai'
                 save_participant_progress(
                     prolific_id=st.session_state.token,
                     session_id=st.session_state.session_id,
                     prompt=st.session_state.get('original_prompt') or st.session_state.get('user_prompt', ''),
                     route_id=_save_route_id,
                     all_flights=all_flights,
+                    study_id=st.session_state.get('study_id'),
                 )
 
             st.success(f"✅ Found {len(all_flights)} flights!")
