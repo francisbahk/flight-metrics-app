@@ -187,6 +187,11 @@ if not st.session_state.get('screening_completed'):
     render_screening_page()
     st.stop()
 
+if not st.session_state.get('consent_given'):
+    from frontend.pages.informed_consent import render_informed_consent
+    render_informed_consent()
+    st.stop()
+
 # Inject global CSS (only reached after gate check passes)
 from frontend.styles import GLOBAL_CSS
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
