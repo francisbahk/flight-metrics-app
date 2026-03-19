@@ -317,7 +317,7 @@ def render_how_to_use():
 
     st.markdown("""
 2. **Review results** - Browse all available flights and use the filter sidebar on the left to narrow down options.
-3. **Select top 5** - Check the boxes next to your 5 favorite flights
+3. **Select flights to rank** - If you see 20 or fewer flights, check all of them. If you see more than 20, check your top 20.
 4. **Drag to rank** - Reorder your selections by dragging them in the right panel
 5. **Submit** - Click submit to save your rankings
 """)

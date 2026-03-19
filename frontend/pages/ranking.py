@@ -123,6 +123,9 @@ def render_ranking_section():
     Must only be called when st.session_state.all_flights is non-empty
     and outbound_submitted is False.
     """
+    total_flights = len(st.session_state.all_flights)
+    rank_limit = min(20, total_flights)
+
     progress_percent = 1.0 if st.session_state.outbound_submitted else 0.0
     progress_text = "Submitted" if st.session_state.outbound_submitted else "0 / 1 sections submitted"
 
@@ -164,7 +167,10 @@ def render_ranking_section():
                     st.session_state.editing_prompt_main = False
                     st.rerun()
 
-    st.markdown("**Select your top 5 flights and drag to rank them**")
+    if total_flights <= 20:
+        st.info(f"There are {total_flights} flights in your results — please check and rank **all {total_flights}** of them.")
+    else:
+        st.info("There are more than 20 flights in your results — please select and rank your **top 20**.")
 
     # ------------------------------------------------------------------
     # SIDEBAR FILTERS
@@ -231,21 +237,25 @@ def render_ranking_section():
             col1, col2 = st.columns([1, 5])
 
             with col1:
+                chk_key = f"chk_single_{idx}_v{st.session_state.checkbox_version}"
+                if chk_key not in st.session_state:
+                    st.session_state[chk_key] = is_selected
                 selected = st.checkbox(
                     "Select flight",
-                    value=is_selected,
-                    key=f"chk_single_{idx}_v{st.session_state.checkbox_version}",
+                    key=chk_key,
                     label_visibility="collapsed",
-                    disabled=(not is_selected and len(st.session_state.selected_flights) >= 5)
+                    disabled=(not st.session_state[chk_key] and len(st.session_state.selected_flights) >= rank_limit)
                 )
                 if selected and not is_selected:
-                    if len(st.session_state.selected_flights) < 5:
+                    if len(st.session_state.selected_flights) < rank_limit:
                         st.session_state.selected_flights.append(flight)
+                        st.rerun()
                 elif not selected and is_selected:
                     st.session_state.selected_flights = [
                         f for f in st.session_state.selected_flights
                         if f"{f['id']}_{f['departure_time']}" != flight_key
                     ]
+                    st.rerun()
 
             with col2:
                 dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
@@ -277,7 +287,7 @@ def render_ranking_section():
                 """, unsafe_allow_html=True)
 
     with col_ranking:
-        _render_ranking_column()
+        _render_ranking_column(rank_limit)
 
 
 def _render_sidebar_filters():
@@ -400,20 +410,20 @@ def _render_sidebar_filters():
             st.session_state.filter_origins = None
             st.session_state.filter_destinations = None
             st.session_state.filter_reset_counter += 1
-            st.rerun()
+            st.session_state.checkbox_version += 1
 
 
-def _render_ranking_column():
+def _render_ranking_column(rank_limit: int):
     """Render the drag-to-rank column and submit button."""
-    st.markdown("#### Your Top 5 (Drag to Rank)")
-    st.markdown(f"**{len(st.session_state.selected_flights)}/5 selected**")
+    st.markdown(f"#### Your Top {rank_limit} (Drag to Rank)")
+    st.markdown(f"**{len(st.session_state.selected_flights)}/{rank_limit} selected**")
 
     if not st.session_state.selected_flights:
         st.info("Check boxes on the left to select flights")
         return
 
-    if len(st.session_state.selected_flights) > 5:
-        st.session_state.selected_flights = st.session_state.selected_flights[:5]
+    if len(st.session_state.selected_flights) > rank_limit:
+        st.session_state.selected_flights = st.session_state.selected_flights[:rank_limit]
         st.rerun()
 
     draggable_items = []
@@ -453,25 +463,14 @@ def _render_ranking_column():
             st.rerun()
 
     st.markdown("---")
-    cols = st.columns(5)
-    for i, flight in enumerate(st.session_state.selected_flights):
-        with cols[i]:
-            if st.button("X", key=f"remove_single_{i}_{flight['id']}", help=f"Remove #{i+1}"):
-                flight_unique_key = f"{flight['id']}_{flight['departure_time']}"
-                st.session_state.selected_flights = [
-                    f for f in st.session_state.selected_flights
-                    if f"{f['id']}_{f['departure_time']}" != flight_unique_key
-                ]
-                st.session_state.checkbox_version += 1
-                st.rerun()
 
-    if len(st.session_state.selected_flights) == 5 and not st.session_state.outbound_submitted:
+    if len(st.session_state.selected_flights) == rank_limit and not st.session_state.outbound_submitted:
         if st.button("Submit Rankings", key="submit_single", type="primary", use_container_width=True):
             print("[DEBUG] Submit button clicked - Preparing for review")
             csv_data = generate_flight_csv(
                 st.session_state.all_flights,
                 st.session_state.selected_flights,
-                k=5
+                k=rank_limit
             )
             st.session_state.csv_data_outbound = csv_data
             st.session_state.outbound_submitted = True
@@ -480,4 +479,5 @@ def _render_ranking_column():
     elif st.session_state.outbound_submitted:
         st.success("Rankings submitted")
     else:
-        st.info(f"Select {5 - len(st.session_state.selected_flights)} more flights")
+        remaining = rank_limit - len(st.session_state.selected_flights)
+        st.info(f"Select {remaining} more flight{'s' if remaining != 1 else ''}")

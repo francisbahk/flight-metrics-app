@@ -4,15 +4,14 @@ Extracts structured flight search parameters from natural language.
 """
 import os
 import json
-import re
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta
+from typing import Dict, Optional
+from datetime import datetime
 from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configure Gemini with new SDK
+# Configure Gemini
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 if GEMINI_API_KEY:
     genai_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -23,37 +22,13 @@ else:
 def parse_flight_prompt_with_llm(prompt: str) -> Dict:
     """
     Parse natural language flight prompt using Gemini LLM.
-
-    Args:
-        prompt: User's natural language query about flights
-
-    Returns:
-        Dictionary with structured flight search parameters
+    Returns a dictionary with origins, destinations, departure_dates, return_dates.
     """
-
-    # Detect explicit airport codes (3-letter uppercase codes)
-    airport_code_pattern = r'\b([A-Z]{3})\b'
-    found_codes = re.findall(airport_code_pattern, prompt.upper())
-
-    # Filter to only valid airport codes (common ones)
-    valid_airport_codes = {
-        'JFK', 'LAX', 'ORD', 'DFW', 'DEN', 'SFO', 'SEA', 'LAS', 'MCO', 'EWR',
-        'CLT', 'PHX', 'IAH', 'MIA', 'BOS', 'MSP', 'FLL', 'DTW', 'PHL', 'LGA',
-        'BWI', 'SLC', 'SAN', 'IAD', 'DCA', 'MDW', 'TPA', 'PDX', 'HNL', 'AUS',
-        'BNA', 'OAK', 'RDU', 'SNA', 'SMF', 'SJC', 'MCI', 'SAT', 'RSW', 'PIT',
-        'DAL', 'IND', 'CMH', 'CLE', 'CVG', 'JAX', 'OKC', 'BUR', 'ONT', 'SJU'
-    }
-    explicit_codes = [code for code in found_codes if code in valid_airport_codes]
-
-    # Build instruction about explicit codes
-    explicit_instruction = ""
-    if len(explicit_codes) >= 2:
-        explicit_instruction = f"\n\n**CRITICAL**: User explicitly mentioned airport codes: {', '.join(explicit_codes)}. You MUST use ONLY these exact codes and NOT add any other airports. Do not expand to nearby airports."
 
     llm_prompt = f"""You are a flight search assistant. Extract structured information from this flight search query.
 
 User Query:
-{prompt}{explicit_instruction}
+{prompt}
 
 FIRST — decide whether this query is asking about a flight search.
 A valid flight query must mention at least an origin and/or destination (a city, airport, or region).
@@ -71,85 +46,43 @@ Otherwise, extract and return ONLY a valid JSON object with these fields:
 {{
     "is_flight_query": true,
     "rejection_message": null,
-    "origins": ["AIRPORT_CODE"],  // List of origin airport codes (IATA 3-letter)
-    "destinations": ["AIRPORT_CODE"],  // List of destination airport codes
-    "departure_dates": ["YYYY-MM-DD"],  // List of departure dates (e.g., ["2024-12-20", "2024-12-21"] for "Friday or Saturday")
-    "return_dates": ["YYYY-MM-DD"]  // List of return dates ONLY if explicitly mentioned (e.g., ["2024-12-27", "2024-12-28"] for "Dec 27th or 28th")
+    "origins": ["AIRPORT_CODE"],
+    "destinations": ["AIRPORT_CODE"],
+    "departure_dates": ["YYYY-MM-DD"],
+    "return_dates": ["YYYY-MM-DD"]
 }}
 
 CRITICAL INSTRUCTIONS:
-1. Return ONLY the JSON object, no other text or explanation
-2. Use null for missing fields
-3. **DATE PARSING - VERY IMPORTANT**:
-   - Today is {datetime.now().strftime("%Y-%m-%d")}
-   - If user mentions a date WITHOUT a year (e.g., "December 22nd", "Christmas"), ALWAYS assume they mean the NEXT future occurrence of that date
-   - NEVER return dates in the past - always interpret ambiguous dates as future dates
-   - Examples: If today is 2025-11-26 and user says "December 22nd", return "2025-12-22" (NOT 2024-12-22)
-4. **MULTIPLE DATES**: If user mentions multiple dates (e.g., "weekend of Jan 5", "Friday or Saturday", "Jan 5 or 6"), extract ALL dates as separate items in departure_dates list
-5. **RETURN FLIGHTS**: ONLY set return_dates if user explicitly mentions returning, coming back, or round-trip. Extract ALL mentioned return dates in return_dates list (e.g., "return Dec 27 or 28 or 29" → ["2025-12-27", "2025-12-28", "2025-12-29"]). If only one-way is mentioned, set return_dates to empty list []
-
-**MOST IMPORTANT - AIRPORT CODE EXTRACTION:**
-You MUST use your knowledge of world airports to convert city/region names into proper IATA airport codes (3-letter codes).
-
-**CRITICAL RULE - Explicit Airport Codes vs City Names:**
-- If user specifies a specific 3-letter IATA airport code (e.g., "JFK", "LAX", "ORD"), return ONLY that code
-- If user specifies a city/region name (e.g., "New York", "NYC", "Los Angeles"), return ALL major airports for that area
-- Examples:
-  - User says "JFK" → ["JFK"] (NOT ["JFK", "LGA", "EWR"])
-  - User says "NYC" or "New York" → ["JFK", "LGA", "EWR"]
-  - User says "LAX" → ["LAX"] (NOT all LA airports)
-  - User says "Los Angeles" or "LA" → ["LAX", "BUR", "SNA"]
-  - User says "ORD" → ["ORD"] (NOT ["ORD", "MDW"])
-  - User says "Chicago" → ["ORD", "MDW"]
-
-**CITY → AIRPORT CODE CONVERSION (only when user provides city name, not specific code):**
-- "Houston" or "Houston Texas" or "Houston TX" → ["IAH", "HOU"]
-- "New York" or "New York City" or "NYC" → ["JFK", "LGA", "EWR"]
-- "Los Angeles" or "LA" → ["LAX", "BUR", "SNA"]
-- "San Francisco" or "SF" or "Bay Area" → ["SFO", "OAK", "SJC"]
-- "Chicago" → ["ORD", "MDW"]
-- "Washington DC" or "DC" or "Washington" → ["DCA", "IAD", "BWI"]
-- "Boston" → ["BOS"]
-- "Seattle" → ["SEA"]
-- "Miami" → ["MIA", "FLL"]
-- "Dallas" → ["DFW", "DAL"]
-- "Atlanta" → ["ATL"]
-- "Denver" → ["DEN"]
-- "Phoenix" → ["PHX"]
-- "London" → ["LHR", "LGW", "STN"]
-- "Paris" → ["CDG", "ORY"]
-- "Ithaca" or "Ithaca NY" → ["ITH", "SYR"]
-
-**DO NOT extract random words from the sentence as airport codes!**
-**ONLY return valid 3-letter IATA airport codes that you KNOW are real airports.**
-**CRITICAL: Common words that are NOT airport codes:**
-- "get", "fly", "go", "come", "see", "via", "and", "the", "for", "can", "use", "put", "set", "may", "run", "let"
-- If you see "get to [city]", extract [city] as the destination, NOT "get"
-- Example: "I need to GET to Atlanta" → destinations: ["ATL"] (NOT ["GET"])
-
-For small cities, include nearby major airports within 100 miles as alternatives.
+1. Return ONLY the JSON object, no other text or explanation.
+2. Use null for missing fields.
+3. **DATE PARSING**:
+   - Today is {datetime.now().strftime("%Y-%m-%d")}.
+   - Always interpret ambiguous dates as the next future occurrence. Never return past dates.
+   - If multiple dates are mentioned (e.g. "Friday or Saturday", "Jan 5 or 6"), list all of them.
+4. **RETURN FLIGHTS**: Only set return_dates if the user explicitly mentions a return trip. Otherwise set it to [].
+5. **AIRPORT CODES**:
+   - If the user writes a 3-letter IATA airport code (e.g. JFK, LAX, ORD), use it exactly as written.
+   - If the user writes a city or region name (e.g. "New York", "LA", "Chicago"), use your knowledge to return all major airports for that area.
+   - Be careful with 3-letter words that are common English words (e.g. "get", "fly", "can", "the"). Use context to decide: if it appears as a destination or origin it is likely an airport code; if it appears mid-sentence as a verb or article it is not.
 """
 
     try:
         if not genai_client:
             raise ValueError("Gemini API key not configured")
 
-        # Use new SDK
         response = genai_client.models.generate_content(
             model='gemini-2.5-flash-lite',
             contents=llm_prompt
         )
 
-        # Extract JSON from response
         response_text = response.text.strip()
 
-        # Remove markdown code blocks if present
+        # Strip markdown code fences if present
         if '```json' in response_text:
             response_text = response_text.split('```json')[1].split('```')[0]
         elif '```' in response_text:
             response_text = response_text.split('```')[1].split('```')[0]
 
-        # Parse JSON
         parsed = json.loads(response_text)
 
         # Check if the LLM determined this is not a flight query
@@ -173,69 +106,43 @@ For small cities, include nearby major airports within 100 miles as alternatives
             'BIG', 'FEW', 'GOT', 'HAS', 'HER', 'HIM', 'HIS', 'HOW', 'MAN', 'NEW'
         }
 
-        # Clean origins
         if parsed.get('origins'):
             parsed['origins'] = [code for code in parsed['origins'] if code and code.upper() not in INVALID_CODES]
 
-        # Clean destinations
         if parsed.get('destinations'):
             parsed['destinations'] = [code for code in parsed['destinations'] if code and code.upper() not in INVALID_CODES]
 
-        # Validate and clean up
         departure_dates = parsed.get('departure_dates') or []
-
-        # Handle legacy single date format for backward compatibility
-        if not departure_dates and parsed.get('departure_date'):
-            departure_dates = [parsed.get('departure_date')]
-
-        # Handle return dates (support both old single return_date and new multiple return_dates)
         return_dates = parsed.get('return_dates') or []
-        if not return_dates and parsed.get('return_date'):
-            # Backward compatibility: convert single return_date to list
-            return_dates = [parsed.get('return_date')]
 
-        result = {
+        return {
             'parsed_successfully': True,
-            'origins': parsed.get('origins', []),
-            'destinations': parsed.get('destinations', []),
+            'origins': parsed.get('origins') or [],
+            'destinations': parsed.get('destinations') or [],
             'departure_dates': departure_dates,
             'return_dates': return_dates,
             'return_date': return_dates[0] if return_dates else None,
-            'original_prompt': prompt
+            'original_prompt': prompt,
         }
-
-        return result
 
     except Exception as e:
         print(f"⚠️ LLM parsing failed: {e}")
         raise RuntimeError(f"Failed to parse flight prompt: {e}") from e
 
 
-def get_test_api_fallback(airport_code: str) -> tuple[str, Optional[str]]:
-    """
-    Convert small airports to major ones for Amadeus test API.
-
-    Returns:
-        (fallback_code, warning_message)
-    """
+def get_test_api_fallback(airport_code: str) -> tuple:
+    """Convert small airports to major ones for Amadeus test API."""
     fallbacks = {
         'ITH': ('SYR', 'Ithaca (ITH) not in API, using Syracuse (SYR)'),
         'ELM': ('SYR', 'Elmira (ELM) not in API, using Syracuse (SYR)'),
         'BGM': ('SYR', 'Binghamton (BGM) not in API, using Syracuse (SYR)'),
     }
-
     if airport_code in fallbacks:
         return fallbacks[airport_code]
     return (airport_code, None)
 
 
-# For testing
 if __name__ == "__main__":
-    test_prompt = """
-    On October 20 I need to fly from Ithaca NY to Reston VA.
-    I prefer direct flights and want to avoid early morning departures before 7am.
-    I fly United and need to comply with Fly America Act.
-    """
-
+    test_prompt = "Cheapest flight from New York to LA on March 1st, direct preferred"
     result = parse_flight_prompt_with_llm(test_prompt)
     print(json.dumps(result, indent=2))
