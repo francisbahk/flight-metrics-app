@@ -66,6 +66,14 @@ understood the above information and accept the terms of participation.</div>
 
     st.markdown("")  # spacing
 
-    if st.button("Continue", type="primary", disabled=not agreed):
-        st.session_state.consent_given = True
-        st.rerun()
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("Continue", type="primary", disabled=not agreed, use_container_width=True):
+            st.session_state.consent_given = True
+            st.rerun()
+    with col2:
+        if st.button("I do not consent", type="secondary", use_container_width=True):
+            st.markdown(
+                '<meta http-equiv="refresh" content="0; url=https://app.prolific.com/submissions/complete?cc=CW9AC4DG">',
+                unsafe_allow_html=True,
+            )
