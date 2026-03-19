@@ -9,7 +9,7 @@ This application helps research how well different flight ranking algorithms mat
 2. Fetching flight data from Amadeus API
 3. Ranking flights using three algorithms
 4. Collecting user feedback (top 5 selections)
-5. Storing data in Railway MySQL for analysis
+5. Storing data in RDS MySQL for analysis
 
 ## Tech Stack
 
@@ -17,7 +17,7 @@ This application helps research how well different flight ranking algorithms mat
 - **Amadeus API** - Flight search data
 - **Gemini API** - Natural language parsing and LISTEN-U preference learning
 - **LISTEN** - Utility-based preference learning algorithm
-- **Railway MySQL** - Persistent data storage
+- **AWS RDS MySQL** - Persistent data storage
 - **Python 3.11+** - Required for LISTEN compatibility
 
 ## Architecture
@@ -33,7 +33,7 @@ This application helps research how well different flight ranking algorithms mat
    - **LISTEN-U**: Learns utility function over 25 iterations using Gemini
 5. Top 10 from each algorithm are interleaved (up to 30 unique flights shown)
 6. User selects and ranks their top 5 flights
-7. Data saved to Railway MySQL for analysis
+7. Data saved to RDS MySQL for analysis
 
 ### Project Structure
 
@@ -45,7 +45,7 @@ flight_app/
 │   ├── prompt_parser.py            # Gemini-based query parser
 │   ├── listen_main_wrapper.py      # LISTEN algorithm wrapper
 │   ├── listen_data_converter.py    # Convert flights to LISTEN format
-│   ├── db.py                       # Railway MySQL database
+│   ├── db.py                       # RDS MySQL database
 │   └── utils/
 │       └── parse_duration.py       # ISO 8601 duration parsing
 ├── LISTEN/                         # Symlink to LISTEN repository
@@ -63,7 +63,7 @@ flight_app/
 - Python 3.11 or higher (required for LISTEN)
 - Amadeus API credentials (https://developers.amadeus.com/)
 - Gemini API key (https://aistudio.google.com/app/apikey)
-- Railway MySQL database (or local MySQL)
+- AWS RDS MySQL database (or local MySQL)
 - LISTEN repository cloned locally
 
 ### Installation
@@ -87,13 +87,13 @@ AMADEUS_BASE_URL=https://api.amadeus.com
 GEMINI_API_KEY=your_gemini_key_here
 GOOGLE_API_KEY=your_gemini_key_here
 
-# Railway MySQL
+# AWS RDS MySQL
 DB_TYPE=mysql
-MYSQL_HOST=maglev.proxy.rlwy.net
-MYSQL_PORT=50981
-MYSQL_DATABASE=railway
-MYSQL_USER=root
-MYSQL_PASSWORD=your_railway_password
+MYSQL_HOST=your-rds-endpoint.rds.amazonaws.com
+MYSQL_PORT=3306
+MYSQL_DATABASE=flight_rankings
+MYSQL_USER=appuser
+MYSQL_PASSWORD=your_rds_password
 ```
 
 3. Install dependencies:
@@ -137,11 +137,11 @@ API docs at http://localhost:8000/docs
 
 **Streamlit Cloud:**
 - Python 3.11 runtime (`.python-version`)
-- Railway MySQL for persistence
+- AWS RDS MySQL for persistence
 - Environment variables configured in Streamlit Cloud settings
 
 **FastAPI/uvicorn (Alternative):**
-- Can deploy to Railway, Fly.io, or any platform supporting Python ASGI
+- Can deploy to any platform supporting Python ASGI
 - Set `PORT` environment variable for custom port
 - Use `uvicorn api.main:app --host 0.0.0.0 --port $PORT` for production
 
@@ -166,9 +166,9 @@ python3 view_data.py          # All searches
 python3 view_data.py latest   # Latest search only
 ```
 
-SQL (direct Railway MySQL access):
+SQL (direct RDS MySQL access):
 ```bash
-mysql -h maglev.proxy.rlwy.net -P 50981 -u root -p railway
+mysql -h flight-ranker-db.c274giyammku.us-east-1.rds.amazonaws.com -P 3306 -u appuser -p flight_rankings
 ```
 
 Example queries:

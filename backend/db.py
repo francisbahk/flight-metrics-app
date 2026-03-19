@@ -119,6 +119,18 @@ class PostSurvey(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
 
 
+class PromptAttempt(Base):
+    """Every prompt version submitted by a participant, in order."""
+    __tablename__ = 'prompt_attempts'
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    prolific_id  = Column(String(128), nullable=False, index=True)
+    attempt_num  = Column(Integer, nullable=False)   # 1-based, per participant
+    prompt_text  = Column(Text, nullable=False)
+    passed       = Column(Boolean, nullable=True)    # True/False/None (None = not yet evaluated)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+
 # ============================================================================
 # INIT
 # ============================================================================
@@ -223,6 +235,59 @@ def get_participant(prolific_id: str) -> dict:
             'all_flights':        json.loads(p.all_flights_json) if p.all_flights_json else [],
             'ranking_confirmed':  bool(p.ranking_confirmed),
         }
+    finally:
+        db.close()
+
+
+# ============================================================================
+# PROMPT ATTEMPT FUNCTIONS
+# ============================================================================
+def save_prompt_attempt(prolific_id: str, prompt_text: str, passed: bool = None) -> int:
+    """
+    Append a new prompt attempt row for this participant.
+    Returns the attempt_num assigned (1-based).
+    """
+    db = SessionLocal()
+    try:
+        last = (
+            db.query(PromptAttempt)
+            .filter_by(prolific_id=prolific_id)
+            .order_by(PromptAttempt.attempt_num.desc())
+            .first()
+        )
+        attempt_num = (last.attempt_num + 1) if last else 1
+        db.add(PromptAttempt(
+            prolific_id=prolific_id,
+            attempt_num=attempt_num,
+            prompt_text=prompt_text,
+            passed=passed,
+        ))
+        db.commit()
+        print(f"[DB] Saved prompt attempt #{attempt_num} for {prolific_id}.")
+        return attempt_num
+    except Exception as e:
+        db.rollback()
+        print(f"[DB] save_prompt_attempt error: {e}")
+        return -1
+    finally:
+        db.close()
+
+
+def update_prompt_attempt_result(prolific_id: str, attempt_num: int, passed: bool):
+    """Update the passed field on an existing prompt attempt row."""
+    db = SessionLocal()
+    try:
+        row = (
+            db.query(PromptAttempt)
+            .filter_by(prolific_id=prolific_id, attempt_num=attempt_num)
+            .first()
+        )
+        if row:
+            row.passed = passed
+            db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"[DB] update_prompt_attempt_result error: {e}")
     finally:
         db.close()
 

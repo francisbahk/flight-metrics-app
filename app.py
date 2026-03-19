@@ -393,6 +393,106 @@ flight_client = get_flight_client()
 
 
 # ============================================================================
+# PROMPT VALIDATION
+# ============================================================================
+def _validate_prompt_with_groq(prompt: str) -> tuple[bool, str]:
+    """Use Groq llama-70b to judge whether the prompt is a detailed flight preference description.
+    Returns (is_detailed, feedback_message)."""
+    import json
+    from groq import Groq
+
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        return True, ""
+
+    client = Groq(api_key=api_key)
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a validator for a flight-ranking study. "
+                    "Decide whether the participant's description of their flight preferences is sufficiently detailed. "
+                    "A good description mentions at least some of: airline preference, departure/arrival time preference, "
+                    "price vs speed priority, layover tolerance, or seat class. "
+                    "Gibberish, random words, or descriptions that don't mention any actual flight preferences are NOT detailed. "
+                    "Reply with ONLY a JSON object, no other text: "
+                    "{\"detailed\": true or false, \"feedback\": \"one sentence of specific encouragement if not detailed, else empty string\"}"
+                ),
+            },
+            {"role": "user", "content": f"Participant's description:\n\n{prompt}"},
+        ],
+        temperature=0,
+        response_format={"type": "json_object"},
+    )
+    data = json.loads(response.choices[0].message.content)
+    if data.get("detailed"):
+        return True, ""
+    return False, data.get("feedback", "")
+
+
+def check_prompt_length(min_chars=100):
+    """Block submission if prompt is too short or not detailed enough per Groq.
+    When rejected, renders an inline editor so the user can update their description.
+    Every distinct prompt value is saved to the DB as a numbered attempt."""
+    prompt = st.session_state.get('original_prompt', '')
+    prompt_len = len(prompt)
+
+    # Save this prompt as a new attempt only if it differs from the last one saved.
+    prolific_id = st.session_state.get('token')
+    last_saved = st.session_state.get('_last_saved_prompt_attempt')
+    attempt_num = st.session_state.get('_current_attempt_num')
+    if prolific_id and prompt and prompt != last_saved:
+        from backend.db import save_prompt_attempt
+        attempt_num = save_prompt_attempt(prolific_id, prompt)
+        st.session_state._last_saved_prompt_attempt = prompt
+        st.session_state._current_attempt_num = attempt_num
+
+    if prompt_len < min_chars:
+        if prolific_id and attempt_num and attempt_num > 0:
+            from backend.db import update_prompt_attempt_result
+            update_prompt_attempt_result(prolific_id, attempt_num, passed=False)
+        st.warning(f"Your flight preference description is too short ({prompt_len}/{min_chars} characters). Please edit it below before submitting.")
+        _show_prompt_editor()
+        return False
+
+    is_detailed, feedback = _validate_prompt_with_groq(prompt)
+    if prolific_id and attempt_num and attempt_num > 0:
+        from backend.db import update_prompt_attempt_result
+        update_prompt_attempt_result(prolific_id, attempt_num, passed=is_detailed)
+
+    if not is_detailed:
+        msg = "Your description isn't detailed enough yet. "
+        if feedback:
+            msg += feedback + " "
+        msg += "Try mentioning your preference for airline, departure or arrival time, or whether you prioritize price or speed."
+        st.warning(msg)
+        _show_prompt_editor()
+        return False
+
+    return True
+
+
+def _show_prompt_editor():
+    """Render an inline text area that lets the user update their stored prompt."""
+    edited = st.text_area(
+        "Edit your flight preference description:",
+        value=st.session_state.get('original_prompt', ''),
+        height=120,
+        key="prompt_editor_inline",
+    )
+    char_count = len(edited)
+    if char_count < 100:
+        st.caption(f":red[{char_count}/100 characters]")
+    else:
+        st.caption(f":green[{char_count} characters ✓]")
+    if st.button("Update description", key="prompt_editor_save"):
+        st.session_state.original_prompt = edited
+        st.rerun()
+
+
+# ============================================================================
 # RENDER: HEADER + TOKEN GATE (always)
 # ============================================================================
 from frontend.components.header import render_header

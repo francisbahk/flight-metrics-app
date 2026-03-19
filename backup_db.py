@@ -1,5 +1,5 @@
 """
-Database backup script for Railway MySQL to AWS S3.
+Database backup script for RDS MySQL to AWS S3.
 
 Usage:
     python backup_db.py                    # Manual backup
