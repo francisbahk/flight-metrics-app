@@ -11,10 +11,10 @@ def render_informed_consent():
     border-radius:8px;
     padding:2rem;
     font-family:monospace;
-    font-size:0.88rem;
+    font-size:0.6rem;
     line-height:1.7;
     white-space:pre-wrap;
-">INFORMED CONSENT — LISTEN Project (Pilot Study)
+">LISTEN Project (Pilot Study)
 Cornell University, School of Operations Research and Information Engineering
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
