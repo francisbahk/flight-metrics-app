@@ -451,13 +451,33 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                 prompt = st.session_state.get('auto_search_prompt', '')
                 st.session_state.original_prompt = prompt
 
+                from backend.db import save_prompt_attempt, update_prompt_attempt_result
+                prolific_id = st.session_state.get('prolific_id', 'anonymous')
+
                 st.info("🤖 Parsing your request...")
                 parsed = parse_flight_prompt_with_llm(prompt)
                 st.session_state.parsed_params = parsed
 
-                if not parsed.get('origins') or not parsed.get('destinations'):
-                    st.error("Could not extract origin and destination. Please include both airports or cities in your prompt.")
+                # Determine result and feedback before saving, so both are stored together
+                if not parsed.get('parsed_successfully', True):
+                    rejection_msg = parsed.get(
+                        'user_message',
+                        "Please describe your flight — include where you're flying from, where you're going, and when."
+                    )
+                    attempt_num = save_prompt_attempt(prolific_id, prompt)
+                    update_prompt_attempt_result(prolific_id, attempt_num, passed=False, llm_feedback=rejection_msg)
+                    st.warning(rejection_msg)
                     st.stop()
+
+                if not parsed.get('origins') or not parsed.get('destinations'):
+                    rejection_msg = "Could not extract origin and destination. Please include both airports or cities in your prompt."
+                    attempt_num = save_prompt_attempt(prolific_id, prompt)
+                    update_prompt_attempt_result(prolific_id, attempt_num, passed=False, llm_feedback=rejection_msg)
+                    st.error(rejection_msg)
+                    st.stop()
+
+                attempt_num = save_prompt_attempt(prolific_id, prompt)
+                update_prompt_attempt_result(prolific_id, attempt_num, passed=True)
 
                 st.success("✅ Understood your request!")
 

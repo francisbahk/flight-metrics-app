@@ -55,8 +55,22 @@ def parse_flight_prompt_with_llm(prompt: str) -> Dict:
 User Query:
 {prompt}{explicit_instruction}
 
-Extract and return ONLY a valid JSON object with these fields:
+FIRST — decide whether this query is asking about a flight search.
+A valid flight query must mention at least an origin and/or destination (a city, airport, or region).
+If the query is gibberish, random words, or completely unrelated to flights, return:
 {{
+    "is_flight_query": false,
+    "rejection_message": "Please describe your flight — include where you're flying from, where you're going, and when. For example: 'Flight from New York to Los Angeles on March 15th'.",
+    "origins": null,
+    "destinations": null,
+    "departure_dates": null,
+    "return_dates": null
+}}
+
+Otherwise, extract and return ONLY a valid JSON object with these fields:
+{{
+    "is_flight_query": true,
+    "rejection_message": null,
     "origins": ["AIRPORT_CODE"],  // List of origin airport codes (IATA 3-letter)
     "destinations": ["AIRPORT_CODE"],  // List of destination airport codes
     "departure_dates": ["YYYY-MM-DD"],  // List of departure dates (e.g., ["2024-12-20", "2024-12-21"] for "Friday or Saturday")
@@ -138,6 +152,17 @@ For small cities, include nearby major airports within 100 miles as alternatives
         # Parse JSON
         parsed = json.loads(response_text)
 
+        # Check if the LLM determined this is not a flight query
+        if not parsed.get('is_flight_query', True):
+            return {
+                'parsed_successfully': False,
+                'user_message': parsed.get(
+                    'rejection_message',
+                    "Please describe your flight — include where you're flying from, where you're going, and when."
+                ),
+                'original_prompt': prompt,
+            }
+
         # Filter out common words that are NOT airport codes
         INVALID_CODES = {
             'GET', 'FLY', 'GO', 'RUN', 'SET', 'PUT', 'LET', 'MAY', 'CAN', 'USE',
@@ -149,22 +174,22 @@ For small cities, include nearby major airports within 100 miles as alternatives
         }
 
         # Clean origins
-        if 'origins' in parsed:
-            parsed['origins'] = [code for code in parsed['origins'] if code.upper() not in INVALID_CODES]
+        if parsed.get('origins'):
+            parsed['origins'] = [code for code in parsed['origins'] if code and code.upper() not in INVALID_CODES]
 
         # Clean destinations
-        if 'destinations' in parsed:
-            parsed['destinations'] = [code for code in parsed['destinations'] if code.upper() not in INVALID_CODES]
+        if parsed.get('destinations'):
+            parsed['destinations'] = [code for code in parsed['destinations'] if code and code.upper() not in INVALID_CODES]
 
         # Validate and clean up
-        departure_dates = parsed.get('departure_dates', [])
+        departure_dates = parsed.get('departure_dates') or []
 
         # Handle legacy single date format for backward compatibility
         if not departure_dates and parsed.get('departure_date'):
             departure_dates = [parsed.get('departure_date')]
 
         # Handle return dates (support both old single return_date and new multiple return_dates)
-        return_dates = parsed.get('return_dates', [])
+        return_dates = parsed.get('return_dates') or []
         if not return_dates and parsed.get('return_date'):
             # Backward compatibility: convert single return_date to list
             return_dates = [parsed.get('return_date')]

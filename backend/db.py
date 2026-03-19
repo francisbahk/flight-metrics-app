@@ -128,6 +128,7 @@ class PromptAttempt(Base):
     attempt_num  = Column(Integer, nullable=False)   # 1-based, per participant
     prompt_text  = Column(Text, nullable=False)
     passed       = Column(Boolean, nullable=True)    # True/False/None (None = not yet evaluated)
+    llm_feedback = Column(Text, nullable=True)       # Guidance shown to user when prompt is rejected
     created_at   = Column(DateTime, default=datetime.utcnow)
 
 
@@ -137,18 +138,19 @@ class PromptAttempt(Base):
 def init_db():
     """Create all tables and apply any missing column migrations."""
     Base.metadata.create_all(engine)
-    # Add study_id column to participants if it doesn't exist yet (SQLite migration)
-    try:
-        with engine.connect() as conn:
-            conn.execute(
-                __import__('sqlalchemy').text(
-                    "ALTER TABLE participants ADD COLUMN study_id VARCHAR(128)"
-                )
-            )
-            conn.commit()
-            print("[DB] Migrated: added study_id column to participants.")
-    except Exception:
-        pass  # Column already exists
+    _sa = __import__('sqlalchemy')
+    migrations = [
+        ("participants",   "ALTER TABLE participants ADD COLUMN study_id VARCHAR(128)"),
+        ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN llm_feedback TEXT"),
+    ]
+    for table, sql in migrations:
+        try:
+            with engine.connect() as conn:
+                conn.execute(_sa.text(sql))
+                conn.commit()
+                print(f"[DB] Migrated: {sql}")
+        except Exception:
+            pass  # Column already exists
     print("[DB] Tables ready.")
 
 
@@ -273,8 +275,8 @@ def save_prompt_attempt(prolific_id: str, prompt_text: str, passed: bool = None)
         db.close()
 
 
-def update_prompt_attempt_result(prolific_id: str, attempt_num: int, passed: bool):
-    """Update the passed field on an existing prompt attempt row."""
+def update_prompt_attempt_result(prolific_id: str, attempt_num: int, passed: bool, llm_feedback: str = None):
+    """Update the passed field (and optional llm_feedback) on an existing prompt attempt row."""
     db = SessionLocal()
     try:
         row = (
@@ -284,6 +286,8 @@ def update_prompt_attempt_result(prolific_id: str, attempt_num: int, passed: boo
         )
         if row:
             row.passed = passed
+            if llm_feedback is not None:
+                row.llm_feedback = llm_feedback
             db.commit()
     except Exception as e:
         db.rollback()
