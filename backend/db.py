@@ -132,6 +132,32 @@ class PromptAttempt(Base):
     created_at   = Column(DateTime, default=datetime.utcnow)
 
 
+class SeedPrompt(Base):
+    """A prompt from a past participant, used as a seed for cross-validation."""
+    __tablename__ = 'seed_prompts'
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    slot_number  = Column(Integer, nullable=False)
+    prolific_id  = Column(String(128), nullable=False)   # reference participant
+    prompt_text  = Column(Text, nullable=False)
+    flights_json = Column(Text, nullable=False)           # all flights shown for this prompt
+    rerank_count = Column(Integer, default=0)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+
+class CVRanking(Base):
+    """Rankings submitted by participants during cross-validation."""
+    __tablename__ = 'cv_rankings'
+
+    id                   = Column(Integer, primary_key=True, autoincrement=True)
+    reviewer_prolific_id = Column(String(128), nullable=False, index=True)
+    seed_prompt_id       = Column(Integer, nullable=False, index=True)
+    rank                 = Column(Integer, nullable=False)
+    flight_key           = Column(String(256), nullable=False)
+    flight_json          = Column(Text, nullable=False)
+    created_at           = Column(DateTime, default=datetime.utcnow)
+
+
 # ============================================================================
 # INIT
 # ============================================================================
@@ -396,5 +422,83 @@ def get_rankings(prolific_id: str) -> list:
             .all()
         )
         return [json.loads(r.flight_json) for r in rows]
+    finally:
+        db.close()
+
+
+# ============================================================================
+# CROSS-VALIDATION FUNCTIONS
+# ============================================================================
+def get_next_seed_prompt(reviewer_prolific_id: str) -> dict | None:
+    """Return the next seed prompt to assign to this reviewer.
+
+    Sequential allocation: lowest-id seed prompt that still has rerank_count < 10.
+    Returns None if all seed prompts are fully saturated.
+    """
+    db = SessionLocal()
+    try:
+        seed = (
+            db.query(SeedPrompt)
+            .filter(SeedPrompt.rerank_count < 10)
+            .order_by(SeedPrompt.id)
+            .first()
+        )
+        if not seed:
+            return None
+        return {
+            'id': seed.id,
+            'slot_number': seed.slot_number,
+            'prompt_text': seed.prompt_text,
+            'flights_json': seed.flights_json,
+        }
+    finally:
+        db.close()
+
+
+def save_cv_rankings(reviewer_prolific_id: str, seed_prompt_id: int, selected_flights: list) -> bool:
+    """Save cross-validation rankings and increment the seed prompt's rerank_count."""
+    db = SessionLocal()
+    try:
+        for i, flight in enumerate(selected_flights):
+            flight_key = f"{flight['id']}_{flight['departure_time']}"
+            db.add(CVRanking(
+                reviewer_prolific_id=reviewer_prolific_id,
+                seed_prompt_id=seed_prompt_id,
+                rank=i + 1,
+                flight_key=flight_key,
+                flight_json=json.dumps(flight),
+            ))
+        seed = db.query(SeedPrompt).filter_by(id=seed_prompt_id).first()
+        if seed:
+            seed.rerank_count += 1
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"[DB] save_cv_rankings error: {e}")
+        return False
+    finally:
+        db.close()
+
+
+def load_seed_prompt(slot_number: int, prolific_id: str, prompt_text: str, flights_json: str) -> bool:
+    """Insert a single seed prompt row. No-op if prolific_id already loaded."""
+    db = SessionLocal()
+    try:
+        existing = db.query(SeedPrompt).filter_by(prolific_id=prolific_id).first()
+        if existing:
+            return False  # already loaded
+        db.add(SeedPrompt(
+            slot_number=slot_number,
+            prolific_id=prolific_id,
+            prompt_text=prompt_text,
+            flights_json=flights_json,
+        ))
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"[DB] load_seed_prompt error: {e}")
+        return False
     finally:
         db.close()

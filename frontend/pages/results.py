@@ -173,16 +173,54 @@ def render_completion_section():
 # Private helpers
 # ---------------------------------------------------------------------------
 
-def _render_cross_validation(rerank_targets):
-    """Render cross-validation section (Groups B/C pilot tokens). Currently unused."""
-    # Cross-validation not active — mark complete immediately
-    st.session_state.cross_validation_completed = True
-    st.session_state.cross_val_data = None
-    if not st.session_state.get('backup_triggered'):
-        st.session_state.backup_triggered = True
-        _trigger_backup(st.session_state.get('token', 'unknown'))
+def _render_cross_validation(_unused):
+    """Render cross-validation: participant re-ranks flights from a seed prompt."""
+    import json as _json
+
+    # Assign seed prompt once per session
+    if not st.session_state.get('cv_seed_prompt_id'):
+        from backend.db import get_next_seed_prompt
+        seed = get_next_seed_prompt(st.session_state.get('token', ''))
+        if not seed:
+            # No seed prompts loaded — skip CV gracefully
+            st.session_state.cross_validation_completed = True
+            st.session_state.all_reranks_completed = True
+            if not st.session_state.get('backup_triggered'):
+                st.session_state.backup_triggered = True
+                _trigger_backup(st.session_state.get('token', 'unknown'))
+            return
+        st.session_state.cv_seed_prompt_id = seed['id']
+        st.session_state.cv_seed_prompt_data = seed
+
+    seed = st.session_state.cv_seed_prompt_data
+    flights = _json.loads(seed['flights_json']) if isinstance(seed['flights_json'], str) else seed['flights_json']
+    rank_limit = min(20, len(flights))
+
+    for key, default in [
+        ('cross_val_selected_flights', []),
+        ('cv_checkbox_version', 0),
+        ('cv_sort_version', 0),
+        ('cv_sort_price_dir', 'asc'),
+        ('cv_sort_duration_dir', 'asc'),
+    ]:
+        if key not in st.session_state:
+            st.session_state[key] = default
+
+    st.markdown("---")
+    st.markdown("## One More Task")
+    st.markdown("Before you finish, please rank the flights shown for another participant's search prompt.")
+    st.info(f"**Their search prompt:**\n\n> {seed['prompt_text']}")
+
+    if len(flights) <= 20:
+        st.info(f"There are {len(flights)} flights — please check and rank **all {len(flights)}** of them.")
+    else:
+        st.info("There are more than 20 flights — please select and rank the **top 20** that best match this prompt.")
+
+    st.markdown("---")
+    _render_cv_flight_list(flights, rank_limit)
     return
 
+    # Dead code below — kept for reference only
     # Dim everything above this section
     st.markdown("""
     <style>
@@ -254,6 +292,160 @@ def _render_cross_validation(rerank_targets):
             _render_cv_flight_selection(rerank_targets)
 
     st.markdown('</div>', unsafe_allow_html=True)
+
+
+def _render_cv_flight_list(flights: list, rank_limit: int):
+    """Flight list + ranking column for the new seed-prompt cross-validation."""
+    from streamlit_sortables import sort_items
+
+    col_flights, col_ranking = st.columns([2, 1])
+
+    with col_flights:
+        st.markdown("#### Flights")
+
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            arrow = "↑" if st.session_state.cv_sort_price_dir == 'asc' else "↓"
+            if st.button(f"Sort by Price {arrow}", key="cv2_sort_price", use_container_width=True):
+                flights[:] = sorted(flights, key=lambda x: x['price'],
+                                    reverse=(st.session_state.cv_sort_price_dir == 'desc'))
+                st.session_state.cv_sort_price_dir = 'desc' if st.session_state.cv_sort_price_dir == 'asc' else 'asc'
+                st.session_state.cv_seed_prompt_data = {
+                    **st.session_state.cv_seed_prompt_data,
+                    'flights_json': __import__('json').dumps(flights),
+                }
+                st.rerun()
+        with col_s2:
+            arrow = "↑" if st.session_state.cv_sort_duration_dir == 'asc' else "↓"
+            if st.button(f"Sort by Duration {arrow}", key="cv2_sort_dur", use_container_width=True):
+                flights[:] = sorted(flights, key=lambda x: x['duration_min'],
+                                    reverse=(st.session_state.cv_sort_duration_dir == 'desc'))
+                st.session_state.cv_sort_duration_dir = 'desc' if st.session_state.cv_sort_duration_dir == 'asc' else 'asc'
+                st.session_state.cv_seed_prompt_data = {
+                    **st.session_state.cv_seed_prompt_data,
+                    'flights_json': __import__('json').dumps(flights),
+                }
+                st.rerun()
+
+        for idx, flight in enumerate(flights):
+            flight_key = f"{flight['id']}_{flight['departure_time']}"
+            is_selected = any(
+                f"{f['id']}_{f['departure_time']}" == flight_key
+                for f in st.session_state.cross_val_selected_flights
+            )
+
+            c1, c2 = st.columns([1, 5])
+            with c1:
+                chk_key = f"cv2_chk_{idx}_v{st.session_state.cv_checkbox_version}"
+                if chk_key not in st.session_state:
+                    st.session_state[chk_key] = is_selected
+                selected = st.checkbox(
+                    "Select",
+                    key=chk_key,
+                    label_visibility="collapsed",
+                    disabled=(not st.session_state[chk_key] and
+                              len(st.session_state.cross_val_selected_flights) >= rank_limit),
+                )
+                if selected and not is_selected:
+                    if len(st.session_state.cross_val_selected_flights) < rank_limit:
+                        st.session_state.cross_val_selected_flights.append(flight)
+                        st.rerun()
+                elif not selected and is_selected:
+                    st.session_state.cross_val_selected_flights = [
+                        f for f in st.session_state.cross_val_selected_flights
+                        if f"{f['id']}_{f['departure_time']}" != flight_key
+                    ]
+                    st.rerun()
+
+            with c2:
+                dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
+                arr_dt  = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
+                dh, dm  = divmod(flight['duration_min'], 60)
+                dur_str = f"{dh} hr {dm} min" if dh else f"{dm} min"
+                airline_name = get_airline_name(flight['airline'])
+                stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
+                st.markdown(f"""
+                <div style="line-height:1.4;padding:0.4rem 0;border-bottom:1px solid #eee;">
+                <div style="font-size:1.1em;margin-bottom:0.2rem;">
+                    <b>{format_price(flight['price'])}</b> &bull;
+                    <span>{dur_str}</span> &bull;
+                    <span>{stops_text}</span> &bull;
+                    <span>{dept_dt.strftime('%I:%M %p')} - {arr_dt.strftime('%I:%M %p')}</span>
+                </div>
+                <div style="font-size:0.9em;color:#666;">
+                    {airline_name} {flight['flight_number']} |
+                    {flight['origin']} &rarr; {flight['destination']} |
+                    {dept_dt.strftime('%a, %b %d')}
+                </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    with col_ranking:
+        st.markdown(f"#### Top {rank_limit} (Drag to Rank)")
+        st.markdown(f"**{len(st.session_state.cross_val_selected_flights)}/{rank_limit} selected**")
+
+        if not st.session_state.cross_val_selected_flights:
+            st.info("Check boxes on the left to select flights")
+            return
+
+        if len(st.session_state.cross_val_selected_flights) > rank_limit:
+            st.session_state.cross_val_selected_flights = st.session_state.cross_val_selected_flights[:rank_limit]
+            st.rerun()
+
+        draggable_items = []
+        for i, f in enumerate(st.session_state.cross_val_selected_flights):
+            dept_dt = datetime.fromisoformat(f['departure_time'].replace('Z', '+00:00'))
+            arr_dt  = datetime.fromisoformat(f['arrival_time'].replace('Z', '+00:00'))
+            dh, dm  = divmod(f['duration_min'], 60)
+            dur_str = f"{dh}h {dm}m" if dh else f"{dm}m"
+            stops   = "Nonstop" if f['stops'] == 0 else f"{f['stops']} stop{'s' if f['stops']>1 else ''}"
+            draggable_items.append(
+                f"#{i+1}: {format_price(f['price'])} • {dur_str} • {stops}\n"
+                f"{dept_dt.strftime('%I:%M %p')} - {arr_dt.strftime('%I:%M %p')}\n"
+                f"{get_airline_name(f['airline'])} {f['flight_number']}\n"
+                f"{f['origin']} → {f['destination']} | {dept_dt.strftime('%a, %b %d')}"
+            )
+
+        sorted_items = sort_items(
+            draggable_items,
+            multi_containers=False,
+            direction='vertical',
+            key=f"cv2_sort_v{st.session_state.cv_sort_version}_n{len(st.session_state.cross_val_selected_flights)}"
+        )
+
+        if sorted_items != draggable_items and len(sorted_items) == len(draggable_items):
+            new_order = []
+            for si in sorted_items:
+                rank = int(si.split(':')[0].replace('#', '')) - 1
+                if rank < len(st.session_state.cross_val_selected_flights):
+                    new_order.append(st.session_state.cross_val_selected_flights[rank])
+            if len(new_order) == len(st.session_state.cross_val_selected_flights):
+                st.session_state.cross_val_selected_flights = new_order
+                st.session_state.cv_sort_version += 1
+                st.rerun()
+
+        st.markdown("---")
+        if len(st.session_state.cross_val_selected_flights) == rank_limit:
+            if st.button("Submit Cross-Validation Rankings", key="cv2_submit",
+                         type="primary", use_container_width=True):
+                from backend.db import save_cv_rankings
+                success = save_cv_rankings(
+                    reviewer_prolific_id=st.session_state.get('token', ''),
+                    seed_prompt_id=st.session_state.cv_seed_prompt_id,
+                    selected_flights=st.session_state.cross_val_selected_flights,
+                )
+                if success:
+                    st.session_state.cross_validation_completed = True
+                    st.session_state.all_reranks_completed = True
+                    if not st.session_state.get('backup_triggered'):
+                        st.session_state.backup_triggered = True
+                        _trigger_backup(st.session_state.get('token', 'unknown'))
+                    st.rerun()
+                else:
+                    st.error("Failed to save. Please try again.")
+        else:
+            remaining = rank_limit - len(st.session_state.cross_val_selected_flights)
+            st.info(f"Select {remaining} more flight{'s' if remaining != 1 else ''}")
 
 
 def _render_cv_flight_selection(rerank_targets):
