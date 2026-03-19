@@ -11,7 +11,6 @@ from streamlit_sortables import sort_items
 
 from frontend.utils import (
     apply_filters,
-    detect_codeshares,
     format_price,
     get_airline_name,
     generate_flight_csv,
@@ -185,39 +184,6 @@ def render_ranking_section():
         destinations=st.session_state.filter_destinations,
     )
 
-    # Codeshare banner
-    outbound_codeshares = detect_codeshares(st.session_state.all_flights)
-    if any(outbound_codeshares.values()):
-        with st.container():
-            st.info(
-                "**About Your Results:** Codeshares can show the same flight under different "
-                "airlines at the same or different prices—we label these so you know it's one aircraft."
-            )
-            with st.expander("Learn More: Why Do I See Multiple Entries for the Same Flight?"):
-                st.markdown("""
-                ### FAQ: Codeshare Flights Explained
-
-                **Q: Why do some flights appear multiple times in search results?**
-
-                Many airlines operate "codeshare" flights. This means one airline operates the plane,
-                but multiple partner airlines sell seats on that same physical flight under different
-                flight numbers.
-
-                **Example:**
-                - United flight UA123
-                - Lufthansa flight LH9001
-
-                Both may refer to the same aircraft, same departure and arrival times, same route,
-                and often the same price.
-
-                ---
-
-                **Q: Are these duplicate flights?**
-
-                Not technically. Each codeshare entry is a different booking option, even though
-                they correspond to the same aircraft.
-                """)
-
     # ------------------------------------------------------------------
     # SINGLE PANEL LAYOUT
     # ------------------------------------------------------------------
@@ -255,8 +221,6 @@ def render_ranking_section():
                 st.session_state.sort_duration_dir_single = 'desc' if st.session_state.sort_duration_dir_single == 'asc' else 'asc'
                 st.rerun()
 
-        codeshare_map = detect_codeshares(filtered_outbound)
-
         for idx, flight in enumerate(filtered_outbound):
             flight_key = f"{flight['id']}_{flight['departure_time']}"
             is_selected = any(
@@ -293,10 +257,6 @@ def render_ranking_section():
                 dm = flight['duration_min'] % 60
                 duration_display = f"{dh} hr {dm} min" if dh > 0 else f"{dm} min"
                 airline_name = get_airline_name(flight['airline'])
-                codeshare_label = (
-                    '<span style="font-size: 0.75em; color: #666; font-style: italic;"> (Codeshare)</span>'
-                    if codeshare_map.get(idx, False) else ""
-                )
                 stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
                 neon_class = "metric-neon" if idx == 0 else ""
 
@@ -309,7 +269,7 @@ def render_ranking_section():
                     <span class="{neon_class}" style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
                 </div>
                 <div style="font-size: 0.9em; color: #666;">
-                    <span class="{neon_class}">{airline_name} {flight['flight_number']}{codeshare_label}</span> |
+                    <span class="{neon_class}">{airline_name} {flight['flight_number']}</span> |
                     <span class="{neon_class}">{flight['origin']} &rarr; {flight['destination']}</span> |
                     <span class="{neon_class}">{dept_date_display}</span>
                 </div>

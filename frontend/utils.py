@@ -61,27 +61,27 @@ def build_manual_parsed(origins, destinations, departure_date, return_date=None)
     }
 
 
-def detect_codeshares(flights):
+def remove_codeshares(flights):
     """
-    Detect which flights are codeshares based on identical departure_time,
-    arrival_time, origin, and destination.
-
-    Returns dict mapping flight index -> is_codeshare boolean.
+    Remove all flights that are duplicates by either:
+    - Same flight number + departure time + route (same underlying flight, different arrival)
+    - Same full itinerary (departure + arrival + route, different flight numbers / codeshares)
+    All copies in a duplicate group are dropped.
     """
-    codeshare_map = {}
-    for i, flight in enumerate(flights):
-        is_codeshare = False
-        for j, other in enumerate(flights):
-            if i == j:
-                continue
-            if (flight['departure_time'] == other['departure_time'] and
-                    flight['arrival_time'] == other['arrival_time'] and
-                    flight['origin'] == other['origin'] and
-                    flight['destination'] == other['destination']):
-                is_codeshare = True
-                break
-        codeshare_map[i] = is_codeshare
-    return codeshare_map
+    from collections import Counter
+    fn_counts = Counter(
+        (f['flight_number'], f['departure_time'], f['origin'], f['destination'])
+        for f in flights
+    )
+    itinerary_counts = Counter(
+        (f['departure_time'], f['arrival_time'], f['origin'], f['destination'])
+        for f in flights
+    )
+    return [
+        f for f in flights
+        if fn_counts[(f['flight_number'], f['departure_time'], f['origin'], f['destination'])] == 1
+        and itinerary_counts[(f['departure_time'], f['arrival_time'], f['origin'], f['destination'])] == 1
+    ]
 
 
 def apply_filters(flights, airlines=None, connections=None, price_range=None,

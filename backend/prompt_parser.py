@@ -136,7 +136,7 @@ For small cities, include nearby major airports within 100 miles as alternatives
 
         # Use new SDK
         response = genai_client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-2.5-flash-lite',
             contents=llm_prompt
         )
 

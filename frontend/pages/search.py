@@ -5,6 +5,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from frontend.styles import TEXTAREA_CSS, PROMPT_SPACING_CSS
+from frontend.utils import remove_codeshares
 
 
 CAROUSEL_HTML = r"""
@@ -534,7 +535,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             airline_name_map = flight_client.get_airline_names(list(set(all_airline_codes)))
             st.session_state.airline_names = airline_name_map
 
-            st.session_state.all_flights = all_flights
+            st.session_state.all_flights = remove_codeshares(all_flights)
 
             # Save session progress
             if st.session_state.get('token'):
