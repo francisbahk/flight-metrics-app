@@ -356,6 +356,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     manual_route = None
 
     st.markdown("Describe your trip in plain English — origin, destination, dates, and any preferences.")
+    st.caption("💡 **Tip:** If you want flights from a specific city, the search will automatically include all nearby airports. If results are missing an airport you want, add it explicitly by name (e.g. \"PIE\" or \"SRQ\") in your prompt.")
     with st.form("ai_search_form", clear_on_submit=False):
         ai_prompt_input = st.text_area(
             "Your trip prompt",

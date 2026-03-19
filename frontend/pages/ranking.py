@@ -344,61 +344,66 @@ def _render_sidebar_filters():
                     selected_connections.append(conn)
             st.session_state.filter_connections = selected_connections if selected_connections else None
 
-        with st.expander("Price Range", expanded=False):
-            price_range = st.slider(
-                "Select price range",
-                min_value=float(min_price), max_value=float(max_price),
-                value=(float(min_price), float(max_price)),
-                step=10.0, format="$%.0f",
-                key=f"filter_price_slider_{rc}"
-            )
-            st.session_state.filter_price_range = (
-                price_range if price_range != (float(min_price), float(max_price)) else None
-            )
+        if len(all_flights) <= 1:
+            st.caption("Only one flight — filters not applicable.")
+        else:
+            with st.expander("Price Range", expanded=False):
+                price_range = st.slider(
+                    "Select price range",
+                    min_value=float(min_price), max_value=float(max_price),
+                    value=(float(min_price), float(max_price)),
+                    step=10.0, format="$%.0f",
+                    key=f"filter_price_slider_{rc}"
+                )
+                st.session_state.filter_price_range = (
+                    price_range if price_range != (float(min_price), float(max_price)) else None
+                )
 
         def hours_to_time(h):
             hours = int(h)
             mins = int((h - hours) * 60)
             return f"{hours:02d}:{mins:02d}"
 
-        with st.expander("Flight Duration", expanded=False):
-            duration_range = st.slider(
-                "Select duration range",
-                min_value=int(min_duration), max_value=int(max_duration),
-                value=(int(min_duration), int(max_duration)),
-                step=30, format="%d min",
-                key=f"filter_duration_slider_{rc}"
-            )
-            min_h, min_m = divmod(duration_range[0], 60)
-            max_h, max_m = divmod(duration_range[1], 60)
-            st.caption(f"{min_h}h {min_m}m - {max_h}h {max_m}m")
-            st.session_state.filter_duration_range = (
-                duration_range if duration_range != (int(min_duration), int(max_duration)) else None
-            )
+        if len(all_flights) > 1:
+            with st.expander("Flight Duration", expanded=False):
+                duration_range = st.slider(
+                    "Select duration range",
+                    min_value=int(min_duration), max_value=int(max_duration),
+                    value=(int(min_duration), int(max_duration)),
+                    step=30, format="%d min",
+                    key=f"filter_duration_slider_{rc}"
+                )
+                min_h, min_m = divmod(duration_range[0], 60)
+                max_h, max_m = divmod(duration_range[1], 60)
+                st.caption(f"{min_h}h {min_m}m - {max_h}h {max_m}m")
+                st.session_state.filter_duration_range = (
+                    duration_range if duration_range != (int(min_duration), int(max_duration)) else None
+                )
 
-        with st.expander("Departure Time", expanded=False):
-            dept_range = st.slider(
-                "Select departure time range",
-                min_value=0.0, max_value=24.0, value=(0.0, 24.0),
-                step=0.5, format="%.1f",
-                key=f"filter_departure_slider_{rc}"
-            )
-            st.caption(f"{hours_to_time(dept_range[0])} - {hours_to_time(dept_range[1])}")
-            st.session_state.filter_departure_time_range = (
-                dept_range if dept_range != (0.0, 24.0) else None
-            )
+        if len(all_flights) > 1:
+            with st.expander("Departure Time", expanded=False):
+                dept_range = st.slider(
+                    "Select departure time range",
+                    min_value=0.0, max_value=24.0, value=(0.0, 24.0),
+                    step=0.5, format="%.1f",
+                    key=f"filter_departure_slider_{rc}"
+                )
+                st.caption(f"{hours_to_time(dept_range[0])} - {hours_to_time(dept_range[1])}")
+                st.session_state.filter_departure_time_range = (
+                    dept_range if dept_range != (0.0, 24.0) else None
+                )
 
-        with st.expander("Arrival Time", expanded=False):
-            arr_range = st.slider(
-                "Select arrival time range",
-                min_value=0.0, max_value=24.0, value=(0.0, 24.0),
-                step=0.5, format="%.1f",
-                key=f"filter_arrival_slider_{rc}"
-            )
-            st.caption(f"{hours_to_time(arr_range[0])} - {hours_to_time(arr_range[1])}")
-            st.session_state.filter_arrival_time_range = (
-                arr_range if arr_range != (0.0, 24.0) else None
-            )
+            with st.expander("Arrival Time", expanded=False):
+                arr_range = st.slider(
+                    "Select arrival time range",
+                    min_value=0.0, max_value=24.0, value=(0.0, 24.0),
+                    step=0.5, format="%.1f",
+                    key=f"filter_arrival_slider_{rc}"
+                )
+                st.caption(f"{hours_to_time(arr_range[0])} - {hours_to_time(arr_range[1])}")
+                st.session_state.filter_arrival_time_range = (
+                    arr_range if arr_range != (0.0, 24.0) else None
+                )
 
         if st.button("Clear All Filters", use_container_width=True):
             st.session_state.filter_airlines = None

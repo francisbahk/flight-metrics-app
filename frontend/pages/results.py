@@ -814,21 +814,17 @@ def _render_completion_page():
         "Please share any feedback below."
     )
 
-    with st.form("post_survey_form", clear_on_submit=False):
-        feedback = st.text_area(
-            label="Your feedback",
-            placeholder="Share any thoughts, confusion, or suggestions here...",
-            height=150,
-            label_visibility="collapsed",
-        )
-        submitted = st.form_submit_button(
-            "Submit & Finish", type="primary", use_container_width=True
-        )
-
-        if submitted:
-            _save_post_survey_feedback(feedback.strip())
-            st.session_state.post_survey_completed = True
-            st.rerun()
+    feedback = st.text_area(
+        label="Your feedback",
+        placeholder="Share any thoughts, confusion, or suggestions here...",
+        height=150,
+        label_visibility="collapsed",
+        key="post_survey_feedback_input",
+    )
+    if st.button("Submit & Finish", type="primary", use_container_width=True, key="post_survey_submit_btn"):
+        _save_post_survey_feedback(feedback.strip())
+        st.session_state.post_survey_completed = True
+        st.rerun()
 
 
 def _save_post_survey_feedback(feedback: str):
