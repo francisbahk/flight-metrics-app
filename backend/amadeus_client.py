@@ -5,7 +5,7 @@ Handles OAuth2 authentication and flight search requests.
 import os
 import requests
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -215,6 +215,165 @@ class AmadeusClient:
         except requests.exceptions.RequestException as e:
             print(f"⚠ Airport search failed: {str(e)}")
             return []
+
+    def get_airport_coordinates(self, iata_code: str) -> Optional[Tuple[float, float]]:
+        """
+        Look up airport coordinates by IATA code.
+
+        Args:
+            iata_code: Airport code (e.g., "TPA")
+
+        Returns:
+            (latitude, longitude) if found, else None
+        """
+        token = self._get_access_token()
+        code = (iata_code or "").strip().upper()
+        if not code:
+            return None
+
+        url = self.AUTH_URL.replace("/v1/security/oauth2/token", "/v1/reference-data/locations")
+
+        try:
+            response = requests.get(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                params={
+                    "keyword": code,
+                    "subType": "AIRPORT",
+                    "page[limit]": 10,
+                },
+                timeout=10,
+            )
+            response.raise_for_status()
+
+            data = response.json()
+            for loc in data.get("data", []):
+                if (loc.get("iataCode") or "").upper() != code:
+                    continue
+                geo = loc.get("geoCode", {})
+                lat = geo.get("latitude")
+                lon = geo.get("longitude")
+                if lat is None or lon is None:
+                    continue
+                return float(lat), float(lon)
+
+            return None
+
+        except requests.exceptions.RequestException as e:
+            print(f"⚠ Airport coordinate lookup failed for {code}: {str(e)}")
+            return None
+
+    def search_nearby_airports(
+        self,
+        latitude: float,
+        longitude: float,
+        radius_miles: int = 100,
+        max_results: int = 30,
+    ) -> List[Dict]:
+        """
+        Search airports near a coordinate using Amadeus geospatial endpoint.
+
+        Args:
+            latitude: Latitude in decimal degrees
+            longitude: Longitude in decimal degrees
+            radius_miles: Search radius in miles (default 100)
+            max_results: Max airports to return
+
+        Returns:
+            List of dicts with keys: iata_code, name, city, country, distance_miles
+        """
+        token = self._get_access_token()
+        url = self.AUTH_URL.replace("/v1/security/oauth2/token", "/v1/reference-data/locations/airports")
+
+        try:
+            response = requests.get(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                params={
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "radius": radius_miles,
+                    "radiusUnit": "MILE",
+                    "sort": "distance",
+                    "page[limit]": max_results,
+                },
+                timeout=10,
+            )
+            response.raise_for_status()
+
+            data = response.json()
+            results = []
+            for loc in data.get("data", []):
+                iata = loc.get("iataCode", "")
+                if not iata:
+                    continue
+                name = loc.get("name", "")
+                city = loc.get("address", {}).get("cityName", "")
+                country = loc.get("address", {}).get("countryName", "")
+                distance_val = (loc.get("distance") or {}).get("value")
+                distance_miles = float(distance_val) if distance_val is not None else None
+                results.append(
+                    {
+                        "iata_code": iata,
+                        "name": name,
+                        "city": city,
+                        "country": country,
+                        "distance_miles": distance_miles,
+                    }
+                )
+            return results
+
+        except requests.exceptions.RequestException as e:
+            print(f"⚠ Nearby airport search failed ({latitude}, {longitude}): {str(e)}")
+            return []
+
+    def expand_airports_within_radius(
+        self,
+        airport_codes: List[str],
+        radius_miles: int = 100,
+        max_results_per_airport: int = 30,
+    ) -> List[str]:
+        """
+        Expand IATA codes to include nearby airports in a radius.
+
+        Args:
+            airport_codes: Seed airport codes from parser
+            radius_miles: Radius around each seed airport
+            max_results_per_airport: Max nearby airports per seed
+
+        Returns:
+            Deduplicated list of IATA codes including nearby airports
+        """
+        expanded_codes: List[str] = []
+        seen = set()
+
+        for raw_code in airport_codes or []:
+            code = (raw_code or "").strip().upper()
+            if not code:
+                continue
+
+            if code not in seen:
+                expanded_codes.append(code)
+                seen.add(code)
+
+            coords = self.get_airport_coordinates(code)
+            if not coords:
+                continue
+
+            nearby = self.search_nearby_airports(
+                latitude=coords[0],
+                longitude=coords[1],
+                radius_miles=radius_miles,
+                max_results=max_results_per_airport,
+            )
+
+            for airport in nearby:
+                nearby_code = (airport.get("iata_code") or "").strip().upper()
+                if nearby_code and nearby_code not in seen:
+                    expanded_codes.append(nearby_code)
+                    seen.add(nearby_code)
+
+        return expanded_codes
 
     def get_airline_names(self, airline_codes: List[str]) -> Dict[str, str]:
         """

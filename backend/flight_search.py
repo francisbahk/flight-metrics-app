@@ -136,6 +136,37 @@ class FlightSearchClient:
         """
         return self.client.get_airline_names(airline_codes)
 
+    def expand_airports_within_radius(
+        self,
+        airport_codes: List[str],
+        radius_miles: int = 100,
+        max_results_per_airport: int = 30,
+    ) -> List[str]:
+        """
+        Expand airport codes to include nearby airports within a given radius.
+
+        For Amadeus provider, this uses geospatial airport lookup.
+        For other providers, returns normalized input codes unchanged.
+        """
+        normalized = []
+        seen = set()
+        for raw in airport_codes or []:
+            code = (raw or "").strip().upper()
+            if code and code not in seen:
+                normalized.append(code)
+                seen.add(code)
+
+        if self.provider == "amadeus" and hasattr(self.client, "expand_airports_within_radius"):
+            expanded = self.client.expand_airports_within_radius(
+                normalized,
+                radius_miles=radius_miles,
+                max_results_per_airport=max_results_per_airport,
+            )
+            # Guard against empty output from provider-specific expansion.
+            return expanded if expanded else normalized
+
+        return normalized
+
 
 # Convenience function for backwards compatibility
 def get_flight_client() -> FlightSearchClient:
@@ -169,5 +200,4 @@ if __name__ == "__main__":
                 print(f"  First flight: {parsed['airline']} - ${parsed['price']}")
     except Exception as e:
         print(f"\n✗ SerpAPI test failed: {e}")
-
 
