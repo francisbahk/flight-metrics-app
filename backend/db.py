@@ -429,7 +429,7 @@ def get_rankings(prolific_id: str) -> list:
 # ============================================================================
 # CROSS-VALIDATION FUNCTIONS
 # ============================================================================
-def get_next_seed_prompt(reviewer_prolific_id: str) -> dict | None:
+def get_next_seed_prompt(reviewer_prolific_id: str):
     """Return the next seed prompt to assign to this reviewer.
 
     Sequential allocation: lowest-id seed prompt that still has rerank_count < 10.

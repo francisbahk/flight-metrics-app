@@ -62,7 +62,7 @@ CRITICAL INSTRUCTIONS:
 4. **RETURN FLIGHTS**: Only set return_dates if the user explicitly mentions a return trip. Otherwise set it to [].
 5. **AIRPORT CODES**:
    - If the user writes a 3-letter IATA airport code (e.g. JFK, LAX, ORD), use it exactly as written.
-   - If the user writes a city or region name (e.g. "New York", "LA", "Chicago"), use your knowledge to return all major airports for that area.
+   - If the user writes a city or region name (e.g. "New York", "LA", "Chicago"), use your knowledge to return all relevant airports for that area.
    - Be careful with 3-letter words that are common English words (e.g. "get", "fly", "can", "the"). Use context to decide: if it appears as a destination or origin it is likely an airport code; if it appears mid-sentence as a verb or article it is not.
 """
 
