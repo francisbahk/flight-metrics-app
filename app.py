@@ -163,6 +163,14 @@ st.set_page_config(
 )
 
 # ============================================================================
+# DEV MODE — must run before phase gates so it can bypass them
+# ============================================================================
+from frontend.dev_shortcuts import is_dev_mode, render_dev_panel, inject_dev_base_state
+if is_dev_mode():
+    inject_dev_base_state()   # sets prolific_id, screening_completed, consent_given
+    render_dev_panel()        # sidebar skip panel
+
+# ============================================================================
 # PHASE GATE — check immediately after set_page_config, before anything renders
 # ============================================================================
 # Auto-fill from Prolific URL parameters
@@ -191,6 +199,7 @@ if not st.session_state.get('consent_given'):
     from frontend.pages.informed_consent import render_informed_consent
     render_informed_consent()
     st.stop()
+
 
 # Inject global CSS (only reached after gate check passes)
 from frontend.styles import GLOBAL_CSS

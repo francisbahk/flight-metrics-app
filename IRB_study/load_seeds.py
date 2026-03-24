@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.db import SessionLocal, Participant, load_seed_prompt
 
 
-def parse_seed_prompts_md(filepath: str) -> list[tuple[int, str]]:
+def parse_seed_prompts_md(filepath: str) -> list:
     """Parse the filled-in markdown and return list of (slot_number, prolific_id)."""
     with open(filepath) as f:
         content = f.read()

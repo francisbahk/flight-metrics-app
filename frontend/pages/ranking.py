@@ -117,6 +117,106 @@ _PROGRESS_BAR_CSS = """
 """
 
 
+@st.fragment
+def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
+    """
+    Fragment: only this section reruns on checkbox changes.
+    Full app reruns only for sort buttons, submit, and filter changes.
+    """
+    col_flights, col_ranking = st.columns([2, 1])
+
+    with col_flights:
+        st.markdown("#### All Available Flights")
+
+        if len(filtered_outbound) < len(st.session_state.all_flights):
+            st.info(f"Filters applied: Showing {len(filtered_outbound)} of {len(st.session_state.all_flights)} flights")
+
+        col_sort1, col_sort2 = st.columns(2)
+        with col_sort1:
+            arrow = "↑" if st.session_state.sort_price_dir_single == 'asc' else "↓"
+            if st.button(f"Sort by Price {arrow}", key="sort_price_single", use_container_width=True):
+                reverse = st.session_state.sort_price_dir_single == 'desc'
+                st.session_state.all_flights = sorted(
+                    st.session_state.all_flights, key=lambda x: x['price'], reverse=reverse
+                )
+                st.session_state.sort_price_dir_single = 'desc' if st.session_state.sort_price_dir_single == 'asc' else 'asc'
+                st.rerun()
+        with col_sort2:
+            arrow = "↑" if st.session_state.sort_duration_dir_single == 'asc' else "↓"
+            if st.button(f"Sort by Duration {arrow}", key="sort_duration_single", use_container_width=True):
+                reverse = st.session_state.sort_duration_dir_single == 'desc'
+                st.session_state.all_flights = sorted(
+                    st.session_state.all_flights, key=lambda x: x['duration_min'], reverse=reverse
+                )
+                st.session_state.sort_duration_dir_single = 'desc' if st.session_state.sort_duration_dir_single == 'asc' else 'asc'
+                st.rerun()
+
+        for idx, flight in enumerate(filtered_outbound):
+            flight_key = f"{flight['id']}_{flight['departure_time']}"
+            is_selected = any(
+                f"{f['id']}_{f['departure_time']}" == flight_key
+                for f in st.session_state.selected_flights
+            )
+
+            col1, col2 = st.columns([1, 5])
+
+            with col1:
+                # Key by flight identity, not position — prevents stale state when flights are sorted
+                safe_id = ''.join(c for c in flight_key if c.isalnum() or c in ('_', '-'))[:40]
+                chk_key = f"chk_{safe_id}_v{st.session_state.checkbox_version}"
+                if chk_key not in st.session_state:
+                    st.session_state[chk_key] = is_selected
+                selected = st.checkbox(
+                    "Select flight",
+                    key=chk_key,
+                    label_visibility="collapsed",
+                    disabled=(not st.session_state[chk_key] and
+                              len(st.session_state.selected_flights) >= rank_limit),
+                )
+                if selected and not is_selected:
+                    if len(st.session_state.selected_flights) < rank_limit:
+                        st.session_state.selected_flights.append(flight)
+                        # No st.rerun() — fragment auto-reruns on checkbox interaction
+                elif not selected and is_selected:
+                    st.session_state.selected_flights = [
+                        f for f in st.session_state.selected_flights
+                        if f"{f['id']}_{f['departure_time']}" != flight_key
+                    ]
+                    # No st.rerun() — fragment auto-reruns on checkbox interaction
+
+            with col2:
+                dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
+                arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
+                dept_time_display = dept_dt.strftime("%I:%M %p")
+                arr_time_display = arr_dt.strftime("%I:%M %p")
+                dept_date_display = dept_dt.strftime("%a, %b %d")
+                dh = flight['duration_min'] // 60
+                dm = flight['duration_min'] % 60
+                duration_display = f"{dh} hr {dm} min" if dh > 0 else f"{dm} min"
+                airline_name = get_airline_name(flight['airline'])
+                stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
+                neon_class = "metric-neon" if idx == 0 else ""
+
+                st.markdown(f"""
+                <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
+                <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
+                    <span class="{neon_class}" style="font-weight: 700;">{format_price(flight['price'])}</span> &bull;
+                    <span class="{neon_class}" style="font-weight: 600;">{duration_display}</span> &bull;
+                    <span class="{neon_class}" style="font-weight: 500;">{stops_text}</span> &bull;
+                    <span class="{neon_class}" style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
+                </div>
+                <div style="font-size: 0.9em; color: #666;">
+                    <span class="{neon_class}">{airline_name} {flight['flight_number']}</span> |
+                    <span class="{neon_class}">{flight['origin']} &rarr; {flight['destination']}</span> |
+                    <span class="{neon_class}">{dept_date_display}</span>
+                </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    with col_ranking:
+        _render_ranking_column(rank_limit)
+
+
 def render_ranking_section():
     """
     Render sidebar filters + single-panel flight list + ranking column.
@@ -172,12 +272,10 @@ def render_ranking_section():
     else:
         st.info("There are more than 20 flights in your results — please select and rank your **top 20**.")
 
-    # ------------------------------------------------------------------
-    # SIDEBAR FILTERS
-    # ------------------------------------------------------------------
+    # Sidebar filters (outside fragment — filter changes trigger full reruns)
     _render_sidebar_filters()
 
-    # Apply filters
+    # Apply filters (outside fragment — recomputed on every full rerun)
     filtered_outbound = apply_filters(
         st.session_state.all_flights,
         airlines=st.session_state.filter_airlines,
@@ -190,104 +288,13 @@ def render_ranking_section():
         destinations=st.session_state.filter_destinations,
     )
 
-    # ------------------------------------------------------------------
-    # SINGLE PANEL LAYOUT
-    # ------------------------------------------------------------------
     st.markdown('<div id="top-of-page"></div>', unsafe_allow_html=True)
     st.markdown('<div id="outbound-flights"></div>', unsafe_allow_html=True)
     st.markdown("## Outbound Flights")
-
     st.markdown(NEON_METRIC_CSS, unsafe_allow_html=True)
 
-    col_flights, col_ranking = st.columns([2, 1])
-
-    with col_flights:
-        st.markdown("#### All Available Flights")
-
-        if len(filtered_outbound) < len(st.session_state.all_flights):
-            st.info(f"Filters applied: Showing {len(filtered_outbound)} of {len(st.session_state.all_flights)} flights")
-
-        col_sort1, col_sort2 = st.columns(2)
-        with col_sort1:
-            arrow = "" if st.session_state.sort_price_dir_single == 'asc' else ""
-            if st.button(f"Sort by Price {arrow}", key="sort_price_single", use_container_width=True):
-                reverse = st.session_state.sort_price_dir_single == 'desc'
-                st.session_state.all_flights = sorted(
-                    st.session_state.all_flights, key=lambda x: x['price'], reverse=reverse
-                )
-                st.session_state.sort_price_dir_single = 'desc' if st.session_state.sort_price_dir_single == 'asc' else 'asc'
-                st.rerun()
-        with col_sort2:
-            arrow = "" if st.session_state.sort_duration_dir_single == 'asc' else ""
-            if st.button(f"Sort by Duration {arrow}", key="sort_duration_single", use_container_width=True):
-                reverse = st.session_state.sort_duration_dir_single == 'desc'
-                st.session_state.all_flights = sorted(
-                    st.session_state.all_flights, key=lambda x: x['duration_min'], reverse=reverse
-                )
-                st.session_state.sort_duration_dir_single = 'desc' if st.session_state.sort_duration_dir_single == 'asc' else 'asc'
-                st.rerun()
-
-        for idx, flight in enumerate(filtered_outbound):
-            flight_key = f"{flight['id']}_{flight['departure_time']}"
-            is_selected = any(
-                f"{f['id']}_{f['departure_time']}" == flight_key
-                for f in st.session_state.selected_flights
-            )
-
-            col1, col2 = st.columns([1, 5])
-
-            with col1:
-                chk_key = f"chk_single_{idx}_v{st.session_state.checkbox_version}"
-                if chk_key not in st.session_state:
-                    st.session_state[chk_key] = is_selected
-                selected = st.checkbox(
-                    "Select flight",
-                    key=chk_key,
-                    label_visibility="collapsed",
-                    disabled=(not st.session_state[chk_key] and len(st.session_state.selected_flights) >= rank_limit)
-                )
-                if selected and not is_selected:
-                    if len(st.session_state.selected_flights) < rank_limit:
-                        st.session_state.selected_flights.append(flight)
-                        st.rerun()
-                elif not selected and is_selected:
-                    st.session_state.selected_flights = [
-                        f for f in st.session_state.selected_flights
-                        if f"{f['id']}_{f['departure_time']}" != flight_key
-                    ]
-                    st.rerun()
-
-            with col2:
-                dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
-                arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
-                dept_time_display = dept_dt.strftime("%I:%M %p")
-                arr_time_display = arr_dt.strftime("%I:%M %p")
-                dept_date_display = dept_dt.strftime("%a, %b %d")
-                dh = flight['duration_min'] // 60
-                dm = flight['duration_min'] % 60
-                duration_display = f"{dh} hr {dm} min" if dh > 0 else f"{dm} min"
-                airline_name = get_airline_name(flight['airline'])
-                stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
-                neon_class = "metric-neon" if idx == 0 else ""
-
-                st.markdown(f"""
-                <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
-                <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
-                    <span class="{neon_class}" style="font-weight: 700;">{format_price(flight['price'])}</span> &bull;
-                    <span class="{neon_class}" style="font-weight: 600;">{duration_display}</span> &bull;
-                    <span class="{neon_class}" style="font-weight: 500;">{stops_text}</span> &bull;
-                    <span class="{neon_class}" style="font-weight: 500;">{dept_time_display} - {arr_time_display}</span>
-                </div>
-                <div style="font-size: 0.9em; color: #666;">
-                    <span class="{neon_class}">{airline_name} {flight['flight_number']}</span> |
-                    <span class="{neon_class}">{flight['origin']} &rarr; {flight['destination']}</span> |
-                    <span class="{neon_class}">{dept_date_display}</span>
-                </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-    with col_ranking:
-        _render_ranking_column(rank_limit)
+    # Fragment: checkboxes + ranking column rerun independently of the full app
+    _render_flight_selection_fragment(filtered_outbound, rank_limit)
 
 
 def _render_sidebar_filters():

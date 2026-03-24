@@ -126,20 +126,8 @@ def render_completion_section():
         # ------------------------------------------------------------------
         # 3a. CROSS-VALIDATION
         # ------------------------------------------------------------------
-        token_group = st.session_state.get('token_group')
-        rerank_targets = st.session_state.get('rerank_targets', [])
-
-        # Group A: skip cross-validation
-        if token_group == 'A' and not st.session_state.get('cross_validation_completed'):
-            st.session_state.cross_validation_completed = True
-            st.session_state.all_reranks_completed = True
-            print("[PILOT] Group A token - skipping cross-validation")
-            if not st.session_state.get('backup_triggered'):
-                st.session_state.backup_triggered = True
-                _trigger_backup(st.session_state.get('token', 'unknown'))
-
         if not st.session_state.get('cross_validation_completed'):
-            _render_cross_validation(rerank_targets)
+            _render_cross_validation(None)
 
         # ------------------------------------------------------------------
         # 3b. COMPLETION PAGE
