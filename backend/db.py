@@ -44,10 +44,11 @@ if DB_TYPE == 'mysql':
     )
     engine = create_engine(
         DATABASE_URL,
-        pool_pre_ping=True,
+        pool_pre_ping=False,
         pool_recycle=3600,
         pool_size=5,
         max_overflow=10,
+        connect_args={},
     )
 else:
     _db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'flight_rankings.db')
@@ -156,6 +157,17 @@ class CVRanking(Base):
     flight_key           = Column(String(256), nullable=False)
     flight_json          = Column(Text, nullable=False)
     created_at           = Column(DateTime, default=datetime.utcnow)
+
+
+class ChatMessage(Base):
+    """Full chat conversation history during the search phase."""
+    __tablename__ = 'chat_messages'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    prolific_id = Column(String(128), nullable=False, index=True)
+    role        = Column(String(16), nullable=False)   # 'user' or 'bot'
+    text        = Column(Text, nullable=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
 
 
 # ============================================================================
@@ -318,6 +330,19 @@ def update_prompt_attempt_result(prolific_id: str, attempt_num: int, passed: boo
     except Exception as e:
         db.rollback()
         print(f"[DB] update_prompt_attempt_result error: {e}")
+    finally:
+        db.close()
+
+
+def save_chat_message(prolific_id: str, role: str, text: str):
+    """Persist a single chat turn (role='user' or 'bot') to the chat_messages table."""
+    db = SessionLocal()
+    try:
+        db.add(ChatMessage(prolific_id=prolific_id, role=role, text=text))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"[DB] save_chat_message error: {e}")
     finally:
         db.close()
 
