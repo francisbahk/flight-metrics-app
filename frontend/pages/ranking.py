@@ -116,12 +116,43 @@ _PROGRESS_BAR_CSS = """
 """
 
 
+def _apply_pending_rank_action():
+    """Apply any pending ↑↓/✕ action BEFORE widgets render so the fragment shows updated state in one pass."""
+    action = st.session_state.pop('_pending_rank_action', None)
+    if not action:
+        return
+    flights = list(st.session_state.selected_flights)
+    atype = action['type']
+    if atype == 'swap_up':
+        i = action['i']
+        if 0 < i < len(flights):
+            flights[i], flights[i - 1] = flights[i - 1], flights[i]
+            st.session_state.selected_flights = flights
+            st.session_state.single_sort_version += 1
+    elif atype == 'swap_dn':
+        i = action['i']
+        if 0 <= i < len(flights) - 1:
+            flights[i], flights[i + 1] = flights[i + 1], flights[i]
+            st.session_state.selected_flights = flights
+            st.session_state.single_sort_version += 1
+    elif atype == 'remove':
+        fk = action['flight_key']
+        st.session_state.selected_flights = [
+            f for f in flights if f"{f['id']}_{f['departure_time']}" != fk
+        ]
+        st.session_state.checkbox_version += 1
+        st.session_state.single_sort_version += 1
+
+
 @st.fragment
 def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
     """
-    Fragment: only this section reruns on checkbox changes.
+    Fragment: only this section reruns on checkbox/ranking interactions.
     Full app reruns only for sort buttons, submit, and filter changes.
     """
+    # Apply pending ↑↓/✕ actions first — before any widgets render
+    _apply_pending_rank_action()
+
     col_flights, col_ranking = st.columns([2, 1])
 
     with col_flights:
@@ -468,28 +499,15 @@ def _render_ranking_column(rank_limit: int):
 
         with col_up:
             if i > 0 and st.button("↑", key=f"up_{flight_key}_v{v}"):
-                new_order = list(flights)
-                new_order[i], new_order[i - 1] = new_order[i - 1], new_order[i]
-                st.session_state.selected_flights = new_order
-                st.session_state.single_sort_version += 1
-                st.rerun()
+                st.session_state._pending_rank_action = {'type': 'swap_up', 'i': i}
 
         with col_dn:
             if i < n - 1 and st.button("↓", key=f"dn_{flight_key}_v{v}"):
-                new_order = list(flights)
-                new_order[i], new_order[i + 1] = new_order[i + 1], new_order[i]
-                st.session_state.selected_flights = new_order
-                st.session_state.single_sort_version += 1
-                st.rerun()
+                st.session_state._pending_rank_action = {'type': 'swap_dn', 'i': i}
 
         with col_x:
             if st.button("✕", key=f"rm_{flight_key}_v{v}"):
-                st.session_state.selected_flights = [
-                    f for f in flights if f"{f['id']}_{f['departure_time']}" != flight_key
-                ]
-                st.session_state.checkbox_version += 1
-                st.session_state.single_sort_version += 1
-                st.rerun()
+                st.session_state._pending_rank_action = {'type': 'remove', 'flight_key': flight_key}
 
         st.markdown("<hr style='margin:2px 0;border-color:#eee;'>", unsafe_allow_html=True)
 
