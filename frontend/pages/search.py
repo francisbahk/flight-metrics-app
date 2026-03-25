@@ -1,6 +1,8 @@
 """
 Search section: How to Use guide, example prompt carousel, search form, and search execution.
 """
+import re
+from html import escape as _esc
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -323,15 +325,49 @@ def render_how_to_use():
 """)
 
 
-VOICE_BTN_HTML = """
-<div style="display:flex;align-items:center;gap:8px;padding:2px 0 4px 0;">
-  <button id="voiceBtn" onclick="toggleVoice()" title="Voice input" style="
-      background:#f0f2f6;border:1px solid #ddd;border-radius:50%;
-      width:36px;height:36px;cursor:pointer;font-size:16px;
-      display:flex;align-items:center;justify-content:center;
-      transition:all 0.2s;">🎙️</button>
-  <span id="voiceStatus" style="font-size:12px;color:#888;"></span>
-</div>
+IMESSAGE_CSS = """
+<style>
+.imsg-container {
+    border: 1.5px solid #c7c7cc;
+    border-radius: 16px;
+    padding: 14px 12px 8px 12px;
+    background: #fff;
+    margin-bottom: 10px;
+}
+.imsg-row {
+    display: flex;
+    margin-bottom: 6px;
+    align-items: flex-end;
+}
+.imsg-bot-row { justify-content: flex-start; }
+.imsg-user-row { justify-content: flex-end; }
+.imsg-bubble {
+    max-width: 78%;
+    padding: 8px 12px;
+    border-radius: 18px;
+    font-size: 0.88em;
+    line-height: 1.45;
+    word-wrap: break-word;
+}
+.imsg-bot {
+    background: #e9e9eb;
+    color: #1c1c1e;
+    border-bottom-left-radius: 4px;
+}
+.imsg-user {
+    background: #0a84ff;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+</style>
+"""
+
+MIC_BTN_HTML = """
+<button id="voiceBtn" onclick="toggleVoice()" title="Voice input" style="
+    background:#f0f2f6;border:1px solid #ddd;border-radius:50%;
+    width:38px;height:38px;cursor:pointer;font-size:16px;
+    display:flex;align-items:center;justify-content:center;
+    transition:all 0.2s;">🎙️</button>
 <script>
 let _rec = null, _isRec = false;
 function setVal(el, v) {
@@ -341,18 +377,18 @@ function setVal(el, v) {
 function toggleVoice() { _isRec ? stopRec() : startRec(); }
 function startRec() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { document.getElementById('voiceStatus').textContent='Not supported in this browser'; return; }
+  if (!SR) { alert('Speech recognition not supported in this browser'); return; }
   _rec = new SR(); _rec.continuous=true; _rec.interimResults=true; _rec.lang='en-US';
-  const btn=document.getElementById('voiceBtn'), st=document.getElementById('voiceStatus');
-  _rec.onstart=()=>{ _isRec=true; btn.style.background='#ffebee'; btn.style.borderColor='#ef5350'; btn.textContent='⏹️'; st.textContent='Listening...'; };
+  const btn=document.getElementById('voiceBtn');
+  _rec.onstart=()=>{ _isRec=true; btn.style.background='#ffebee'; btn.style.borderColor='#ef5350'; btn.textContent='⏹️'; };
   _rec.onresult=(e)=>{
-    const ta=window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+    const ta=window.parent.document.querySelector('[data-testid="stTextArea"] textarea');
     if(!ta) return;
     let fin='';
     for(let i=e.resultIndex;i<e.results.length;i++) if(e.results[i].isFinal) fin+=e.results[i][0].transcript;
     if(fin) setVal(ta, (ta.value?ta.value+' ':'')+fin);
   };
-  _rec.onerror=(e)=>{ document.getElementById('voiceStatus').textContent='Error: '+e.error; stopRec(); };
+  _rec.onerror=(e)=>{ alert('Voice error: '+e.error); stopRec(); };
   _rec.onend=()=>{ if(_isRec) _rec.start(); };
   _rec.start();
 }
@@ -360,18 +396,25 @@ function stopRec() {
   if(_rec){ _isRec=false; _rec.stop(); _rec=null; }
   const btn=document.getElementById('voiceBtn');
   btn.style.background='#f0f2f6'; btn.style.borderColor='#ddd'; btn.textContent='🎙️';
-  document.getElementById('voiceStatus').textContent='';
 }
 </script>
 """
 
 
-def _save_chat_msg(prolific_id: str, role: str, text: str):
+def _save_full_chat_history(prolific_id: str, attempt_num: int):
     try:
-        from backend.db import save_chat_message
-        save_chat_message(prolific_id, role, text)
+        from backend.db import save_chat_history
+        save_chat_history(prolific_id, attempt_num, st.session_state.search_chat_messages)
     except Exception:
         pass
+
+
+def _md_to_html(text: str) -> str:
+    """Convert basic markdown (bold/italic) to HTML for bubble rendering."""
+    text = _esc(text)
+    text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
+    text = re.sub(r'\*(.*?)\*', r'<i>\1</i>', text)
+    return text
 
 
 def _execute_chat_search(prompt: str, flight_client):
@@ -383,7 +426,6 @@ def _execute_chat_search(prompt: str, flight_client):
 
     def bot(text):
         st.session_state.search_chat_messages.append({'role': 'bot', 'text': text})
-        _save_chat_msg(prolific_id, 'bot', text)
 
     # LLM parse
     try:
@@ -398,6 +440,7 @@ def _execute_chat_search(prompt: str, flight_client):
         attempt_num = save_prompt_attempt(prolific_id, prompt)
         update_prompt_attempt_result(prolific_id, attempt_num, passed=False, llm_feedback=rejection)
         bot(rejection)
+        _save_full_chat_history(prolific_id, attempt_num)
         return
 
     if not parsed.get('origins') or not parsed.get('destinations'):
@@ -405,6 +448,7 @@ def _execute_chat_search(prompt: str, flight_client):
         attempt_num = save_prompt_attempt(prolific_id, prompt)
         update_prompt_attempt_result(prolific_id, attempt_num, passed=False, llm_feedback=rejection)
         bot(rejection)
+        _save_full_chat_history(prolific_id, attempt_num)
         return
 
     if not parsed.get('departure_dates'):
@@ -412,6 +456,7 @@ def _execute_chat_search(prompt: str, flight_client):
         attempt_num = save_prompt_attempt(prolific_id, prompt)
         update_prompt_attempt_result(prolific_id, attempt_num, passed=False, llm_feedback=rejection)
         bot(rejection)
+        _save_full_chat_history(prolific_id, attempt_num)
         return
 
     origins = parsed['origins']
@@ -420,6 +465,7 @@ def _execute_chat_search(prompt: str, flight_client):
 
     attempt_num = save_prompt_attempt(prolific_id, prompt)
     update_prompt_attempt_result(prolific_id, attempt_num, passed=True)
+    _save_full_chat_history(prolific_id, attempt_num)
 
     bot(f"Got it! Searching **{' / '.join(origins)} → {' / '.join(dests)}** on **{', '.join(dates)}**...")
 
@@ -480,6 +526,7 @@ def _execute_chat_search(prompt: str, flight_client):
         bot(f"Note: {w}")
 
     bot(f"Found **{len(all_flights)} flights**! Scroll down to browse and rank them.")
+    _save_full_chat_history(prolific_id, attempt_num)
 
 
 def render_search_section(static_route_day_options, flight_client, static_flights):
@@ -494,6 +541,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     render_how_to_use()
 
     st.markdown(TEXTAREA_CSS, unsafe_allow_html=True)
+    st.markdown(IMESSAGE_CSS, unsafe_allow_html=True)
 
     # Example prompts carousel
     st.markdown("**Example prompts:**")
@@ -501,46 +549,63 @@ def render_search_section(static_route_day_options, flight_client, static_flight
 
     st.markdown("---")
 
-    # Initialize chat history with opening bot message
+    # Initialize chat history with opening bot message (tip merged in)
     if 'search_chat_messages' not in st.session_state:
         st.session_state.search_chat_messages = [{
             'role': 'bot',
             'text': (
                 "Describe your flight — where are you flying from, where are you going, "
-                "and when? Feel free to add any preferences (price, stops, airline, times, etc.)."
+                "and when? Feel free to add any preferences (price, stops, airline, times, etc.). "
+                "💡 **Tip:** Include all nearby airports explicitly (e.g. \"PIE\" or \"SRQ\") if needed."
             ),
         }]
 
-    # If there's a pending search, run it first (spinner shows while history is already in state)
+    # If there's a pending search, run it first
     if st.session_state.get('pending_chat_search'):
         prompt = st.session_state.pop('pending_chat_search')
         with st.spinner("Searching for flights..."):
             _execute_chat_search(prompt, flight_client)
         st.rerun()
 
-    # Render full chat history
+    # Render iMessage-style chat bubbles
+    bubbles_html = '<div class="imsg-container">'
     for msg in st.session_state.search_chat_messages:
-        role = "assistant" if msg['role'] == 'bot' else "user"
-        with st.chat_message(role):
-            st.markdown(msg['text'])
+        if msg['role'] == 'bot':
+            bubbles_html += (
+                f'<div class="imsg-row imsg-bot-row">'
+                f'<div class="imsg-bubble imsg-bot">{_md_to_html(msg["text"])}</div>'
+                f'</div>'
+            )
+        else:
+            bubbles_html += (
+                f'<div class="imsg-row imsg-user-row">'
+                f'<div class="imsg-bubble imsg-user">{_esc(msg["text"])}</div>'
+                f'</div>'
+            )
+    bubbles_html += '</div>'
+    st.markdown(bubbles_html, unsafe_allow_html=True)
 
-    # Voice input button (injects into the chat_input textarea)
-    components.html(VOICE_BTN_HTML, height=46)
+    # Input form with textarea + [mic | Send →]
+    with st.form("chat_input_form", clear_on_submit=True):
+        user_input = st.text_area(
+            "",
+            placeholder="Describe your trip — origin, destination, date, and any preferences...",
+            label_visibility="collapsed",
+            height=90,
+        )
+        col_mic, col_send = st.columns([1, 6])
+        with col_mic:
+            components.html(MIC_BTN_HTML, height=42)
+        with col_send:
+            submitted = st.form_submit_button("Send →", use_container_width=True, type="primary")
 
-    st.caption("💡 **Tip:** Include all nearby airports explicitly (e.g. \"PIE\" or \"SRQ\") if needed.")
-
-    # Chat input
-    user_input = st.chat_input("Describe your trip — origin, destination, date, and any preferences...")
-    if user_input and user_input.strip():
-        prolific_id = st.session_state.get('prolific_id', 'anonymous')
-        # Reset any previous flight results so a new search starts clean
+    if submitted and user_input and user_input.strip():
         st.session_state.all_flights = []
         st.session_state.selected_flights = []
         st.session_state.outbound_submitted = False
         st.session_state.review_confirmed = False
         text = user_input.strip()
         st.session_state.search_chat_messages.append({'role': 'user', 'text': text})
-        _save_chat_msg(prolific_id, 'user', text)
         st.session_state.pending_chat_search = text
         st.rerun()
 

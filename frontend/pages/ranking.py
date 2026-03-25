@@ -291,6 +291,16 @@ def render_ranking_section():
                 if st.button("Save", key="save_prompt_main"):
                     st.session_state.original_prompt = edited_prompt_main
                     st.session_state.editing_prompt_main = False
+                    try:
+                        from backend.db import save_prompt_attempt
+                        save_prompt_attempt(
+                            st.session_state.get('prolific_id', 'anonymous'),
+                            edited_prompt_main,
+                            is_edit=True,
+                            edit_source="ranking",
+                        )
+                    except Exception:
+                        pass
                     st.rerun()
             with col_cancel:
                 if st.button("Cancel", key="cancel_prompt_main"):

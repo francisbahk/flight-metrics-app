@@ -69,6 +69,16 @@ def render_completion_section():
         if st.button("Confirm & Submit Final Results", type="primary", use_container_width=True):
             if edited_prompt != st.session_state.get('original_prompt', ''):
                 st.session_state.original_prompt = edited_prompt
+                try:
+                    from backend.db import save_prompt_attempt
+                    save_prompt_attempt(
+                        st.session_state.get('prolific_id', 'anonymous'),
+                        edited_prompt,
+                        is_edit=True,
+                        edit_source="confirmation",
+                    )
+                except Exception:
+                    pass
             st.session_state.review_confirmed = True
 
             if st.session_state.get('token'):

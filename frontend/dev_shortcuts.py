@@ -73,6 +73,10 @@ def render_dev_panel():
             if page != "— no skip —":
                 _inject_state(page)
             st.rerun()
+        if st.button("Reset session", key="dev_reset", use_container_width=True):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
 
 
 def _inject_state(page: str):

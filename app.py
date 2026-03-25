@@ -266,8 +266,8 @@ st.session_state.token_valid = True
 st.session_state.token_group = 'A'
 st.session_state.rerank_targets = []
 
-# Restore progress on page refresh
-if 'session_restored' not in st.session_state:
+# Restore progress on page refresh (skip in dev mode — dev state is injected manually)
+if 'session_restored' not in st.session_state and not is_dev_mode():
     try:
         from backend.db import get_participant, get_rankings
         participant = get_participant(prolific_id)
