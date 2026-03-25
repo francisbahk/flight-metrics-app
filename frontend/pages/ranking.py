@@ -7,7 +7,6 @@ outbound_submitted is False (i.e. user is still picking flights).
 """
 import streamlit as st
 from datetime import datetime
-from streamlit_sortables import sort_items
 
 from frontend.utils import (
     apply_filters,
@@ -426,8 +425,8 @@ def _render_sidebar_filters():
 
 
 def _render_ranking_column(rank_limit: int):
-    """Render the drag-to-rank column and submit button."""
-    st.markdown(f"#### Your Top {rank_limit} (Drag to Rank)")
+    """Render the rank list with ↑↓ reorder buttons and ✕ remove buttons."""
+    st.markdown(f"#### Your Top {rank_limit}")
     st.markdown(f"**{len(st.session_state.selected_flights)}/{rank_limit} selected**")
 
     if not st.session_state.selected_flights:
@@ -438,63 +437,62 @@ def _render_ranking_column(rank_limit: int):
         st.session_state.selected_flights = st.session_state.selected_flights[:rank_limit]
         st.rerun()
 
-    draggable_items = []
-    for i, flight in enumerate(st.session_state.selected_flights):
-        airline_name = get_airline_name(flight['airline'])
-        dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
-        arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
-        dh = flight['duration_min'] // 60
-        dm = flight['duration_min'] % 60
-        duration_display = f"{dh}h {dm}m" if dh > 0 else f"{dm}m"
-        stops = int(flight.get('stops', 0))
-        stops_text = "Nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
-        item = (
-            f"#{i+1}: {format_price(flight['price'])} \u2022 {duration_display} \u2022 {stops_text}\n"
-            f"{dept_dt.strftime('%I:%M %p')} - {arr_dt.strftime('%I:%M %p')}\n"
-            f"{airline_name} {flight['flight_number']}\n"
-            f"{flight['origin']} \u2192 {flight['destination']} | {dept_dt.strftime('%a, %b %d')}"
-        )
-        draggable_items.append(item)
+    flights = st.session_state.selected_flights
+    n = len(flights)
 
-    sorted_items = sort_items(
-        draggable_items,
-        multi_containers=False,
-        direction='vertical',
-        key=f"single_sort_v{st.session_state.single_sort_version}_n{len(st.session_state.selected_flights)}"
-    )
-
-    if sorted_items and sorted_items != draggable_items and len(sorted_items) == len(draggable_items):
-        new_order = []
-        for si in sorted_items:
-            rank = int(si.split(':')[0].replace('#', '')) - 1
-            if rank < len(st.session_state.selected_flights):
-                new_order.append(st.session_state.selected_flights[rank])
-        if len(new_order) == len(st.session_state.selected_flights):
-            st.session_state.selected_flights = new_order
-            st.session_state.single_sort_version += 1
-            st.rerun()
-
-    # X buttons — one per ranked flight, in current order
-    for i, flight in enumerate(list(st.session_state.selected_flights)):
+    for i, flight in enumerate(flights):
         flight_key = f"{flight['id']}_{flight['departure_time']}"
         dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
-        label = f"#{i+1} {format_price(flight['price'])} · {dept_dt.strftime('%I:%M %p')} {flight['origin']}→{flight['destination']}"
-        col_lbl, col_x = st.columns([5, 1])
-        with col_lbl:
-            st.caption(label)
+        arr_dt  = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
+        dh, dm  = divmod(flight['duration_min'], 60)
+        dur     = f"{dh}h {dm}m" if dh else f"{dm}m"
+        stops   = int(flight.get('stops', 0))
+        stops_t = "Nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
+
+        col_rank, col_info, col_up, col_dn, col_x = st.columns([1, 6, 1, 1, 1])
+
+        with col_rank:
+            st.markdown(f"<div style='padding-top:10px;font-weight:700;font-size:1.1em;'>#{i+1}</div>",
+                        unsafe_allow_html=True)
+
+        with col_info:
+            st.markdown(
+                f"<div style='font-size:0.85em;line-height:1.5;padding-top:4px;'>"
+                f"<b>{format_price(flight['price'])}</b> · {dur} · {stops_t}<br>"
+                f"{dept_dt.strftime('%I:%M %p')} – {arr_dt.strftime('%I:%M %p')}<br>"
+                f"{get_airline_name(flight['airline'])} {flight['flight_number']}<br>"
+                f"{flight['origin']} → {flight['destination']} | {dept_dt.strftime('%a, %b %d')}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        with col_up:
+            if i > 0 and st.button("↑", key=f"up_{flight_key}_v{st.session_state.single_sort_version}"):
+                flights[i], flights[i - 1] = flights[i - 1], flights[i]
+                st.session_state.selected_flights = flights
+                st.session_state.single_sort_version += 1
+                st.rerun()
+
+        with col_dn:
+            if i < n - 1 and st.button("↓", key=f"dn_{flight_key}_v{st.session_state.single_sort_version}"):
+                flights[i], flights[i + 1] = flights[i + 1], flights[i]
+                st.session_state.selected_flights = flights
+                st.session_state.single_sort_version += 1
+                st.rerun()
+
         with col_x:
-            if st.button("✕", key=f"remove_{flight_key}_v{st.session_state.single_sort_version}", help="Remove"):
+            if st.button("✕", key=f"rm_{flight_key}_v{st.session_state.single_sort_version}"):
                 st.session_state.selected_flights = [
-                    f for f in st.session_state.selected_flights
-                    if f"{f['id']}_{f['departure_time']}" != flight_key
+                    f for f in flights if f"{f['id']}_{f['departure_time']}" != flight_key
                 ]
-                # Uncheck the corresponding checkbox
                 safe_id = ''.join(c for c in flight_key if c.isalnum() or c in ('_', '-'))[:40]
                 chk_key = f"chk_{safe_id}_v{st.session_state.checkbox_version}"
                 if chk_key in st.session_state:
                     st.session_state[chk_key] = False
                 st.session_state.single_sort_version += 1
                 st.rerun()
+
+        st.divider()
 
     st.markdown("---")
 
