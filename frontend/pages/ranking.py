@@ -468,24 +468,28 @@ def _render_ranking_column(rank_limit: int):
 
         with col_up:
             if i > 0 and st.button("↑", key=f"up_{flight_key}_v{v}"):
-                flights[i], flights[i - 1] = flights[i - 1], flights[i]
-                st.session_state.selected_flights = flights
+                new_order = list(flights)
+                new_order[i], new_order[i - 1] = new_order[i - 1], new_order[i]
+                st.session_state.selected_flights = new_order
                 st.session_state.single_sort_version += 1
+                st.rerun()
 
         with col_dn:
             if i < n - 1 and st.button("↓", key=f"dn_{flight_key}_v{v}"):
-                flights[i], flights[i + 1] = flights[i + 1], flights[i]
-                st.session_state.selected_flights = flights
+                new_order = list(flights)
+                new_order[i], new_order[i + 1] = new_order[i + 1], new_order[i]
+                st.session_state.selected_flights = new_order
                 st.session_state.single_sort_version += 1
+                st.rerun()
 
         with col_x:
             if st.button("✕", key=f"rm_{flight_key}_v{v}"):
                 st.session_state.selected_flights = [
                     f for f in flights if f"{f['id']}_{f['departure_time']}" != flight_key
                 ]
-                # Increment checkbox_version so the checkbox re-initializes unchecked
                 st.session_state.checkbox_version += 1
                 st.session_state.single_sort_version += 1
+                st.rerun()
 
         st.markdown("<hr style='margin:2px 0;border-color:#eee;'>", unsafe_allow_html=True)
 
