@@ -131,14 +131,7 @@ CRITICAL INSTRUCTIONS:
 
 
 def get_test_api_fallback(airport_code: str) -> tuple:
-    """Convert small airports to major ones for Amadeus test API."""
-    fallbacks = {
-        'ITH': ('SYR', 'Ithaca (ITH) not in API, using Syracuse (SYR)'),
-        'ELM': ('SYR', 'Elmira (ELM) not in API, using Syracuse (SYR)'),
-        'BGM': ('SYR', 'Binghamton (BGM) not in API, using Syracuse (SYR)'),
-    }
-    if airport_code in fallbacks:
-        return fallbacks[airport_code]
+    """No-op — returns airport code as-is. If Amadeus has no flights, the chat bot handles it."""
     return (airport_code, None)
 
 

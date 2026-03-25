@@ -474,6 +474,28 @@ def _render_ranking_column(rank_limit: int):
             st.session_state.single_sort_version += 1
             st.rerun()
 
+    # X buttons — one per ranked flight, in current order
+    for i, flight in enumerate(list(st.session_state.selected_flights)):
+        flight_key = f"{flight['id']}_{flight['departure_time']}"
+        dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
+        label = f"#{i+1} {format_price(flight['price'])} · {dept_dt.strftime('%I:%M %p')} {flight['origin']}→{flight['destination']}"
+        col_lbl, col_x = st.columns([5, 1])
+        with col_lbl:
+            st.caption(label)
+        with col_x:
+            if st.button("✕", key=f"remove_{flight_key}_v{st.session_state.single_sort_version}", help="Remove"):
+                st.session_state.selected_flights = [
+                    f for f in st.session_state.selected_flights
+                    if f"{f['id']}_{f['departure_time']}" != flight_key
+                ]
+                # Uncheck the corresponding checkbox
+                safe_id = ''.join(c for c in flight_key if c.isalnum() or c in ('_', '-'))[:40]
+                chk_key = f"chk_{safe_id}_v{st.session_state.checkbox_version}"
+                if chk_key in st.session_state:
+                    st.session_state[chk_key] = False
+                st.session_state.single_sort_version += 1
+                st.rerun()
+
     st.markdown("---")
 
     if len(st.session_state.selected_flights) == rank_limit and not st.session_state.outbound_submitted:
