@@ -7,7 +7,6 @@ outbound_submitted is False (i.e. user is still picking flights).
 """
 import streamlit as st
 from datetime import datetime
-from streamlit_sortables import sort_items
 
 from frontend.utils import (
     apply_filters,
@@ -117,12 +116,43 @@ _PROGRESS_BAR_CSS = """
 """
 
 
+def _apply_pending_rank_action():
+    """Apply any pending ↑↓/✕ action BEFORE widgets render so the fragment shows updated state in one pass."""
+    action = st.session_state.pop('_pending_rank_action', None)
+    if not action:
+        return
+    flights = list(st.session_state.selected_flights)
+    atype = action['type']
+    if atype == 'swap_up':
+        i = action['i']
+        if 0 < i < len(flights):
+            flights[i], flights[i - 1] = flights[i - 1], flights[i]
+            st.session_state.selected_flights = flights
+            st.session_state.single_sort_version += 1
+    elif atype == 'swap_dn':
+        i = action['i']
+        if 0 <= i < len(flights) - 1:
+            flights[i], flights[i + 1] = flights[i + 1], flights[i]
+            st.session_state.selected_flights = flights
+            st.session_state.single_sort_version += 1
+    elif atype == 'remove':
+        fk = action['flight_key']
+        st.session_state.selected_flights = [
+            f for f in flights if f"{f['id']}_{f['departure_time']}" != fk
+        ]
+        st.session_state.checkbox_version += 1
+        st.session_state.single_sort_version += 1
+
+
 @st.fragment
 def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
     """
-    Fragment: only this section reruns on checkbox changes.
+    Fragment: only this section reruns on checkbox/ranking interactions.
     Full app reruns only for sort buttons, submit, and filter changes.
     """
+    # Apply pending ↑↓/✕ actions first — before any widgets render
+    _apply_pending_rank_action()
+
     col_flights, col_ranking = st.columns([2, 1])
 
     with col_flights:
@@ -261,6 +291,16 @@ def render_ranking_section():
                 if st.button("Save", key="save_prompt_main"):
                     st.session_state.original_prompt = edited_prompt_main
                     st.session_state.editing_prompt_main = False
+                    try:
+                        from backend.db import save_prompt_attempt
+                        save_prompt_attempt(
+                            st.session_state.get('prolific_id', 'anonymous'),
+                            edited_prompt_main,
+                            is_edit=True,
+                            edit_source="ranking",
+                        )
+                    except Exception:
+                        pass
                     st.rerun()
             with col_cancel:
                 if st.button("Cancel", key="cancel_prompt_main"):
@@ -426,8 +466,8 @@ def _render_sidebar_filters():
 
 
 def _render_ranking_column(rank_limit: int):
-    """Render the drag-to-rank column and submit button."""
-    st.markdown(f"#### Your Top {rank_limit} (Drag to Rank)")
+    """Render the rank list with ↑↓ reorder buttons and ✕ remove buttons."""
+    st.markdown(f"#### Your Top {rank_limit}")
     st.markdown(f"**{len(st.session_state.selected_flights)}/{rank_limit} selected**")
 
     if not st.session_state.selected_flights:
@@ -438,41 +478,51 @@ def _render_ranking_column(rank_limit: int):
         st.session_state.selected_flights = st.session_state.selected_flights[:rank_limit]
         st.rerun()
 
-    draggable_items = []
-    for i, flight in enumerate(st.session_state.selected_flights):
-        airline_name = get_airline_name(flight['airline'])
+    flights = st.session_state.selected_flights
+    n = len(flights)
+
+    for i, flight in enumerate(flights):
+        flight_key = f"{flight['id']}_{flight['departure_time']}"
         dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
-        arr_dt = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
-        dh = flight['duration_min'] // 60
-        dm = flight['duration_min'] % 60
-        duration_display = f"{dh}h {dm}m" if dh > 0 else f"{dm}m"
-        stops = int(flight.get('stops', 0))
-        stops_text = "Nonstop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
-        item = (
-            f"#{i+1}: {format_price(flight['price'])} \u2022 {duration_display} \u2022 {stops_text}\n"
-            f"{dept_dt.strftime('%I:%M %p')} - {arr_dt.strftime('%I:%M %p')}\n"
-            f"{airline_name} {flight['flight_number']}\n"
-            f"{flight['origin']} \u2192 {flight['destination']} | {dept_dt.strftime('%a, %b %d')}"
-        )
-        draggable_items.append(item)
+        arr_dt  = datetime.fromisoformat(flight['arrival_time'].replace('Z', '+00:00'))
+        dh, dm  = divmod(flight['duration_min'], 60)
+        dur     = f"{dh}h {dm}m" if dh else f"{dm}m"
+        stops_t = "Nonstop" if int(flight.get('stops', 0)) == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
+        v = st.session_state.single_sort_version
 
-    sorted_items = sort_items(
-        draggable_items,
-        multi_containers=False,
-        direction='vertical',
-        key=f"single_sort_v{st.session_state.single_sort_version}_n{len(st.session_state.selected_flights)}"
-    )
+        col_rank, col_info, col_up, col_dn, col_x = st.columns([1, 6, 1, 1, 1])
 
-    if sorted_items and sorted_items != draggable_items and len(sorted_items) == len(draggable_items):
-        new_order = []
-        for si in sorted_items:
-            rank = int(si.split(':')[0].replace('#', '')) - 1
-            if rank < len(st.session_state.selected_flights):
-                new_order.append(st.session_state.selected_flights[rank])
-        if len(new_order) == len(st.session_state.selected_flights):
-            st.session_state.selected_flights = new_order
-            st.session_state.single_sort_version += 1
-            st.rerun()
+        with col_rank:
+            st.markdown(f"<div style='padding-top:6px;font-weight:700;'>#{i+1}</div>",
+                        unsafe_allow_html=True)
+
+        with col_info:
+            st.markdown(
+                f"<div style='font-size:0.8em;line-height:1.35;padding:2px 0;'>"
+                f"<b>{format_price(flight['price'])}</b> · {dur} · {stops_t}<br>"
+                f"{dept_dt.strftime('%I:%M %p')} – {arr_dt.strftime('%I:%M %p')} · "
+                f"{get_airline_name(flight['airline'])} {flight['flight_number']}<br>"
+                f"{flight['origin']} → {flight['destination']} | {dept_dt.strftime('%a, %b %d')}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        with col_up:
+            if i > 0 and st.button("↑", key=f"up_{flight_key}_v{v}"):
+                st.session_state._pending_rank_action = {'type': 'swap_up', 'i': i}
+                st.rerun()
+
+        with col_dn:
+            if i < n - 1 and st.button("↓", key=f"dn_{flight_key}_v{v}"):
+                st.session_state._pending_rank_action = {'type': 'swap_dn', 'i': i}
+                st.rerun()
+
+        with col_x:
+            if st.button("✕", key=f"rm_{flight_key}_v{v}"):
+                st.session_state._pending_rank_action = {'type': 'remove', 'flight_key': flight_key}
+                st.rerun()
+
+        st.markdown("<hr style='margin:2px 0;border-color:#eee;'>", unsafe_allow_html=True)
 
     st.markdown("---")
 

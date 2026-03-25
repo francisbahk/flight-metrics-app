@@ -44,10 +44,11 @@ if DB_TYPE == 'mysql':
     )
     engine = create_engine(
         DATABASE_URL,
-        pool_pre_ping=True,
+        pool_pre_ping=False,
         pool_recycle=3600,
         pool_size=5,
         max_overflow=10,
+        connect_args={},
     )
 else:
     _db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'flight_rankings.db')
@@ -123,13 +124,16 @@ class PromptAttempt(Base):
     """Every prompt version submitted by a participant, in order."""
     __tablename__ = 'prompt_attempts'
 
-    id           = Column(Integer, primary_key=True, autoincrement=True)
-    prolific_id  = Column(String(128), nullable=False, index=True)
-    attempt_num  = Column(Integer, nullable=False)   # 1-based, per participant
-    prompt_text  = Column(Text, nullable=False)
-    passed       = Column(Boolean, nullable=True)    # True/False/None (None = not yet evaluated)
-    llm_feedback = Column(Text, nullable=True)       # Guidance shown to user when prompt is rejected
-    created_at   = Column(DateTime, default=datetime.utcnow)
+    id                = Column(Integer, primary_key=True, autoincrement=True)
+    prolific_id       = Column(String(128), nullable=False, index=True)
+    attempt_num       = Column(Integer, nullable=False)
+    prompt_text       = Column(Text, nullable=False)
+    passed            = Column(Boolean, nullable=True)
+    llm_feedback      = Column(Text, nullable=True)
+    chat_history_json = Column(Text, nullable=True)   # full chat conversation as JSON
+    is_edit           = Column(Boolean, nullable=True, default=False)  # 1 if prompt came from a Make Edits action
+    edit_source       = Column(String(32), nullable=True)              # "ranking" or "confirmation"
+    created_at        = Column(DateTime, default=datetime.utcnow)
 
 
 class SeedPrompt(Base):
@@ -158,6 +162,8 @@ class CVRanking(Base):
     created_at           = Column(DateTime, default=datetime.utcnow)
 
 
+
+
 # ============================================================================
 # INIT
 # ============================================================================
@@ -166,8 +172,11 @@ def init_db():
     Base.metadata.create_all(engine)
     _sa = __import__('sqlalchemy')
     migrations = [
-        ("participants",   "ALTER TABLE participants ADD COLUMN study_id VARCHAR(128)"),
+        ("participants",    "ALTER TABLE participants ADD COLUMN study_id VARCHAR(128)"),
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN llm_feedback TEXT"),
+        ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN chat_history_json MEDIUMTEXT"),
+        ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN is_edit TINYINT(1) DEFAULT 0"),
+        ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN edit_source VARCHAR(32)"),
     ]
     for table, sql in migrations:
         try:
@@ -270,10 +279,12 @@ def get_participant(prolific_id: str) -> dict:
 # ============================================================================
 # PROMPT ATTEMPT FUNCTIONS
 # ============================================================================
-def save_prompt_attempt(prolific_id: str, prompt_text: str, passed: bool = None) -> int:
+def save_prompt_attempt(prolific_id: str, prompt_text: str, passed: bool = None,
+                        is_edit: bool = False, edit_source: str = None) -> int:
     """
     Append a new prompt attempt row for this participant.
     Returns the attempt_num assigned (1-based).
+    is_edit=True when the prompt came from a Make Edits action; edit_source is "ranking" or "confirmation".
     """
     db = SessionLocal()
     try:
@@ -289,6 +300,8 @@ def save_prompt_attempt(prolific_id: str, prompt_text: str, passed: bool = None)
             attempt_num=attempt_num,
             prompt_text=prompt_text,
             passed=passed,
+            is_edit=is_edit,
+            edit_source=edit_source,
         ))
         db.commit()
         print(f"[DB] Saved prompt attempt #{attempt_num} for {prolific_id}.")
@@ -318,6 +331,21 @@ def update_prompt_attempt_result(prolific_id: str, attempt_num: int, passed: boo
     except Exception as e:
         db.rollback()
         print(f"[DB] update_prompt_attempt_result error: {e}")
+    finally:
+        db.close()
+
+
+def save_chat_history(prolific_id: str, attempt_num: int, chat_history: list):
+    """Save the full chat conversation JSON to the prompt_attempts row."""
+    db = SessionLocal()
+    try:
+        row = db.query(PromptAttempt).filter_by(prolific_id=prolific_id, attempt_num=attempt_num).first()
+        if row:
+            row.chat_history_json = json.dumps(chat_history)
+            db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"[DB] save_chat_history error: {e}")
     finally:
         db.close()
 

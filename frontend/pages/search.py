@@ -1,6 +1,8 @@
 """
 Search section: How to Use guide, example prompt carousel, search form, and search execution.
 """
+import re
+from html import escape as _esc
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -323,237 +325,288 @@ def render_how_to_use():
 """)
 
 
+IMESSAGE_CSS = """
+<style>
+.imsg-container {
+    border: 1.5px solid #c7c7cc;
+    border-radius: 16px;
+    padding: 14px 12px 8px 12px;
+    background: #fff;
+    margin-bottom: 10px;
+}
+.imsg-row {
+    display: flex;
+    margin-bottom: 6px;
+    align-items: flex-end;
+}
+.imsg-bot-row { justify-content: flex-start; }
+.imsg-user-row { justify-content: flex-end; }
+.imsg-bubble {
+    max-width: 78%;
+    padding: 8px 12px;
+    border-radius: 18px;
+    font-size: 0.88em;
+    line-height: 1.45;
+    word-wrap: break-word;
+}
+.imsg-bot {
+    background: #e9e9eb;
+    color: #1c1c1e;
+    border-bottom-left-radius: 4px;
+}
+.imsg-user {
+    background: #0a84ff;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+</style>
+"""
+
+MIC_BTN_HTML = """
+<button id="voiceBtn" onclick="toggleVoice()" title="Voice input" style="
+    background:#f0f2f6;border:1px solid #ddd;border-radius:50%;
+    width:38px;height:38px;cursor:pointer;font-size:16px;
+    display:flex;align-items:center;justify-content:center;
+    transition:all 0.2s;">🎙️</button>
+<script>
+let _rec = null, _isRec = false;
+function setVal(el, v) {
+  const s = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+  s.call(el, v); el.dispatchEvent(new Event('input', {bubbles:true}));
+}
+function toggleVoice() { _isRec ? stopRec() : startRec(); }
+function startRec() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('Speech recognition not supported in this browser'); return; }
+  _rec = new SR(); _rec.continuous=true; _rec.interimResults=true; _rec.lang='en-US';
+  const btn=document.getElementById('voiceBtn');
+  _rec.onstart=()=>{ _isRec=true; btn.style.background='#ffebee'; btn.style.borderColor='#ef5350'; btn.textContent='⏹️'; };
+  _rec.onresult=(e)=>{
+    const ta=window.parent.document.querySelector('[data-testid="stTextArea"] textarea');
+    if(!ta) return;
+    let fin='';
+    for(let i=e.resultIndex;i<e.results.length;i++) if(e.results[i].isFinal) fin+=e.results[i][0].transcript;
+    if(fin) setVal(ta, (ta.value?ta.value+' ':'')+fin);
+  };
+  _rec.onerror=(e)=>{ alert('Voice error: '+e.error); stopRec(); };
+  _rec.onend=()=>{ if(_isRec) _rec.start(); };
+  _rec.start();
+}
+function stopRec() {
+  if(_rec){ _isRec=false; _rec.stop(); _rec=null; }
+  const btn=document.getElementById('voiceBtn');
+  btn.style.background='#f0f2f6'; btn.style.borderColor='#ddd'; btn.textContent='🎙️';
+}
+</script>
+"""
+
+
+def _save_full_chat_history(prolific_id: str, attempt_num: int):
+    try:
+        from backend.db import save_chat_history
+        save_chat_history(prolific_id, attempt_num, st.session_state.search_chat_messages)
+    except Exception:
+        pass
+
+
+def _md_to_html(text: str) -> str:
+    """Convert basic markdown (bold/italic) to HTML for bubble rendering."""
+    text = _esc(text)
+    text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
+    text = re.sub(r'\*(.*?)\*', r'<i>\1</i>', text)
+    return text
+
+
+def _execute_chat_search(prompt: str, flight_client):
+    """Run LLM parse + Amadeus search. Appends bot messages to search_chat_messages. Sets all_flights on success."""
+    from backend.prompt_parser import parse_flight_prompt_with_llm, get_test_api_fallback
+    from backend.db import save_prompt_attempt, update_prompt_attempt_result
+
+    prolific_id = st.session_state.get('prolific_id', 'anonymous')
+
+    def bot(text):
+        st.session_state.search_chat_messages.append({'role': 'bot', 'text': text})
+
+    # LLM parse
+    try:
+        parsed = parse_flight_prompt_with_llm(prompt)
+    except Exception as e:
+        bot("Something went wrong processing your request. Please try again.")
+        return
+
+    if not parsed.get('parsed_successfully', True):
+        rejection = parsed.get('user_message',
+            "Please describe your flight — include where you're flying from, where you're going, and when.")
+        attempt_num = save_prompt_attempt(prolific_id, prompt)
+        update_prompt_attempt_result(prolific_id, attempt_num, passed=False, llm_feedback=rejection)
+        bot(rejection)
+        _save_full_chat_history(prolific_id, attempt_num)
+        return
+
+    if not parsed.get('origins') or not parsed.get('destinations'):
+        rejection = "Couldn't find an origin and destination. Please include both in your prompt."
+        attempt_num = save_prompt_attempt(prolific_id, prompt)
+        update_prompt_attempt_result(prolific_id, attempt_num, passed=False, llm_feedback=rejection)
+        bot(rejection)
+        _save_full_chat_history(prolific_id, attempt_num)
+        return
+
+    if not parsed.get('departure_dates'):
+        rejection = "No departure date found. Please include when you want to fly."
+        attempt_num = save_prompt_attempt(prolific_id, prompt)
+        update_prompt_attempt_result(prolific_id, attempt_num, passed=False, llm_feedback=rejection)
+        bot(rejection)
+        _save_full_chat_history(prolific_id, attempt_num)
+        return
+
+    origins = parsed['origins']
+    dests = parsed['destinations']
+    dates = parsed['departure_dates']
+
+    attempt_num = save_prompt_attempt(prolific_id, prompt)
+    update_prompt_attempt_result(prolific_id, attempt_num, passed=True)
+    _save_full_chat_history(prolific_id, attempt_num)
+
+    bot(f"Got it! Searching **{' / '.join(origins)} → {' / '.join(dests)}** on **{', '.join(dates)}**...")
+
+    # Amadeus search
+    all_flights = []
+    warnings_list = []
+    for origin_code in origins:
+        for dest_code in dests:
+            origin, ow = get_test_api_fallback(origin_code)
+            dest, dw = get_test_api_fallback(dest_code)
+            if ow: warnings_list.append(ow)
+            if dw: warnings_list.append(dw)
+            for date in dates:
+                try:
+                    results = flight_client.search_flights(
+                        origin=origin, destination=dest,
+                        departure_date=date, adults=1, max_results=250
+                    )
+                    offers = results if isinstance(results, list) else results.get('data', [])
+                    for offer in offers:
+                        fi = flight_client.parse_flight_offer(offer)
+                        if fi:
+                            all_flights.append(fi)
+                except Exception as e:
+                    warnings_list.append(f"Search error for {origin}→{dest} on {date}: {str(e)}")
+
+    if not all_flights:
+        bot("No flights found for that route and date. Try different dates or airports.")
+        return
+
+    all_flights = remove_codeshares(all_flights)
+    airline_codes = list(set(
+        f.get('airline') or f.get('carrier_code')
+        for f in all_flights if f.get('airline') or f.get('carrier_code')
+    ))
+    st.session_state.airline_names = flight_client.get_airline_names(airline_codes)
+    st.session_state.original_prompt = prompt
+    st.session_state.all_flights = all_flights
+    st.session_state.selected_route = (
+        f"{' / '.join(origins)} → {' / '.join(dests)}"
+        + (f" ({', '.join(dates)})" if dates else "")
+    )
+    st.session_state.parsed_params = parsed
+    st.session_state.search_mode = "ai"
+
+    if st.session_state.get('token'):
+        from backend.db import save_participant_progress
+        save_participant_progress(
+            prolific_id=st.session_state.token,
+            session_id=st.session_state.session_id,
+            prompt=prompt,
+            route_id='ai',
+            all_flights=all_flights,
+            study_id=st.session_state.get('study_id'),
+        )
+
+    for w in warnings_list:
+        bot(f"Note: {w}")
+
+    bot(f"Found **{len(all_flights)} flights**! Scroll down to browse and rank them.")
+    _save_full_chat_history(prolific_id, attempt_num)
+
+
 def render_search_section(static_route_day_options, flight_client, static_flights):
     """
-    Render the How to Use guide, example prompt carousel, search form, and
-    execute search on button press. Updates st.session_state.all_flights.
-
-    Args:
-        static_route_day_options: List of "ORIG → DEST (Day)" option strings.
-        flight_client: FlightSearchClient instance for AI searches.
-        static_flights: List of all static flight dicts.
+    Render the How to Use guide, example prompt carousel, chat search interface,
+    and execute search on user message. Updates st.session_state.all_flights.
     """
-    from backend.prompt_parser import parse_flight_prompt_with_llm, get_test_api_fallback
-
-    # Once flights are loaded the search is locked — show a read-only summary
-    # instead of the full form so participants can't change their route/prompt.
+    # Once flights are loaded the search is locked.
     if st.session_state.get('all_flights'):
         return
 
     render_how_to_use()
 
-    # CSS for textarea styling
     st.markdown(TEXTAREA_CSS, unsafe_allow_html=True)
-    st.markdown(PROMPT_SPACING_CSS, unsafe_allow_html=True)
+    st.markdown(IMESSAGE_CSS, unsafe_allow_html=True)
 
     # Example prompts carousel
     st.markdown("**Example prompts:**")
     components.html(CAROUSEL_HTML, height=178)
 
-    regular_search = False
-    manual_search_btn = False
-    manual_prompt = ""
-    manual_route = None
+    st.markdown("---")
 
-    st.markdown("Describe your trip in plain English — origin, destination, dates, and any preferences.")
-    st.caption("💡 **Tip:** If you want flights from a specific city, the search will automatically include all nearby airports. If results are missing an airport you want, add it explicitly by name (e.g. \"PIE\" or \"SRQ\") in your prompt.")
-    with st.form("ai_search_form", clear_on_submit=False):
-        ai_prompt_input = st.text_area(
-            "Your trip prompt",
-            placeholder="e.g. Cheapest flight from New York to LA on March 1st, direct preferred, morning departure",
-            height=100,
-            key="ai_prompt_input",
+    # Initialize chat history with opening bot message (tip merged in)
+    if 'search_chat_messages' not in st.session_state:
+        st.session_state.search_chat_messages = [{
+            'role': 'bot',
+            'text': (
+                "Describe your flight — where are you flying from, where are you going, "
+                "and when? Feel free to add any preferences (price, stops, airline, times, etc.). "
+                "💡 **Tip:** Include all nearby airports explicitly (e.g. \"PIE\" or \"SRQ\") if needed."
+            ),
+        }]
+
+    # If there's a pending search, run it first
+    if st.session_state.get('pending_chat_search'):
+        prompt = st.session_state.pop('pending_chat_search')
+        with st.spinner("Searching for flights..."):
+            _execute_chat_search(prompt, flight_client)
+        st.rerun()
+
+    # Render iMessage-style chat bubbles
+    bubbles_html = '<div class="imsg-container">'
+    for msg in st.session_state.search_chat_messages:
+        if msg['role'] == 'bot':
+            bubbles_html += (
+                f'<div class="imsg-row imsg-bot-row">'
+                f'<div class="imsg-bubble imsg-bot">{_md_to_html(msg["text"])}</div>'
+                f'</div>'
+            )
+        else:
+            bubbles_html += (
+                f'<div class="imsg-row imsg-user-row">'
+                f'<div class="imsg-bubble imsg-user">{_esc(msg["text"])}</div>'
+                f'</div>'
+            )
+    bubbles_html += '</div>'
+    st.markdown(bubbles_html, unsafe_allow_html=True)
+
+    # Input form with textarea + [mic | Send →]
+    with st.form("chat_input_form", clear_on_submit=True):
+        user_input = st.text_area(
+            "",
+            placeholder="Describe your trip — origin, destination, date, and any preferences...",
             label_visibility="collapsed",
+            height=90,
         )
-        ai_search_submitted = st.form_submit_button(
-            "Search", type="primary",
-            use_container_width=True,
-        )
-    if ai_search_submitted:
-        regular_search = True
-        st.session_state.auto_search_prompt = ai_prompt_input
+        col_mic, col_send = st.columns([1, 6])
+        with col_mic:
+            components.html(MIC_BTN_HTML, height=42)
+        with col_send:
+            submitted = st.form_submit_button("Send →", use_container_width=True, type="primary")
 
-    # Close hideable-survey-content container
+    if submitted and user_input and user_input.strip():
+        st.session_state.all_flights = []
+        st.session_state.selected_flights = []
+        st.session_state.outbound_submitted = False
+        st.session_state.review_confirmed = False
+        text = user_input.strip()
+        st.session_state.search_chat_messages.append({'role': 'user', 'text': text})
+        st.session_state.pending_chat_search = text
+        st.rerun()
+
     st.markdown('</div>', unsafe_allow_html=True)
-
-    # Determine search mode
-    auto_search = st.session_state.get('auto_search_requested', False)
-    if auto_search:
-        st.session_state.auto_search_requested = False
-
-    if manual_search_btn:
-        st.session_state.search_mode = "manual"
-    elif regular_search or auto_search:
-        st.session_state.search_mode = "ai"
-
-    if not (regular_search or manual_search_btn or auto_search):
-        return
-
-    # Reset previous results
-    st.session_state.all_flights = []
-    st.session_state.selected_flights = []
-    st.session_state.outbound_submitted = False
-    st.session_state.csv_data_outbound = None
-    st.session_state.review_confirmed = False
-
-    # Validate inputs
-    validation_errors = []
-    if st.session_state.search_mode == "manual":
-        if not manual_route:
-            validation_errors.append("Please select a route")
-        if not manual_prompt or not manual_prompt.strip():
-            validation_errors.append("Please describe your flight preferences before searching")
-    else:
-        prompt = st.session_state.get('auto_search_prompt') or ""
-        if not prompt.strip():
-            validation_errors.append("Please describe your flight needs")
-
-    if validation_errors:
-        for error in validation_errors:
-            st.error(error)
-        return
-
-    # Clear and execute search
-    st.session_state.selected_flights = []
-    st.session_state.all_flights = []
-    st.session_state.csv_generated = False
-    st.session_state.outbound_submitted = False
-    st.session_state.csv_data_outbound = None
-    st.session_state.review_confirmed = False
-
-    with st.spinner("✨ Searching flights..."):
-        try:
-            if st.session_state.search_mode == "manual":
-                _r_origin, _r_rest = manual_route.split(" → ")
-                _r_dest, _r_day = _r_rest.split(" (")
-                _r_day = _r_day.rstrip(")")
-
-                all_flights = [
-                    f for f in static_flights
-                    if f["origin"] == _r_origin
-                    and f["destination"] == _r_dest
-                    and f["day_of_week"] == _r_day
-                ]
-
-                st.session_state.original_prompt = (
-                    manual_prompt.strip() if manual_prompt and manual_prompt.strip() else ""
-                )
-                st.session_state.selected_route = manual_route
-
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.info(f"**From:** {_r_origin}")
-                with col2:
-                    st.info(f"**To:** {_r_dest}")
-                with col3:
-                    st.info(f"**Day:** {_r_day}")
-
-            else:
-                # AI mode
-                prompt = st.session_state.get('auto_search_prompt', '')
-                st.session_state.original_prompt = prompt
-
-                from backend.db import save_prompt_attempt, update_prompt_attempt_result
-                prolific_id = st.session_state.get('prolific_id', 'anonymous')
-
-                st.info("🤖 Parsing your request...")
-                parsed = parse_flight_prompt_with_llm(prompt)
-                st.session_state.parsed_params = parsed
-
-                # Determine result and feedback before saving, so both are stored together
-                if not parsed.get('parsed_successfully', True):
-                    rejection_msg = parsed.get(
-                        'user_message',
-                        "Please describe your flight — include where you're flying from, where you're going, and when."
-                    )
-                    attempt_num = save_prompt_attempt(prolific_id, prompt)
-                    update_prompt_attempt_result(prolific_id, attempt_num, passed=False, llm_feedback=rejection_msg)
-                    st.warning(rejection_msg)
-                    st.stop()
-
-                if not parsed.get('origins') or not parsed.get('destinations'):
-                    rejection_msg = "Could not extract origin and destination. Please include both airports or cities in your prompt."
-                    attempt_num = save_prompt_attempt(prolific_id, prompt)
-                    update_prompt_attempt_result(prolific_id, attempt_num, passed=False, llm_feedback=rejection_msg)
-                    st.error(rejection_msg)
-                    st.stop()
-
-                attempt_num = save_prompt_attempt(prolific_id, prompt)
-                update_prompt_attempt_result(prolific_id, attempt_num, passed=True)
-
-                st.success("✅ Understood your request!")
-
-                departure_dates = parsed.get('departure_dates', [])
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.info(f"**From:** {' or '.join(parsed['origins'])}")
-                with col2:
-                    st.info(f"**To:** {' or '.join(parsed['destinations'])}")
-                with col3:
-                    st.info(f"**Depart:** {', '.join(departure_dates) if departure_dates else 'Not specified'}")
-
-                # Save for locked summary display
-                st.session_state.selected_route = (
-                    f"{' / '.join(parsed['origins'])} → {' / '.join(parsed['destinations'])}"
-                    + (f" ({', '.join(departure_dates)})" if departure_dates else "")
-                )
-
-                all_flights = []
-                if not departure_dates:
-                    st.error("No departure dates found. Please specify when you want to fly.")
-                    st.stop()
-
-                for origin_code in parsed['origins']:
-                    for dest_code in parsed['destinations']:
-                        origin, origin_warning = get_test_api_fallback(origin_code)
-                        dest, dest_warning = get_test_api_fallback(dest_code)
-                        if origin_warning:
-                            st.warning(origin_warning)
-                        if dest_warning:
-                            st.warning(dest_warning)
-
-                        for departure_date in departure_dates:
-                            st.info(f"Searching: {origin} → {dest} on {departure_date}")
-                            results = flight_client.search_flights(
-                                origin=origin,
-                                destination=dest,
-                                departure_date=departure_date,
-                                adults=1,
-                                max_results=250
-                            )
-                            flight_offers = results if isinstance(results, list) else results.get('data', [])
-                            for offer in flight_offers:
-                                flight_info = flight_client.parse_flight_offer(offer)
-                                if flight_info:
-                                    all_flights.append(flight_info)
-
-            if not all_flights:
-                st.error("No flights found. Try different dates or airports.")
-                return
-
-            # Look up airline names
-            all_airline_codes = [f.get('airline') or f.get('carrier_code') for f in all_flights if f.get('airline') or f.get('carrier_code')]
-            airline_name_map = flight_client.get_airline_names(list(set(all_airline_codes)))
-            st.session_state.airline_names = airline_name_map
-
-            st.session_state.all_flights = remove_codeshares(all_flights)
-
-            # Save session progress
-            if st.session_state.get('token'):
-                from backend.db import save_participant_progress
-                _save_route_id = 'JFK-LAX-20260301' if st.session_state.search_mode == 'manual' else 'ai'
-                save_participant_progress(
-                    prolific_id=st.session_state.token,
-                    session_id=st.session_state.session_id,
-                    prompt=st.session_state.get('original_prompt') or st.session_state.get('user_prompt', ''),
-                    route_id=_save_route_id,
-                    all_flights=all_flights,
-                    study_id=st.session_state.get('study_id'),
-                )
-
-            st.success(f"✅ Found {len(all_flights)} flights!")
-
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
-            import traceback
-            st.code(traceback.format_exc())
