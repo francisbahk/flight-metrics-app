@@ -42,20 +42,16 @@ def render_completion_section():
 
         st.markdown("---")
         st.markdown("## Review Your Results")
-        st.markdown("Before finalizing your submission, please review your prompt and ensure it accurately captures your preferences.")
+        st.markdown("Before finalizing your submission, please review your prompt and ensure it accurately and fully captures your preferences over relevant considerations.")
 
         st.markdown("### Your Current Prompt:")
         st.info(st.session_state.get('original_prompt', ''))
 
         with st.expander("Review Questions", expanded=True):
             st.markdown("""
-            Please consider the following:
-            - Does your prompt accurately describe your persona and preferences?
-            - Did you include all the preferences you used when selecting flights?
-            - Are your trade-offs and priorities clearly stated?
-            - Is there anything you forgot to mention that influenced your rankings?
-
-            **Example:** If you prioritized cheap flights but didn't mention it in your prompt, you should add it!
+            - Did you mention **all** the factors that influenced how you ranked flights (e.g., price, duration, stops, timing, location, airline)?
+            - Are your trade-offs and priorities clear? For example, if you chose a pricier nonstop over a cheaper connection, does your prompt reflect that?
+            - Is there anything you considered while ranking that isn't captured in your prompt?
             """)
 
         st.markdown("### Edit Your Prompt (Optional)")
@@ -812,16 +808,20 @@ def _render_completion_page():
         "Please share any feedback below."
     )
 
-    feedback = st.text_area(
-        label="Your feedback",
-        placeholder="Share any thoughts, confusion, or suggestions here...",
-        height=150,
-        label_visibility="collapsed",
-        key="post_survey_feedback_input",
-    )
-    if st.button("Submit & Finish", type="primary", use_container_width=True, key="post_survey_submit_btn"):
+    with st.form("post_survey_form"):
+        feedback = st.text_area(
+            label="Your feedback",
+            placeholder="Share any thoughts, confusion, or suggestions here...",
+            height=150,
+            label_visibility="collapsed",
+        )
+        submitted = st.form_submit_button(
+            "Submit & Finish", type="primary", use_container_width=True
+        )
+    if submitted:
         _save_post_survey_feedback(feedback.strip())
         st.session_state.post_survey_completed = True
+        st.session_state.completion_page_dismissed = True
         st.rerun()
 
 
