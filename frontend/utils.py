@@ -64,24 +64,32 @@ def build_manual_parsed(origins, destinations, departure_date, return_date=None)
 def remove_codeshares(flights):
     """
     Remove all flights that are duplicates by either:
-    - Same flight number + departure time + route + cabin (same offer appearing twice)
-    - Same full itinerary + cabin (departure + arrival + route, different flight numbers / codeshares)
+    - Same flight number + departure time + route + cabin + checked_bags + layovers
+    - Same full itinerary + cabin + checked_bags + layovers
     All copies in a duplicate group are dropped.
-    Cabin is included in the key so Economy and Business on the same flight are kept as distinct cards.
+    Each unique combo of cabin, checked bags, and layovers is treated as a distinct flight card.
     """
     from collections import Counter
-    fn_counts = Counter(
-        (f['flight_number'], f['departure_time'], f['origin'], f['destination'], f.get('cabin'))
-        for f in flights
-    )
-    itinerary_counts = Counter(
-        (f['departure_time'], f['arrival_time'], f['origin'], f['destination'], f.get('cabin'))
-        for f in flights
-    )
+
+    def _flight_key(f):
+        layovers = tuple(f.get('layover_airports') or []) or ('N/A',)
+        return (
+            f['flight_number'], f['departure_time'], f['origin'], f['destination'],
+            f.get('cabin'), f.get('checked_bags', 0), layovers,
+        )
+
+    def _itinerary_key(f):
+        layovers = tuple(f.get('layover_airports') or []) or ('N/A',)
+        return (
+            f['departure_time'], f['arrival_time'], f['origin'], f['destination'],
+            f.get('cabin'), f.get('checked_bags', 0), layovers,
+        )
+
+    fn_counts = Counter(_flight_key(f) for f in flights)
+    itinerary_counts = Counter(_itinerary_key(f) for f in flights)
     return [
         f for f in flights
-        if fn_counts[(f['flight_number'], f['departure_time'], f['origin'], f['destination'], f.get('cabin'))] == 1
-        and itinerary_counts[(f['departure_time'], f['arrival_time'], f['origin'], f['destination'], f.get('cabin'))] == 1
+        if fn_counts[_flight_key(f)] == 1 and itinerary_counts[_itinerary_key(f)] == 1
     ]
 
 
