@@ -2,12 +2,15 @@
 Search section: How to Use guide, example prompt carousel, search form, and search execution.
 """
 import re
+from datetime import date, timedelta
 from html import escape as _esc
 import streamlit as st
 import streamlit.components.v1 as components
 
+from streamlit_searchbox import st_searchbox
 from frontend.styles import TEXTAREA_CSS, PROMPT_SPACING_CSS
 from frontend.utils import remove_codeshares
+from backend.utils.airport_search import search_cities, get_airports_for_city, get_countries, get_regions
 
 
 CAROUSEL_HTML = r"""
@@ -546,6 +549,144 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     # Example prompts carousel
     st.markdown("**Example prompts:**")
     components.html(CAROUSEL_HTML, height=178)
+
+    st.markdown("---")
+
+    # ── Optional location filters ────────────────────────────────────
+    st.markdown("**Select origin and destination:**")
+    st.caption("Search by city name or state/region (e.g. \"New York\", \"California\", \"London\"). "
+               "If your city isn't listed, try searching by state or region to find nearby airports.")
+    with st.expander("Filter by country / region (optional)"):
+        countries = [""] + get_countries()
+        fc1, fc2 = st.columns(2)
+        with fc1:
+            origin_country = st.selectbox(
+                "Origin country", countries, index=0,
+                format_func=lambda x: "All countries" if x == "" else x,
+                key="origin_country_filter",
+            )
+        with fc2:
+            dest_country = st.selectbox(
+                "Destination country", countries, index=0,
+                format_func=lambda x: "All countries" if x == "" else x,
+                key="dest_country_filter",
+            )
+
+        origin_regions = [""] + get_regions(origin_country or None)
+        dest_regions = [""] + get_regions(dest_country or None)
+        fr1, fr2 = st.columns(2)
+        with fr1:
+            origin_region = st.selectbox(
+                "Origin region", origin_regions, index=0,
+                format_func=lambda x: "All regions" if x == "" else x,
+                key="origin_region_filter",
+            )
+        with fr2:
+            dest_region = st.selectbox(
+                "Destination region", dest_regions, index=0,
+                format_func=lambda x: "All regions" if x == "" else x,
+                key="dest_region_filter",
+            )
+
+    # ── City searchboxes with filters applied ─────────────────────
+    def _origin_search(query: str) -> list[tuple[str, str]]:
+        return search_cities(
+            query,
+            country=origin_country or None,
+            region=origin_region or None,
+        )
+
+    def _dest_search(query: str) -> list[tuple[str, str]]:
+        return search_cities(
+            query,
+            country=dest_country or None,
+            region=dest_region or None,
+        )
+
+    # Build unique keys so searchbox resets when filters change
+    origin_filter_tag = f"{origin_country}_{origin_region}"
+    dest_filter_tag = f"{dest_country}_{dest_region}"
+
+    # Pre-populate dropdown when filters are set
+    origin_has_filter = bool(origin_country or origin_region)
+    dest_has_filter = bool(dest_country or dest_region)
+    origin_defaults = search_cities("", country=origin_country or None, region=origin_region or None) if origin_has_filter else None
+    dest_defaults = search_cities("", country=dest_country or None, region=dest_region or None) if dest_has_filter else None
+
+    col_origin, col_dest = st.columns(2)
+    with col_origin:
+        origin_selection = st_searchbox(
+            _origin_search,
+            key=f"origin_searchbox_{origin_filter_tag}",
+            placeholder="Enter a city…",
+            label="Origin",
+            clear_on_submit=False,
+            default_options=origin_defaults,
+        )
+    with col_dest:
+        dest_selection = st_searchbox(
+            _dest_search,
+            key=f"dest_searchbox_{dest_filter_tag}",
+            placeholder="Enter a city…",
+            label="Destination",
+            clear_on_submit=False,
+            default_options=dest_defaults,
+        )
+
+    # Show airports for the selected cities
+    if origin_selection:
+        airports = get_airports_for_city(origin_selection)
+        st.session_state["origin_airports"] = airports
+        labels = [
+            a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
+            for a in airports
+        ]
+        st.caption(f"Airports: {', '.join(labels)}")
+
+    if dest_selection:
+        airports = get_airports_for_city(dest_selection)
+        st.session_state["dest_airports"] = airports
+        labels = [
+            a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
+            for a in airports
+        ]
+        st.caption(f"Airports: {', '.join(labels)}")
+
+    # ── Date selection ────────────────────────────────────────────
+    SEARCH_YEAR = 2026
+    min_date = max(date(SEARCH_YEAR, 1, 1), date.today() + timedelta(days=7))
+    max_date = date(SEARCH_YEAR, 12, 31)
+
+    st.markdown("**Select travel dates:**")
+    st.caption("Pick a start and end date (up to 7 consecutive days). "
+               "All dates between them will be searched.")
+    d1, d2 = st.columns(2)
+    with d1:
+        start_date = st.date_input(
+            "Start date",
+            value=min_date,
+            min_value=min_date,
+            max_value=max_date,
+            key="search_start_date",
+        )
+    with d2:
+        end_min = start_date if start_date else min_date
+        end_max = min(end_min + timedelta(days=6), max_date)
+        end_default = min(end_min + timedelta(days=2), end_max)
+        end_date = st.date_input(
+            "End date",
+            value=end_default,
+            min_value=end_min,
+            max_value=end_max,
+            key="search_end_date",
+        )
+
+    if start_date and end_date and start_date <= end_date:
+        num_days = (end_date - start_date).days + 1
+        travel_dates = [start_date + timedelta(days=i) for i in range(num_days)]
+        st.session_state["travel_dates"] = [d.isoformat() for d in travel_dates]
+        date_strs = [d.strftime("%b %d") for d in travel_dates]
+        st.caption(f"Searching {num_days} date{'s' if num_days > 1 else ''}: {', '.join(date_strs)}")
 
     st.markdown("---")
 

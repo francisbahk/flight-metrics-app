@@ -250,6 +250,9 @@ _defaults = {
     'origin_iata_map': {},
     'dest_search_results': [],
     'dest_iata_map': {},
+    'origin_airports': [],
+    'dest_airports': [],
+    'travel_dates': [],
 }
 for key, value in _defaults.items():
     if key not in st.session_state:
@@ -401,7 +404,11 @@ if 'filter_reset_counter' not in st.session_state:
 
 def get_flight_client():
     load_dotenv(override=True)
-    return FlightSearchClient()
+    try:
+        return FlightSearchClient()
+    except ValueError as e:
+        print(f"⚠ Flight client unavailable: {e}")
+        return None
 
 flight_client = get_flight_client()
 
