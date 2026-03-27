@@ -228,13 +228,13 @@ def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
                 neon_class = "metric-neon" if idx == 0 else ""
 
                 cabin = flight.get('cabin') or ''
-                cabin_display = cabin.replace('_', ' ').title() if cabin else ''
+                cabin_display = cabin.replace('_', ' ').title() if cabin else 'Economy'
                 bags = flight.get('checked_bags', 0) or 0
                 bags_display = f"{bags} bag{'s' if bags != 1 else ''} included"
                 layovers = flight.get('layover_airports') or []
-                layover_display = f"Via {', '.join(layovers)}" if layovers else ''
+                layover_display = f"Via {', '.join(layovers)}" if layovers else 'Nonstop'
 
-                extras = ' | '.join(filter(None, [cabin_display, bags_display, layover_display]))
+                extras = ' | '.join([cabin_display, bags_display, layover_display])
 
                 st.markdown(f"""
                 <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
