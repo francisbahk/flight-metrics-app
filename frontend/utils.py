@@ -95,7 +95,7 @@ def remove_codeshares(flights):
 
 def apply_filters(flights, airlines=None, connections=None, price_range=None,
                   duration_range=None, departure_range=None, arrival_range=None,
-                  origins=None, destinations=None):
+                  origins=None, destinations=None, cabins=None, checked_bags=None):
     """Filter flights based on user-selected criteria."""
     filtered = flights
 
@@ -110,6 +110,12 @@ def apply_filters(flights, airlines=None, connections=None, price_range=None,
 
     if destinations and len(destinations) > 0:
         filtered = [f for f in filtered if f['destination'] in destinations]
+
+    if cabins and len(cabins) > 0:
+        filtered = [f for f in filtered if (f.get('cabin') or 'ECONOMY') in cabins]
+
+    if checked_bags is not None and len(checked_bags) > 0:
+        filtered = [f for f in filtered if (f.get('checked_bags') or 0) in checked_bags]
 
     if price_range:
         min_price, max_price = price_range

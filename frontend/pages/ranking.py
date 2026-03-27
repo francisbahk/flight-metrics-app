@@ -336,6 +336,8 @@ def render_ranking_section():
         arrival_range=st.session_state.filter_arrival_time_range,
         origins=st.session_state.filter_origins,
         destinations=st.session_state.filter_destinations,
+        cabins=st.session_state.get('filter_cabins'),
+        checked_bags=st.session_state.get('filter_checked_bags'),
     )
 
     st.markdown('<div id="top-of-page"></div>', unsafe_allow_html=True)
@@ -400,6 +402,26 @@ def _render_sidebar_filters():
                 if st.checkbox(label, key=f"conn_{conn}_{rc}"):
                     selected_connections.append(conn)
             st.session_state.filter_connections = selected_connections if selected_connections else None
+
+        unique_cabins = sorted(set(f.get('cabin') or 'ECONOMY' for f in all_flights))
+        if len(unique_cabins) > 1:
+            with st.expander("Cabin Class", expanded=False):
+                selected_cabins = []
+                for cabin in unique_cabins:
+                    label = cabin.replace('_', ' ').title()
+                    if st.checkbox(label, key=f"cabin_{cabin}_{rc}"):
+                        selected_cabins.append(cabin)
+                st.session_state.filter_cabins = selected_cabins if selected_cabins else None
+
+        unique_bags = sorted(set(f.get('checked_bags') or 0 for f in all_flights))
+        if len(unique_bags) > 1:
+            with st.expander("Checked Bags Included", expanded=False):
+                selected_bags = []
+                for bags in unique_bags:
+                    label = f"{bags} bag{'s' if bags != 1 else ''} included"
+                    if st.checkbox(label, key=f"bags_{bags}_{rc}"):
+                        selected_bags.append(bags)
+                st.session_state.filter_checked_bags = selected_bags if selected_bags else None
 
         if len(all_flights) <= 1:
             st.caption("Only one flight — filters not applicable.")
@@ -471,6 +493,8 @@ def _render_sidebar_filters():
             st.session_state.filter_arrival_time_range = None
             st.session_state.filter_origins = None
             st.session_state.filter_destinations = None
+            st.session_state.filter_cabins = None
+            st.session_state.filter_checked_bags = None
             st.session_state.filter_reset_counter += 1
             st.session_state.checkbox_version += 1
 
