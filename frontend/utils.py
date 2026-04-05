@@ -64,29 +64,38 @@ def build_manual_parsed(origins, destinations, departure_date, return_date=None)
 def remove_codeshares(flights):
     """
     Remove all flights that are duplicates by either:
-    - Same flight number + departure time + route (same underlying flight, different arrival)
-    - Same full itinerary (departure + arrival + route, different flight numbers / codeshares)
+    - Same flight number + departure time + route + cabin + checked_bags + layovers
+    - Same full itinerary + cabin + checked_bags + layovers
     All copies in a duplicate group are dropped.
+    Each unique combo of cabin, checked bags, and layovers is treated as a distinct flight card.
     """
     from collections import Counter
-    fn_counts = Counter(
-        (f['flight_number'], f['departure_time'], f['origin'], f['destination'])
-        for f in flights
-    )
-    itinerary_counts = Counter(
-        (f['departure_time'], f['arrival_time'], f['origin'], f['destination'])
-        for f in flights
-    )
+
+    def _flight_key(f):
+        layovers = tuple(f.get('layover_airports') or []) or ('N/A',)
+        return (
+            f['flight_number'], f['departure_time'], f['origin'], f['destination'],
+            f.get('cabin'), f.get('checked_bags', 0), layovers,
+        )
+
+    def _itinerary_key(f):
+        layovers = tuple(f.get('layover_airports') or []) or ('N/A',)
+        return (
+            f['departure_time'], f['arrival_time'], f['origin'], f['destination'],
+            f.get('cabin'), f.get('checked_bags', 0), layovers,
+        )
+
+    fn_counts = Counter(_flight_key(f) for f in flights)
+    itinerary_counts = Counter(_itinerary_key(f) for f in flights)
     return [
         f for f in flights
-        if fn_counts[(f['flight_number'], f['departure_time'], f['origin'], f['destination'])] == 1
-        and itinerary_counts[(f['departure_time'], f['arrival_time'], f['origin'], f['destination'])] == 1
+        if fn_counts[_flight_key(f)] == 1 and itinerary_counts[_itinerary_key(f)] == 1
     ]
 
 
 def apply_filters(flights, airlines=None, connections=None, price_range=None,
                   duration_range=None, departure_range=None, arrival_range=None,
-                  origins=None, destinations=None):
+                  origins=None, destinations=None, cabins=None, checked_bags=None):
     """Filter flights based on user-selected criteria."""
     filtered = flights
 
@@ -101,6 +110,12 @@ def apply_filters(flights, airlines=None, connections=None, price_range=None,
 
     if destinations and len(destinations) > 0:
         filtered = [f for f in filtered if f['destination'] in destinations]
+
+    if cabins and len(cabins) > 0:
+        filtered = [f for f in filtered if (f.get('cabin') or 'ECONOMY') in cabins]
+
+    if checked_bags is not None and len(checked_bags) > 0:
+        filtered = [f for f in filtered if (f.get('checked_bags') or 0) in checked_bags]
 
     if price_range:
         min_price, max_price = price_range

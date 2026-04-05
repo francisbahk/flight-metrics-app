@@ -227,6 +227,15 @@ def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
                 stops_text = "Direct" if flight['stops'] == 0 else f"{flight['stops']} stop{'s' if flight['stops'] > 1 else ''}"
                 neon_class = "metric-neon" if idx == 0 else ""
 
+                cabin = flight.get('cabin') or ''
+                cabin_display = cabin.replace('_', ' ').title() if cabin else 'Economy'
+                bags = flight.get('checked_bags', 0) or 0
+                bags_display = f"{bags} bag{'s' if bags != 1 else ''} included"
+                layovers = flight.get('layover_airports') or []
+                layover_display = f"Via {', '.join(layovers)}" if layovers else 'Nonstop'
+
+                extras = ' | '.join([cabin_display, bags_display, layover_display])
+
                 st.markdown(f"""
                 <div style="line-height: 1.4; margin: 0; padding: 0.4rem 0; border-bottom: 1px solid #eee;">
                 <div style="font-size: 1.1em; margin-bottom: 0.2rem;">
@@ -240,6 +249,7 @@ def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
                     <span class="{neon_class}">{flight['origin']} &rarr; {flight['destination']}</span> |
                     <span class="{neon_class}">{dept_date_display}</span>
                 </div>
+                {f'<div style="font-size: 0.85em; color: #888;">{extras}</div>' if extras else ''}
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -326,6 +336,8 @@ def render_ranking_section():
         arrival_range=st.session_state.filter_arrival_time_range,
         origins=st.session_state.filter_origins,
         destinations=st.session_state.filter_destinations,
+        cabins=st.session_state.get('filter_cabins'),
+        checked_bags=st.session_state.get('filter_checked_bags'),
     )
 
     st.markdown('<div id="top-of-page"></div>', unsafe_allow_html=True)
@@ -390,6 +402,26 @@ def _render_sidebar_filters():
                 if st.checkbox(label, key=f"conn_{conn}_{rc}"):
                     selected_connections.append(conn)
             st.session_state.filter_connections = selected_connections if selected_connections else None
+
+        unique_cabins = sorted(set(f.get('cabin') or 'ECONOMY' for f in all_flights))
+        if len(unique_cabins) > 1:
+            with st.expander("Cabin Class", expanded=False):
+                selected_cabins = []
+                for cabin in unique_cabins:
+                    label = cabin.replace('_', ' ').title()
+                    if st.checkbox(label, key=f"cabin_{cabin}_{rc}"):
+                        selected_cabins.append(cabin)
+                st.session_state.filter_cabins = selected_cabins if selected_cabins else None
+
+        unique_bags = sorted(set(f.get('checked_bags') or 0 for f in all_flights))
+        if len(unique_bags) > 1:
+            with st.expander("Checked Bags Included", expanded=False):
+                selected_bags = []
+                for bags in unique_bags:
+                    label = f"{bags} bag{'s' if bags != 1 else ''} included"
+                    if st.checkbox(label, key=f"bags_{bags}_{rc}"):
+                        selected_bags.append(bags)
+                st.session_state.filter_checked_bags = selected_bags if selected_bags else None
 
         if len(all_flights) <= 1:
             st.caption("Only one flight — filters not applicable.")
@@ -461,6 +493,8 @@ def _render_sidebar_filters():
             st.session_state.filter_arrival_time_range = None
             st.session_state.filter_origins = None
             st.session_state.filter_destinations = None
+            st.session_state.filter_cabins = None
+            st.session_state.filter_checked_bags = None
             st.session_state.filter_reset_counter += 1
             st.session_state.checkbox_version += 1
 

@@ -454,6 +454,13 @@ class AmadeusClient:
             # Calculate stops
             stops = len(segments) - 1
 
+            # Extract layover airports (intermediate stops)
+            layover_airports = [
+                seg.get("arrival", {}).get("iataCode")
+                for seg in segments[:-1]
+                if seg.get("arrival", {}).get("iataCode")
+            ]
+
             # Extract price
             price = float(offer.get("price", {}).get("total", 0))
 
@@ -467,6 +474,17 @@ class AmadeusClient:
             # Convert duration from format like "PT2H30M" to minutes
             duration_minutes = self._parse_duration_to_minutes(duration)
 
+            # Extract cabin class and checked bags from travelerPricings
+            cabin = None
+            checked_bags = 0
+            traveler_pricings = offer.get("travelerPricings", [])
+            if traveler_pricings:
+                fare_details = traveler_pricings[0].get("fareDetailsBySegment", [])
+                if fare_details:
+                    cabin = fare_details[0].get("cabin")
+                    included_bags = fare_details[0].get("includedCheckedBags", {})
+                    checked_bags = included_bags.get("quantity", 0) if included_bags else 0
+
             return {
                 "id": offer.get("id"),  # Amadeus offer ID
                 "origin": origin,
@@ -476,11 +494,14 @@ class AmadeusClient:
                 "duration": duration,  # Keep original format
                 "duration_min": duration_minutes,  # Add SerpAPI-compatible field
                 "stops": stops,
+                "layover_airports": layover_airports,
                 "price": price,
                 "carrier_code": carrier_code,
                 "airline": carrier_code,  # Alias for compatibility with SerpAPI format
                 "airline_name": carrier_code,  # Add airline_name field
                 "flight_number": flight_number,  # Flight number (e.g., "AA123")
+                "cabin": cabin,          # e.g. ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST
+                "checked_bags": checked_bags,  # Number of included checked bags
                 "raw_data": offer,
             }
 
