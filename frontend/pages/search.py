@@ -421,8 +421,7 @@ def _md_to_html(text: str) -> str:
 
 
 def _execute_chat_search(prompt: str, flight_client):
-    """Run LLM parse + Amadeus search. Appends bot messages to search_chat_messages. Sets all_flights on success."""
-    from backend.prompt_parser import parse_flight_prompt_with_llm, get_test_api_fallback
+    """Record user preferences. Flights are already loaded from the airport confirmation step."""
     from backend.db import save_prompt_attempt, update_prompt_attempt_result
 
     prolific_id = st.session_state.get('prolific_id', 'anonymous')
@@ -430,88 +429,17 @@ def _execute_chat_search(prompt: str, flight_client):
     def bot(text):
         st.session_state.search_chat_messages.append({'role': 'bot', 'text': text})
 
-    # LLM parse
-    try:
-        parsed = parse_flight_prompt_with_llm(prompt)
-    except Exception as e:
-        bot("Something went wrong processing your request. Please try again.")
+    all_flights = st.session_state.get('all_flights', [])
+    if not all_flights:
+        bot("No flights loaded. Please go back and confirm your airport selection.")
         return
-
-    if not parsed.get('parsed_successfully', True):
-        rejection = parsed.get('user_message',
-            "Please describe your flight — include where you're flying from, where you're going, and when.")
-        attempt_num = save_prompt_attempt(prolific_id, prompt)
-        update_prompt_attempt_result(prolific_id, attempt_num, passed=False, llm_feedback=rejection)
-        bot(rejection)
-        _save_full_chat_history(prolific_id, attempt_num)
-        return
-
-    if not parsed.get('origins') or not parsed.get('destinations'):
-        rejection = "Couldn't find an origin and destination. Please include both in your prompt."
-        attempt_num = save_prompt_attempt(prolific_id, prompt)
-        update_prompt_attempt_result(prolific_id, attempt_num, passed=False, llm_feedback=rejection)
-        bot(rejection)
-        _save_full_chat_history(prolific_id, attempt_num)
-        return
-
-    if not parsed.get('departure_dates'):
-        rejection = "No departure date found. Please include when you want to fly."
-        attempt_num = save_prompt_attempt(prolific_id, prompt)
-        update_prompt_attempt_result(prolific_id, attempt_num, passed=False, llm_feedback=rejection)
-        bot(rejection)
-        _save_full_chat_history(prolific_id, attempt_num)
-        return
-
-    origins = parsed['origins']
-    dests = parsed['destinations']
-    dates = parsed['departure_dates']
 
     attempt_num = save_prompt_attempt(prolific_id, prompt)
     update_prompt_attempt_result(prolific_id, attempt_num, passed=True)
     _save_full_chat_history(prolific_id, attempt_num)
 
-    bot(f"Got it! Searching **{' / '.join(origins)} → {' / '.join(dests)}** on **{', '.join(dates)}**...")
-
-    # Amadeus search
-    all_flights = []
-    warnings_list = []
-    for origin_code in origins:
-        for dest_code in dests:
-            origin, ow = get_test_api_fallback(origin_code)
-            dest, dw = get_test_api_fallback(dest_code)
-            if ow: warnings_list.append(ow)
-            if dw: warnings_list.append(dw)
-            for date in dates:
-                try:
-                    results = flight_client.search_flights(
-                        origin=origin, destination=dest,
-                        departure_date=date, adults=1, max_results=250
-                    )
-                    offers = results if isinstance(results, list) else results.get('data', [])
-                    for offer in offers:
-                        fi = flight_client.parse_flight_offer(offer)
-                        if fi:
-                            all_flights.append(fi)
-                except Exception as e:
-                    warnings_list.append(f"Search error for {origin}→{dest} on {date}: {str(e)}")
-
-    if not all_flights:
-        bot("No flights found for that route and date. Try different dates or airports.")
-        return
-
-    all_flights = remove_codeshares(all_flights)
-    airline_codes = list(set(
-        f.get('airline') or f.get('carrier_code')
-        for f in all_flights if f.get('airline') or f.get('carrier_code')
-    ))
-    st.session_state.airline_names = flight_client.get_airline_names(airline_codes)
     st.session_state.original_prompt = prompt
-    st.session_state.all_flights = all_flights
-    st.session_state.selected_route = (
-        f"{' / '.join(origins)} → {' / '.join(dests)}"
-        + (f" ({', '.join(dates)})" if dates else "")
-    )
-    st.session_state.parsed_params = parsed
+    st.session_state.parsed_params = {}
     st.session_state.search_mode = "ai"
 
     if st.session_state.get('token'):
@@ -525,10 +453,7 @@ def _execute_chat_search(prompt: str, flight_client):
             study_id=st.session_state.get('study_id'),
         )
 
-    for w in warnings_list:
-        bot(f"Note: {w}")
-
-    bot(f"Found **{len(all_flights)} flights**! Scroll down to browse and rank them.")
+    bot(f"Got it! Your preferences have been recorded. Found **{len(all_flights)} flights** — scroll down to browse and rank them.")
     _save_full_chat_history(prolific_id, attempt_num)
 
 
@@ -537,8 +462,8 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     Render the How to Use guide, example prompt carousel, chat search interface,
     and execute search on user message. Updates st.session_state.all_flights.
     """
-    # Once flights are loaded the search is locked.
-    if st.session_state.get('all_flights'):
+    # Once flights are confirmed AND preferences submitted, we're done with search.
+    if st.session_state.get('all_flights') and st.session_state.get('original_prompt'):
         return
 
     render_how_to_use()
@@ -633,24 +558,34 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             default_options=dest_defaults,
         )
 
-    # Show airports for the selected cities
+    # Show airports for the selected cities as interactive checkboxes
+    airports_confirmed = st.session_state.get('airports_confirmed', False)
+
     if origin_selection:
         airports = get_airports_for_city(origin_selection)
         st.session_state["origin_airports"] = airports
-        labels = [
-            a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
-            for a in airports
-        ]
-        st.caption(f"Airports: {', '.join(labels)}")
+        st.markdown("**Origin airports:**")
+        selected_origins = []
+        for a in airports:
+            label = a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
+            default = a["iata"] in st.session_state.get("selected_origin_iatas", [a["iata"] for a in airports])
+            checked = st.checkbox(label, value=default, key=f"origin_ap_{a['iata']}", disabled=airports_confirmed)
+            if checked:
+                selected_origins.append(a["iata"])
+        st.session_state["selected_origin_iatas"] = selected_origins
 
     if dest_selection:
         airports = get_airports_for_city(dest_selection)
         st.session_state["dest_airports"] = airports
-        labels = [
-            a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
-            for a in airports
-        ]
-        st.caption(f"Airports: {', '.join(labels)}")
+        st.markdown("**Destination airports:**")
+        selected_dests = []
+        for a in airports:
+            label = a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
+            default = a["iata"] in st.session_state.get("selected_dest_iatas", [a["iata"] for a in airports])
+            checked = st.checkbox(label, value=default, key=f"dest_ap_{a['iata']}", disabled=airports_confirmed)
+            if checked:
+                selected_dests.append(a["iata"])
+        st.session_state["selected_dest_iatas"] = selected_dests
 
     # ── Date selection ────────────────────────────────────────────
     SEARCH_YEAR = 2026
@@ -690,14 +625,136 @@ def render_search_section(static_route_day_options, flight_client, static_flight
 
     st.markdown("---")
 
-    # Initialize chat history with opening bot message (tip merged in)
+    # ── Airport confirmation flow ─────────────────────────────────
+    airports_confirmed = st.session_state.get('airports_confirmed', False)
+    search_summary = st.session_state.get('airport_search_summary')
+
+    if not airports_confirmed:
+        can_search = (
+            origin_selection and dest_selection
+            and st.session_state.get("selected_origin_iatas")
+            and st.session_state.get("selected_dest_iatas")
+            and st.session_state.get("travel_dates")
+        )
+
+        if st.button("Search flights", type="primary", disabled=not can_search):
+            # Run search with selected airports only
+            origins = st.session_state["selected_origin_iatas"]
+            dests = st.session_state["selected_dest_iatas"]
+            dates = st.session_state["travel_dates"]
+
+            all_flights = []
+            per_origin = {}
+            with st.spinner("Searching for flights..."):
+                for origin_code in origins:
+                    for dest_code in dests:
+                        for d in dates:
+                            try:
+                                results = flight_client.search_flights(
+                                    origin=origin_code, destination=dest_code,
+                                    departure_date=d, adults=1, max_results=250
+                                )
+                                offers = results if isinstance(results, list) else results.get('data', [])
+                                for offer in offers:
+                                    fi = flight_client.parse_flight_offer(offer)
+                                    if fi:
+                                        all_flights.append(fi)
+                                        per_origin[origin_code] = per_origin.get(origin_code, 0) + 1
+                            except Exception:
+                                pass
+
+            all_flights = remove_codeshares(all_flights)
+
+            # Recompute per_origin after dedup
+            per_origin_dedup = {}
+            for f in all_flights:
+                code = f.get('origin')
+                per_origin_dedup[code] = per_origin_dedup.get(code, 0) + 1
+
+            # Compute unchecked airports
+            all_origin_airports = st.session_state.get("origin_airports", [])
+            all_dest_airports = st.session_state.get("dest_airports", [])
+            unchecked_origins = [a for a in all_origin_airports if a["iata"] not in origins]
+            unchecked_dests = [a for a in all_dest_airports if a["iata"] not in dests]
+
+            st.session_state["airport_search_summary"] = {
+                "flights": all_flights,
+                "per_origin": per_origin_dedup,
+                "unchecked_origins": unchecked_origins,
+                "unchecked_dests": unchecked_dests,
+                "origins": origins,
+                "dests": dests,
+            }
+            st.rerun()
+
+        # Show search summary if available
+        if search_summary:
+            flights = search_summary["flights"]
+            per_origin = search_summary["per_origin"]
+            unchecked_origins = search_summary["unchecked_origins"]
+            unchecked_dests = search_summary["unchecked_dests"]
+            total = len(flights)
+
+            st.markdown(f"**Found {total} flight{'s' if total != 1 else ''} total**")
+            if per_origin:
+                for code, count in per_origin.items():
+                    st.caption(f"• {code}: {count} flight{'s' if count != 1 else ''}")
+
+            if total < 10:
+                st.warning(f"Only {total} flight{'s' if total != 1 else ''} found. Consider adding more airports.")
+                if unchecked_origins or unchecked_dests:
+                    st.markdown("**Add back unchecked airports?**")
+                    if unchecked_origins:
+                        st.caption("Origin:")
+                        for a in unchecked_origins:
+                            label = a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
+                            if st.checkbox(label, value=False, key=f"add_origin_{a['iata']}"):
+                                if a["iata"] not in st.session_state["selected_origin_iatas"]:
+                                    st.session_state["selected_origin_iatas"].append(a["iata"])
+                    if unchecked_dests:
+                        st.caption("Destination:")
+                        for a in unchecked_dests:
+                            label = a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
+                            if st.checkbox(label, value=False, key=f"add_dest_{a['iata']}"):
+                                if a["iata"] not in st.session_state["selected_dest_iatas"]:
+                                    st.session_state["selected_dest_iatas"].append(a["iata"])
+                    if st.button("Search again with updated airports"):
+                        st.session_state["airport_search_summary"] = None
+                        st.rerun()
+
+            col_yes, col_no = st.columns(2)
+            with col_yes:
+                if st.button("Yes, proceed →", type="primary", use_container_width=True):
+                    st.session_state['airports_confirmed'] = True
+                    st.session_state['all_flights'] = flights
+                    airline_codes = list(set(
+                        f.get('airline') or f.get('carrier_code')
+                        for f in flights if f.get('airline') or f.get('carrier_code')
+                    ))
+                    st.session_state.airline_names = flight_client.get_airline_names(airline_codes)
+                    st.session_state.selected_route = (
+                        f"{' / '.join(search_summary['origins'])} → {' / '.join(search_summary['dests'])}"
+                    )
+                    st.rerun()
+            with col_no:
+                if st.button("No, edit search", use_container_width=True):
+                    st.session_state["airport_search_summary"] = None
+                    st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    # ── Locked form indicator ─────────────────────────────────────
+    if airports_confirmed and not st.session_state.get('all_flights'):
+        st.info("Airport set confirmed. Describe your preferences below.")
+
+    # ── Chat input (only shown after airports confirmed) ──────────
     if 'search_chat_messages' not in st.session_state:
         st.session_state.search_chat_messages = [{
             'role': 'bot',
             'text': (
-                "Describe your flight — where are you flying from, where are you going, "
-                "and when? Feel free to add any preferences (price, stops, airline, times, etc.). "
-                "💡 **Tip:** Include all nearby airports explicitly (e.g. \"PIE\" or \"SRQ\") if needed."
+                "Your flights are loaded! Now describe your preferences — "
+                "what matters most to you? (price, duration, stops, airline, departure time, etc.)"
             ),
         }]
 
@@ -730,7 +787,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     with st.form("chat_input_form", clear_on_submit=True):
         user_input = st.text_area(
             "",
-            placeholder="Describe your trip — origin, destination, date, and any preferences...",
+            placeholder="Describe your preferences — price, stops, airline, times, etc.",
             label_visibility="collapsed",
             height=90,
         )
@@ -741,7 +798,6 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             submitted = st.form_submit_button("Send →", use_container_width=True, type="primary")
 
     if submitted and user_input and user_input.strip():
-        st.session_state.all_flights = []
         st.session_state.selected_flights = []
         st.session_state.outbound_submitted = False
         st.session_state.review_confirmed = False
