@@ -552,16 +552,6 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     airports_confirmed = st.session_state.get('airports_confirmed', False)
 
     if airports_confirmed:
-        # Show locked city values as static greyed-out text
-        origin_iatas = st.session_state.get("selected_origin_iatas", [])
-        dest_iatas = st.session_state.get("selected_dest_iatas", [])
-        st.markdown(
-            f"<div style='opacity:0.45;'>"
-            f"<b>Origin:</b> {', '.join(origin_iatas)}&nbsp;&nbsp;"
-            f"<b>Destination:</b> {', '.join(dest_iatas)}"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
         origin_selection = None
         dest_selection = None
     else:
@@ -575,6 +565,19 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                 clear_on_submit=False,
                 default_options=origin_defaults,
             )
+            if origin_selection:
+                airports = get_airports_for_city(origin_selection)
+                st.session_state["origin_airports"] = airports
+                st.markdown("**Origin airports:**")
+                selected_origins = []
+                for a in airports:
+                    label = a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
+                    default = a["iata"] in st.session_state.get("selected_origin_iatas", [a["iata"] for a in airports])
+                    checked = st.checkbox(label, value=default, key=f"origin_ap_{a['iata']}")
+                    if checked:
+                        selected_origins.append(a["iata"])
+                st.session_state["selected_origin_iatas"] = selected_origins
+
         with col_dest:
             dest_selection = st_searchbox(
                 _dest_search,
@@ -584,9 +587,21 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                 clear_on_submit=False,
                 default_options=dest_defaults,
             )
+            if dest_selection:
+                airports = get_airports_for_city(dest_selection)
+                st.session_state["dest_airports"] = airports
+                st.markdown("**Destination airports:**")
+                selected_dests = []
+                for a in airports:
+                    label = a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
+                    default = a["iata"] in st.session_state.get("selected_dest_iatas", [a["iata"] for a in airports])
+                    checked = st.checkbox(label, value=default, key=f"dest_ap_{a['iata']}")
+                    if checked:
+                        selected_dests.append(a["iata"])
+                st.session_state["selected_dest_iatas"] = selected_dests
 
     if airports_confirmed:
-        # Show locked airport + date summary greyed out
+        # Show locked airport + date summary greyed out (no redundant city line)
         origin_iatas = st.session_state.get("selected_origin_iatas", [])
         dest_iatas = st.session_state.get("selected_dest_iatas", [])
         travel_dates = st.session_state.get("travel_dates", [])
@@ -601,33 +616,6 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             f"</div>",
             unsafe_allow_html=True,
         )
-    else:
-        # Show airports for the selected cities as interactive checkboxes
-        if origin_selection:
-            airports = get_airports_for_city(origin_selection)
-            st.session_state["origin_airports"] = airports
-            st.markdown("**Origin airports:**")
-            selected_origins = []
-            for a in airports:
-                label = a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
-                default = a["iata"] in st.session_state.get("selected_origin_iatas", [a["iata"] for a in airports])
-                checked = st.checkbox(label, value=default, key=f"origin_ap_{a['iata']}")
-                if checked:
-                    selected_origins.append(a["iata"])
-            st.session_state["selected_origin_iatas"] = selected_origins
-
-        if dest_selection:
-            airports = get_airports_for_city(dest_selection)
-            st.session_state["dest_airports"] = airports
-            st.markdown("**Destination airports:**")
-            selected_dests = []
-            for a in airports:
-                label = a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
-                default = a["iata"] in st.session_state.get("selected_dest_iatas", [a["iata"] for a in airports])
-                checked = st.checkbox(label, value=default, key=f"dest_ap_{a['iata']}")
-                if checked:
-                    selected_dests.append(a["iata"])
-            st.session_state["selected_dest_iatas"] = selected_dests
 
         # ── Date selection ────────────────────────────────────────────
         SEARCH_YEAR = 2026
@@ -707,11 +695,14 @@ def render_search_section(static_route_day_options, flight_client, static_flight
 
             all_flights = remove_codeshares(all_flights)
 
-            # Recompute per_origin after dedup
+            # Recompute per origin/dest after dedup
             per_origin_dedup = {}
+            per_dest_dedup = {}
             for f in all_flights:
-                code = f.get('origin')
-                per_origin_dedup[code] = per_origin_dedup.get(code, 0) + 1
+                orig = f.get('origin')
+                dest = f.get('destination')
+                per_origin_dedup[orig] = per_origin_dedup.get(orig, 0) + 1
+                per_dest_dedup[dest] = per_dest_dedup.get(dest, 0) + 1
 
             # Compute unchecked airports
             all_origin_airports = st.session_state.get("origin_airports", [])
@@ -722,6 +713,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             st.session_state["airport_search_summary"] = {
                 "flights": all_flights,
                 "per_origin": per_origin_dedup,
+                "per_dest": per_dest_dedup,
                 "unchecked_origins": unchecked_origins,
                 "unchecked_dests": unchecked_dests,
                 "origins": origins,
@@ -737,10 +729,20 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             unchecked_dests = search_summary["unchecked_dests"]
             total = len(flights)
 
+            per_dest = search_summary.get("per_dest", {})
             st.markdown(f"**Found {total} flight{'s' if total != 1 else ''} total**")
-            if per_origin:
-                for code, count in per_origin.items():
-                    st.caption(f"• {code}: {count} flight{'s' if count != 1 else ''}")
+            if per_origin or per_dest:
+                c1, c2 = st.columns(2)
+                with c1:
+                    if per_origin:
+                        st.caption("**By origin:**")
+                        for code, count in per_origin.items():
+                            st.caption(f"• {code}: {count} flight{'s' if count != 1 else ''}")
+                with c2:
+                    if per_dest:
+                        st.caption("**By destination:**")
+                        for code, count in per_dest.items():
+                            st.caption(f"• {code}: {count} flight{'s' if count != 1 else ''}")
 
             if total < 10:
                 st.warning(f"Only {total} flight{'s' if total != 1 else ''} found. Consider adding more airports.")
