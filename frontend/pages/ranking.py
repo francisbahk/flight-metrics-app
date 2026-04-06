@@ -531,12 +531,19 @@ def _render_ranking_column(rank_limit: int):
                         unsafe_allow_html=True)
 
         with col_info:
+            cabin = flight.get('cabin') or ''
+            cabin_display = cabin.replace('_', ' ').title() if cabin else 'Economy'
+            bags = flight.get('checked_bags', 0) or 0
+            bags_display = f"{bags} bag{'s' if bags != 1 else ''} included"
+            layovers = flight.get('layover_airports') or []
+            layover_display = f"Via {', '.join(layovers)}" if layovers else 'Nonstop'
             st.markdown(
                 f"<div style='font-size:0.8em;line-height:1.35;padding:2px 0;'>"
                 f"<b>{format_price(flight['price'])}</b> · {dur} · {stops_t}<br>"
                 f"{dept_dt.strftime('%I:%M %p')} – {arr_dt.strftime('%I:%M %p')} · "
                 f"{get_airline_name(flight['airline'])} {flight['flight_number']}<br>"
-                f"{flight['origin']} → {flight['destination']} | {dept_dt.strftime('%a, %b %d')}"
+                f"{flight['origin']} → {flight['destination']} | {dept_dt.strftime('%a, %b %d')}<br>"
+                f"<span style='color:#888;'>{cabin_display} · {bags_display} · {layover_display}</span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )

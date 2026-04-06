@@ -462,8 +462,19 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     Render the How to Use guide, example prompt carousel, chat search interface,
     and execute search on user message. Updates st.session_state.all_flights.
     """
-    # Once flights are confirmed AND preferences submitted, we're done with search.
+    # Once flights are confirmed AND preferences submitted, show locked summary and stop.
     if st.session_state.get('all_flights') and st.session_state.get('original_prompt'):
+        route = st.session_state.get('selected_route', '')
+        prompt = st.session_state.get('original_prompt', '')
+        n = len(st.session_state.get('all_flights', []))
+        st.markdown(
+            f"<div style='opacity:0.45;pointer-events:none;'>"
+            f"<b>Route:</b> {route}<br>"
+            f"<b>Preferences:</b> {prompt}<br>"
+            f"<b>Flights loaded:</b> {n}"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
         return
 
     render_how_to_use()
