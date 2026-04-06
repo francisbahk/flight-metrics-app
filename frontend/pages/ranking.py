@@ -193,7 +193,7 @@ def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
             with col1:
                 # Build a unique key from all distinguishing fields — avoids collisions when Amadeus IDs are short ints
                 import hashlib
-                raw = f"{flight.get('flight_number','')}_{flight.get('departure_time','')}_{flight.get('cabin','')}_{flight.get('checked_bags',0)}_{','.join(flight.get('layover_airports') or [])}"
+                raw = f"{flight.get('flight_number','')}_{flight.get('departure_time','')}_{flight.get('origin','')}_{flight.get('destination','')}_{flight.get('cabin','')}_{flight.get('checked_bags',0)}_{','.join(flight.get('layover_airports') or [])}"
                 safe_id = hashlib.md5(raw.encode()).hexdigest()[:16]
                 chk_key = f"chk_{safe_id}_v{st.session_state.checkbox_version}"
                 if chk_key not in st.session_state:
