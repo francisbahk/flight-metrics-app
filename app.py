@@ -498,7 +498,7 @@ render_search_section(STATIC_ROUTE_DAY_OPTIONS, flight_client, STATIC_FLIGHTS)
 # ============================================================================
 # RENDER: RESULTS (conditional on flights being loaded)
 # ============================================================================
-if st.session_state.all_flights:
+if st.session_state.all_flights and st.session_state.get('original_prompt'):
     if st.session_state.outbound_submitted:
         from frontend.pages.results import render_completion_section
         render_completion_section()

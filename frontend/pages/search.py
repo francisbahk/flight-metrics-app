@@ -552,98 +552,118 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     airports_confirmed = st.session_state.get('airports_confirmed', False)
 
     if airports_confirmed:
+        # Show locked city values as static greyed-out text
+        origin_iatas = st.session_state.get("selected_origin_iatas", [])
+        dest_iatas = st.session_state.get("selected_dest_iatas", [])
         st.markdown(
-            "<div style='opacity:0.4;pointer-events:none;'>",
+            f"<div style='opacity:0.45;'>"
+            f"<b>Origin:</b> {', '.join(origin_iatas)}&nbsp;&nbsp;"
+            f"<b>Destination:</b> {', '.join(dest_iatas)}"
+            f"</div>",
             unsafe_allow_html=True,
         )
-
-    col_origin, col_dest = st.columns(2)
-    with col_origin:
-        origin_selection = st_searchbox(
-            _origin_search,
-            key=f"origin_searchbox_{origin_filter_tag}",
-            placeholder="Enter a city…",
-            label="Origin",
-            clear_on_submit=False,
-            default_options=origin_defaults,
-        )
-    with col_dest:
-        dest_selection = st_searchbox(
-            _dest_search,
-            key=f"dest_searchbox_{dest_filter_tag}",
-            placeholder="Enter a city…",
-            label="Destination",
-            clear_on_submit=False,
-            default_options=dest_defaults,
-        )
-
-    # Show airports for the selected cities as interactive checkboxes
-    if origin_selection:
-        airports = get_airports_for_city(origin_selection)
-        st.session_state["origin_airports"] = airports
-        st.markdown("**Origin airports:**")
-        selected_origins = []
-        for a in airports:
-            label = a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
-            default = a["iata"] in st.session_state.get("selected_origin_iatas", [a["iata"] for a in airports])
-            checked = st.checkbox(label, value=default, key=f"origin_ap_{a['iata']}", disabled=airports_confirmed)
-            if checked:
-                selected_origins.append(a["iata"])
-        st.session_state["selected_origin_iatas"] = selected_origins
-
-    if dest_selection:
-        airports = get_airports_for_city(dest_selection)
-        st.session_state["dest_airports"] = airports
-        st.markdown("**Destination airports:**")
-        selected_dests = []
-        for a in airports:
-            label = a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
-            default = a["iata"] in st.session_state.get("selected_dest_iatas", [a["iata"] for a in airports])
-            checked = st.checkbox(label, value=default, key=f"dest_ap_{a['iata']}", disabled=airports_confirmed)
-            if checked:
-                selected_dests.append(a["iata"])
-        st.session_state["selected_dest_iatas"] = selected_dests
-
-    # ── Date selection ────────────────────────────────────────────
-    SEARCH_YEAR = 2026
-    min_date = max(date(SEARCH_YEAR, 1, 1), date.today() + timedelta(days=7))
-    max_date = date(SEARCH_YEAR, 12, 31)
-
-    st.markdown("**Select travel dates:**")
-    st.caption("Pick a start and end date (up to 7 consecutive days). "
-               "All dates between them will be searched.")
-    d1, d2 = st.columns(2)
-    with d1:
-        start_date = st.date_input(
-            "Start date",
-            value=min_date,
-            min_value=min_date,
-            max_value=max_date,
-            key="search_start_date",
-            disabled=airports_confirmed,
-        )
-    with d2:
-        end_min = start_date if start_date else min_date
-        end_max = min(end_min + timedelta(days=6), max_date)
-        end_default = min(end_min + timedelta(days=2), end_max)
-        end_date = st.date_input(
-            "End date",
-            value=end_default,
-            min_value=end_min,
-            max_value=end_max,
-            key="search_end_date",
-            disabled=airports_confirmed,
-        )
-
-    if start_date and end_date and start_date <= end_date:
-        num_days = (end_date - start_date).days + 1
-        travel_dates = [start_date + timedelta(days=i) for i in range(num_days)]
-        st.session_state["travel_dates"] = [d.isoformat() for d in travel_dates]
-        date_strs = [d.strftime("%b %d") for d in travel_dates]
-        st.caption(f"Searching {num_days} date{'s' if num_days > 1 else ''}: {', '.join(date_strs)}")
+        origin_selection = None
+        dest_selection = None
+    else:
+        col_origin, col_dest = st.columns(2)
+        with col_origin:
+            origin_selection = st_searchbox(
+                _origin_search,
+                key=f"origin_searchbox_{origin_filter_tag}",
+                placeholder="Enter a city…",
+                label="Origin",
+                clear_on_submit=False,
+                default_options=origin_defaults,
+            )
+        with col_dest:
+            dest_selection = st_searchbox(
+                _dest_search,
+                key=f"dest_searchbox_{dest_filter_tag}",
+                placeholder="Enter a city…",
+                label="Destination",
+                clear_on_submit=False,
+                default_options=dest_defaults,
+            )
 
     if airports_confirmed:
-        st.markdown("</div>", unsafe_allow_html=True)
+        # Show locked airport + date summary greyed out
+        origin_iatas = st.session_state.get("selected_origin_iatas", [])
+        dest_iatas = st.session_state.get("selected_dest_iatas", [])
+        travel_dates = st.session_state.get("travel_dates", [])
+        dates_display = ', '.join(
+            date.fromisoformat(d).strftime("%b %d") for d in travel_dates
+        ) if travel_dates else '—'
+        st.markdown(
+            f"<div style='opacity:0.45;font-size:0.9em;'>"
+            f"<b>Origin airports:</b> {', '.join(origin_iatas)}<br>"
+            f"<b>Destination airports:</b> {', '.join(dest_iatas)}<br>"
+            f"<b>Dates:</b> {dates_display}"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        # Show airports for the selected cities as interactive checkboxes
+        if origin_selection:
+            airports = get_airports_for_city(origin_selection)
+            st.session_state["origin_airports"] = airports
+            st.markdown("**Origin airports:**")
+            selected_origins = []
+            for a in airports:
+                label = a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
+                default = a["iata"] in st.session_state.get("selected_origin_iatas", [a["iata"] for a in airports])
+                checked = st.checkbox(label, value=default, key=f"origin_ap_{a['iata']}")
+                if checked:
+                    selected_origins.append(a["iata"])
+            st.session_state["selected_origin_iatas"] = selected_origins
+
+        if dest_selection:
+            airports = get_airports_for_city(dest_selection)
+            st.session_state["dest_airports"] = airports
+            st.markdown("**Destination airports:**")
+            selected_dests = []
+            for a in airports:
+                label = a["iata"] if a["distance_mi"] == 0 else f"{a['iata']} ({a['distance_mi']:.0f} mi)"
+                default = a["iata"] in st.session_state.get("selected_dest_iatas", [a["iata"] for a in airports])
+                checked = st.checkbox(label, value=default, key=f"dest_ap_{a['iata']}")
+                if checked:
+                    selected_dests.append(a["iata"])
+            st.session_state["selected_dest_iatas"] = selected_dests
+
+        # ── Date selection ────────────────────────────────────────────
+        SEARCH_YEAR = 2026
+        min_date = max(date(SEARCH_YEAR, 1, 1), date.today() + timedelta(days=7))
+        max_date = date(SEARCH_YEAR, 12, 31)
+
+        st.markdown("**Select travel dates:**")
+        st.caption("Pick a start and end date (up to 7 consecutive days). "
+                   "All dates between them will be searched.")
+        d1, d2 = st.columns(2)
+        with d1:
+            start_date = st.date_input(
+                "Start date",
+                value=min_date,
+                min_value=min_date,
+                max_value=max_date,
+                key="search_start_date",
+            )
+        with d2:
+            end_min = start_date if start_date else min_date
+            end_max = min(end_min + timedelta(days=6), max_date)
+            end_default = min(end_min + timedelta(days=2), end_max)
+            end_date = st.date_input(
+                "End date",
+                value=end_default,
+                min_value=end_min,
+                max_value=end_max,
+                key="search_end_date",
+            )
+
+        if start_date and end_date and start_date <= end_date:
+            num_days = (end_date - start_date).days + 1
+            travel_dates = [start_date + timedelta(days=i) for i in range(num_days)]
+            st.session_state["travel_dates"] = [d.isoformat() for d in travel_dates]
+            date_strs = [d.strftime("%b %d") for d in travel_dates]
+            st.caption(f"Searching {num_days} date{'s' if num_days > 1 else ''}: {', '.join(date_strs)}")
 
     st.markdown("---")
 
