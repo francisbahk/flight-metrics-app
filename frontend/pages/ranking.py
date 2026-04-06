@@ -191,11 +191,10 @@ def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
             col1, col2 = st.columns([1, 5])
 
             with col1:
-                # Key by flight identity, not position — prevents stale state when flights are sorted
-                cabin_part = (flight.get('cabin') or 'EC')[:2]
-                bags_part = str(flight.get('checked_bags') or 0)
-                full_key = f"{flight_key}_{cabin_part}_{bags_part}"
-                safe_id = ''.join(c for c in full_key if c.isalnum() or c in ('_', '-'))[:50]
+                # Build a unique key from all distinguishing fields — avoids collisions when Amadeus IDs are short ints
+                import hashlib
+                raw = f"{flight.get('flight_number','')}_{flight.get('departure_time','')}_{flight.get('cabin','')}_{flight.get('checked_bags',0)}_{','.join(flight.get('layover_airports') or [])}"
+                safe_id = hashlib.md5(raw.encode()).hexdigest()[:16]
                 chk_key = f"chk_{safe_id}_v{st.session_state.checkbox_version}"
                 if chk_key not in st.session_state:
                     st.session_state[chk_key] = is_selected
