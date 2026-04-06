@@ -549,6 +549,14 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     origin_defaults = search_cities("", country=origin_country or None, region=origin_region or None) if origin_has_filter else None
     dest_defaults = search_cities("", country=dest_country or None, region=dest_region or None) if dest_has_filter else None
 
+    airports_confirmed = st.session_state.get('airports_confirmed', False)
+
+    if airports_confirmed:
+        st.markdown(
+            "<div style='opacity:0.4;pointer-events:none;'>",
+            unsafe_allow_html=True,
+        )
+
     col_origin, col_dest = st.columns(2)
     with col_origin:
         origin_selection = st_searchbox(
@@ -570,8 +578,6 @@ def render_search_section(static_route_day_options, flight_client, static_flight
         )
 
     # Show airports for the selected cities as interactive checkboxes
-    airports_confirmed = st.session_state.get('airports_confirmed', False)
-
     if origin_selection:
         airports = get_airports_for_city(origin_selection)
         st.session_state["origin_airports"] = airports
@@ -614,6 +620,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             min_value=min_date,
             max_value=max_date,
             key="search_start_date",
+            disabled=airports_confirmed,
         )
     with d2:
         end_min = start_date if start_date else min_date
@@ -625,6 +632,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             min_value=end_min,
             max_value=end_max,
             key="search_end_date",
+            disabled=airports_confirmed,
         )
 
     if start_date and end_date and start_date <= end_date:
@@ -633,6 +641,9 @@ def render_search_section(static_route_day_options, flight_client, static_flight
         st.session_state["travel_dates"] = [d.isoformat() for d in travel_dates]
         date_strs = [d.strftime("%b %d") for d in travel_dates]
         st.caption(f"Searching {num_days} date{'s' if num_days > 1 else ''}: {', '.join(date_strs)}")
+
+    if airports_confirmed:
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -755,11 +766,10 @@ def render_search_section(static_route_day_options, flight_client, static_flight
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
-    # ── Locked form indicator ─────────────────────────────────────
-    if airports_confirmed and not st.session_state.get('all_flights'):
-        st.info("Airport set confirmed. Describe your preferences below.")
-
     # ── Chat input (only shown after airports confirmed) ──────────
+    st.markdown("---")
+    st.markdown("**Describe your flight preferences:**")
+
     if 'search_chat_messages' not in st.session_state:
         st.session_state.search_chat_messages = [{
             'role': 'bot',
@@ -772,26 +782,19 @@ def render_search_section(static_route_day_options, flight_client, static_flight
     # If there's a pending search, run it first
     if st.session_state.get('pending_chat_search'):
         prompt = st.session_state.pop('pending_chat_search')
-        with st.spinner("Searching for flights..."):
+        with st.spinner("Processing..."):
             _execute_chat_search(prompt, flight_client)
         st.rerun()
 
-    # Render iMessage-style chat bubbles
-    bubbles_html = '<div class="imsg-container">'
-    for msg in st.session_state.search_chat_messages:
-        if msg['role'] == 'bot':
-            bubbles_html += (
-                f'<div class="imsg-row imsg-bot-row">'
-                f'<div class="imsg-bubble imsg-bot">{_md_to_html(msg["text"])}</div>'
-                f'</div>'
-            )
-        else:
-            bubbles_html += (
-                f'<div class="imsg-row imsg-user-row">'
-                f'<div class="imsg-bubble imsg-user">{_esc(msg["text"])}</div>'
-                f'</div>'
-            )
-    bubbles_html += '</div>'
+    # Only show the bot opening message — not the full chat history yet
+    opening = st.session_state.search_chat_messages[0]
+    bubbles_html = (
+        '<div class="imsg-container">'
+        f'<div class="imsg-row imsg-bot-row">'
+        f'<div class="imsg-bubble imsg-bot">{_md_to_html(opening["text"])}</div>'
+        f'</div>'
+        '</div>'
+    )
     st.markdown(bubbles_html, unsafe_allow_html=True)
 
     # Input form with textarea + [mic | Send →]

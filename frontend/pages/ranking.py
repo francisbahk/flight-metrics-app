@@ -192,7 +192,10 @@ def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
 
             with col1:
                 # Key by flight identity, not position — prevents stale state when flights are sorted
-                safe_id = ''.join(c for c in flight_key if c.isalnum() or c in ('_', '-'))[:40]
+                cabin_part = (flight.get('cabin') or 'EC')[:2]
+                bags_part = str(flight.get('checked_bags') or 0)
+                full_key = f"{flight_key}_{cabin_part}_{bags_part}"
+                safe_id = ''.join(c for c in full_key if c.isalnum() or c in ('_', '-'))[:50]
                 chk_key = f"chk_{safe_id}_v{st.session_state.checkbox_version}"
                 if chk_key not in st.session_state:
                     st.session_state[chk_key] = is_selected
