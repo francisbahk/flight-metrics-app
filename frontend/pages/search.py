@@ -661,8 +661,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
 
     if not airports_confirmed:
         can_search = (
-            origin_selection and dest_selection
-            and st.session_state.get("selected_origin_iatas")
+            st.session_state.get("selected_origin_iatas")
             and st.session_state.get("selected_dest_iatas")
             and st.session_state.get("travel_dates")
         )
