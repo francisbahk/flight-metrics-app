@@ -601,13 +601,13 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                 st.session_state["selected_dest_iatas"] = selected_dests
 
     if airports_confirmed:
-        # Show locked airport + date summary greyed out (no redundant city line)
+        # Show locked airport + date summary greyed out
         origin_iatas = st.session_state.get("selected_origin_iatas", [])
         dest_iatas = st.session_state.get("selected_dest_iatas", [])
-        travel_dates = st.session_state.get("travel_dates", [])
+        travel_dates_locked = st.session_state.get("travel_dates", [])
         dates_display = ', '.join(
-            date.fromisoformat(d).strftime("%b %d") for d in travel_dates
-        ) if travel_dates else '—'
+            date.fromisoformat(d).strftime("%b %d") for d in travel_dates_locked
+        ) if travel_dates_locked else '—'
         st.markdown(
             f"<div style='opacity:0.45;font-size:0.9em;'>"
             f"<b>Origin airports:</b> {', '.join(origin_iatas)}<br>"
@@ -616,7 +616,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             f"</div>",
             unsafe_allow_html=True,
         )
-
+    else:
         # ── Date selection ────────────────────────────────────────────
         SEARCH_YEAR = 2026
         min_date = max(date(SEARCH_YEAR, 1, 1), date.today() + timedelta(days=7))
