@@ -694,7 +694,14 @@ def render_search_section(static_route_day_options, flight_client, static_flight
 
             all_flights = remove_codeshares(all_flights)
 
-            # Recompute per origin/dest after dedup
+            # Filter to only flights whose actual origin/dest match selected airports
+            # (Amadeus metro codes like LAX can return ONT, LGB etc. unexpectedly)
+            all_flights = [
+                f for f in all_flights
+                if f.get('origin') in origins and f.get('destination') in dests
+            ]
+
+            # Recompute per origin/dest after dedup and filter
             per_origin_dedup = {}
             per_dest_dedup = {}
             for f in all_flights:
