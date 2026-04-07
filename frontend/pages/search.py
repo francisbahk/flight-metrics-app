@@ -749,8 +749,8 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                         for code, count in per_dest.items():
                             st.caption(f"• {code}: {count} flight{'s' if count != 1 else ''}")
 
-            if total < 10:
-                st.warning(f"Only {total} flight{'s' if total != 1 else ''} found. Consider adding more airports.")
+            if total < 20:
+                st.warning(f"Only {total} flight{'s' if total != 1 else ''} found. You need at least 20 flights to proceed — add more airports below.")
                 if unchecked_origins or unchecked_dests:
                     st.markdown("**Add back unchecked airports?**")
                     if unchecked_origins:
@@ -773,7 +773,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
 
             col_yes, col_no = st.columns(2)
             with col_yes:
-                if st.button("Yes, proceed →", type="primary", use_container_width=True):
+                if st.button("Yes, proceed →", type="primary", use_container_width=True, disabled=(total < 20)):
                     st.session_state['airports_confirmed'] = True
                     st.session_state['all_flights'] = flights
                     airline_codes = list(set(

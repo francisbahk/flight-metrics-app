@@ -266,7 +266,7 @@ def render_ranking_section():
     and outbound_submitted is False.
     """
     total_flights = len(st.session_state.all_flights)
-    rank_limit = min(20, total_flights)
+    rank_limit = 20
 
     progress_percent = 1.0 if st.session_state.outbound_submitted else 0.0
     progress_text = "Submitted" if st.session_state.outbound_submitted else "0 / 1 sections submitted"
@@ -319,10 +319,7 @@ def render_ranking_section():
                     st.session_state.editing_prompt_main = False
                     st.rerun()
 
-    if total_flights <= 20:
-        st.info(f"There are {total_flights} flights in your results — please check and rank **all {total_flights}** of them.")
-    else:
-        st.info("There are more than 20 flights in your results — please select and rank your **top 20**.")
+    st.info("Please select and rank your **top 20** flights from the results below.")
 
     # Sidebar filters (outside fragment — filter changes trigger full reruns)
     _render_sidebar_filters()
