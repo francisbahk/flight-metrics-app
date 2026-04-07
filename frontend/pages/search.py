@@ -622,9 +622,8 @@ def render_search_section(static_route_day_options, flight_client, static_flight
         min_date = max(date(SEARCH_YEAR, 1, 1), date.today() + timedelta(days=7))
         max_date = date(SEARCH_YEAR, 12, 31)
 
-        st.markdown("**Select travel dates:**")
-        st.caption("Pick a start and end date (up to 7 consecutive days). "
-                   "All dates between them will be searched.")
+        st.markdown("**Select departure date(s):**")
+        st.caption("Choose up to 3 departure dates to search — all days in between will be included.")
         d1, d2 = st.columns(2)
         with d1:
             start_date = st.date_input(
@@ -636,7 +635,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             )
         with d2:
             end_min = start_date if start_date else min_date
-            end_max = min(end_min + timedelta(days=6), max_date)
+            end_max = min(end_min + timedelta(days=2), max_date)
             end_default = min(end_min + timedelta(days=2), end_max)
             end_date = st.date_input(
                 "End date",
