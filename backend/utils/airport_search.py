@@ -4,6 +4,7 @@ import csv
 import json
 import math
 import os
+from typing import Optional
 import streamlit as st
 
 _DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
@@ -104,7 +105,7 @@ def get_countries() -> list[str]:
     return sorted({c["country"] for c in cities if c["country"]})
 
 
-def get_regions(country: str | None = None) -> list[str]:
+def get_regions(country: Optional[str] = None) -> list[str]:
     """Return sorted list of unique region names, optionally filtered by country."""
     cities = _load_cities()
     regions = set()
@@ -116,8 +117,8 @@ def get_regions(country: str | None = None) -> list[str]:
 
 def search_cities(
     query: str,
-    country: str | None = None,
-    region: str | None = None,
+    country: Optional[str] = None,
+    region: Optional[str] = None,
     max_results: int = 25,
 ) -> list[tuple[str, str]]:
     """Search cities by name or region. Returns (label, city_key) tuples for st_searchbox."""

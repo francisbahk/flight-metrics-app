@@ -296,7 +296,8 @@ def render_how_to_use():
     st.markdown('<div class="hideable-survey-content">', unsafe_allow_html=True)
 
     st.markdown("""
-1. **Describe your flight** - Enter your travel details in natural language, as if you are telling a flight itinerary manager how to book your ideal trip. What would you want them to know?
+1. **Choose your cities & dates** - Search for an origin and destination city. Select which nearby airports to include, then pick your departure date(s). You need at least 20 flights to proceed — if your search returns fewer, try adding more airports.
+2. **Describe your flight** - Tell us your preferences in natural language, as if you're messaging a travel agent. Mention what matters most: airport, price, duration, stops, airline, departure time, etc. See the example prompts below for inspiration.
 """)
 
     with st.expander("💡 Tips for Writing a Good Prompt"):
@@ -321,10 +322,9 @@ def render_how_to_use():
     """)
 
     st.markdown("""
-2. **Review results** - Browse all available flights and use the filter sidebar on the left to narrow down options.
-3. **Select flights to rank** - If you see 20 or fewer flights, check all of them. If you see more than 20, check your top 20.
-4. **Drag to rank** - Reorder your selections by dragging them in the right panel
-5. **Submit** - Click submit to save your rankings
+3. **Review results** - Browse all available flights and use the filter sidebar on the left to narrow down options.
+4. **Select & rank 20 flights** - Check your top 20 flights, then drag to reorder them in the right panel from most to least preferred.
+5. **Submit** - Click submit to save your rankings. If you run into any bugs or issues, please leave feedback in the submission form.
 """)
 
 
@@ -576,7 +576,9 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                     checked = st.checkbox(label, value=default, key=f"origin_ap_{a['iata']}")
                     if checked:
                         selected_origins.append(a["iata"])
-                st.session_state["selected_origin_iatas"] = selected_origins
+                # Don't overwrite during auto-search rerun — preserve airports added back via the summary section
+                if not st.session_state.get("trigger_search"):
+                    st.session_state["selected_origin_iatas"] = selected_origins
 
         with col_dest:
             dest_selection = st_searchbox(
@@ -598,7 +600,9 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                     checked = st.checkbox(label, value=default, key=f"dest_ap_{a['iata']}")
                     if checked:
                         selected_dests.append(a["iata"])
-                st.session_state["selected_dest_iatas"] = selected_dests
+                # Don't overwrite during auto-search rerun — preserve airports added back via the summary section
+                if not st.session_state.get("trigger_search"):
+                    st.session_state["selected_dest_iatas"] = selected_dests
 
     if airports_confirmed:
         # Show locked airport + date summary greyed out
@@ -617,13 +621,17 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             unsafe_allow_html=True,
         )
     else:
+        search_summary_exists = bool(st.session_state.get('airport_search_summary'))
+
         # ── Date selection ────────────────────────────────────────────
         SEARCH_YEAR = 2026
-        min_date = max(date(SEARCH_YEAR, 1, 1), date.today() + timedelta(days=7))
+        min_date = max(date(SEARCH_YEAR, 1, 1), date.today() + timedelta(days=1))
         max_date = date(SEARCH_YEAR, 12, 31)
 
+        locked = search_summary_exists
         st.markdown("**Select departure date(s):**")
-        st.caption("Choose up to 3 departure dates to search — all days in between will be included.")
+        if not locked:
+            st.caption("Choose up to 3 departure dates to search — all days in between will be included.")
         d1, d2 = st.columns(2)
         with d1:
             start_date = st.date_input(
@@ -632,20 +640,22 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                 min_value=min_date,
                 max_value=max_date,
                 key="search_start_date",
+                disabled=locked,
             )
         with d2:
             end_min = start_date if start_date else min_date
             end_max = min(end_min + timedelta(days=2), max_date)
-            end_default = min(end_min + timedelta(days=2), end_max)
+            end_default = end_min
             end_date = st.date_input(
                 "End date",
                 value=end_default,
                 min_value=end_min,
                 max_value=end_max,
                 key="search_end_date",
+                disabled=locked,
             )
 
-        if start_date and end_date and start_date <= end_date:
+        if not locked and start_date and end_date and start_date <= end_date:
             num_days = (end_date - start_date).days + 1
             travel_dates = [start_date + timedelta(days=i) for i in range(num_days)]
             st.session_state["travel_dates"] = [d.isoformat() for d in travel_dates]
@@ -665,7 +675,8 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             and st.session_state.get("travel_dates")
         )
 
-        if st.button("Search flights", type="primary", disabled=not can_search):
+        trigger_search = st.session_state.pop("trigger_search", False)
+        if st.button("Search flights", type="primary", disabled=not can_search) or (trigger_search and can_search):
             # Run search with selected airports only
             origins = st.session_state["selected_origin_iatas"]
             dests = st.session_state["selected_dest_iatas"]
@@ -750,8 +761,8 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                             st.caption(f"• {code}: {count} flight{'s' if count != 1 else ''}")
 
             if total < 20:
-                st.warning(f"Only {total} flight{'s' if total != 1 else ''} found. You need at least 20 flights to proceed — add more airports below.")
                 if unchecked_origins or unchecked_dests:
+                    st.warning(f"Only {total} flight{'s' if total != 1 else ''} found. You need at least 20 flights to proceed. Add more airports below and click **Search again**, or click **New Search** to start over.")
                     st.markdown("**Add back unchecked airports?**")
                     if unchecked_origins:
                         st.caption("Origin:")
@@ -769,7 +780,10 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                                     st.session_state["selected_dest_iatas"].append(a["iata"])
                     if st.button("Search again with updated airports"):
                         st.session_state["airport_search_summary"] = None
+                        st.session_state["trigger_search"] = True
                         st.rerun()
+                else:
+                    st.warning(f"Only {total} flight{'s' if total != 1 else ''} found and all available airports are already included. You need at least 20 flights to proceed — click **New Search** to try different cities or dates.")
 
             col_yes, col_no = st.columns(2)
             with col_yes:
@@ -786,8 +800,10 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                     )
                     st.rerun()
             with col_no:
-                if st.button("No, edit search", use_container_width=True):
-                    st.session_state["airport_search_summary"] = None
+                if st.button("New Search", use_container_width=True):
+                    for key in ["airport_search_summary", "selected_origin_iatas", "selected_dest_iatas",
+                                "origin_airports", "dest_airports", "travel_dates", "airports_confirmed"]:
+                        st.session_state.pop(key, None)
                     st.rerun()
 
         st.markdown('</div>', unsafe_allow_html=True)
@@ -802,7 +818,8 @@ def render_search_section(static_route_day_options, flight_client, static_flight
             'role': 'bot',
             'text': (
                 "Your flights are loaded! Now describe your preferences — "
-                "what matters most to you? (price, duration, stops, airline, departure time, etc.)"
+                "what matters most to you? (airport, price, duration, stops, airline, departure time, etc.) "
+                "Check the \U0001f4a1 Tips for Writing a Good Prompt above for example prompts."
             ),
         }]
 
