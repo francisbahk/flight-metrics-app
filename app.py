@@ -95,12 +95,10 @@ except Exception as e:
     # Don't crash the app if database setup fails, just log it
     print(f"Database initialization: {str(e)}")
 
-# Seed cross-validation data for DEMO and DATA tokens (runs once)
 try:
-    from seed_cross_validation import seed_cross_validation_data
-    seed_cross_validation_data()
-except Exception as e:
-    print(f"Cross-validation seed: {str(e)}")
+    from study_config import RERANK_ENABLED
+except ImportError:
+    RERANK_ENABLED = False
 
 AIRLINE_NAMES = {}
 
@@ -215,10 +213,6 @@ _defaults = {
     'token_valid': False,
     'token_message': '',
     'token_group': None,
-    'rerank_targets': [],
-    'current_rerank_index': 0,
-    'completed_reranks': [],
-    'all_reranks_completed': False,
     'all_flights': [],
     'selected_flights': [],
     'parsed_params': None,
@@ -267,7 +261,6 @@ prolific_id = st.session_state.prolific_id
 st.session_state.token = prolific_id
 st.session_state.token_valid = True
 st.session_state.token_group = 'A'
-st.session_state.rerank_targets = []
 
 # Restore progress on page refresh (skip in dev mode — dev state is injected manually)
 if 'session_restored' not in st.session_state and not is_dev_mode():
@@ -298,7 +291,6 @@ if 'session_restored' not in st.session_state and not is_dev_mode():
                 st.session_state.search_id = prolific_id
                 st.session_state.outbound_submitted = True
                 st.session_state.csv_generated = True
-                st.session_state.all_reranks_completed = True
                 st.session_state.cross_validation_completed = True
     except Exception as e:
         print(f"[SESSION] Restore skipped: {e}")
@@ -366,17 +358,6 @@ if 'review_confirmed' not in st.session_state:
     st.session_state.review_confirmed = False
 if 'cross_validation_completed' not in st.session_state:
     st.session_state.cross_validation_completed = False
-# Pilot study: Sequential re-ranking state
-if 'token_group' not in st.session_state:
-    st.session_state.token_group = None
-if 'rerank_targets' not in st.session_state:
-    st.session_state.rerank_targets = []
-if 'current_rerank_index' not in st.session_state:
-    st.session_state.current_rerank_index = 0
-if 'completed_reranks' not in st.session_state:
-    st.session_state.completed_reranks = []
-if 'all_reranks_completed' not in st.session_state:
-    st.session_state.all_reranks_completed = False
 if 'survey_completed' not in st.session_state:
     st.session_state.survey_completed = False
 if 'completion_page_dismissed' not in st.session_state:

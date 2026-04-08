@@ -460,14 +460,18 @@ def get_rankings(prolific_id: str) -> list:
 def get_next_seed_prompt(reviewer_prolific_id: str):
     """Return the next seed prompt to assign to this reviewer.
 
-    Sequential allocation: lowest-id seed prompt that still has rerank_count < 10.
+    Sequential allocation: lowest-id seed prompt that still has rerank_count < MAX_RERANKS_PER_SEED.
     Returns None if all seed prompts are fully saturated.
     """
+    try:
+        from study_config import MAX_RERANKS_PER_SEED
+    except ImportError:
+        MAX_RERANKS_PER_SEED = 5
     db = SessionLocal()
     try:
         seed = (
             db.query(SeedPrompt)
-            .filter(SeedPrompt.rerank_count < 10)
+            .filter(SeedPrompt.rerank_count < MAX_RERANKS_PER_SEED)
             .order_by(SeedPrompt.id)
             .first()
         )

@@ -13,7 +13,10 @@ Covers everything that renders once outbound_submitted is True:
 import streamlit as st
 from datetime import datetime
 from frontend.utils import apply_filters, get_airline_name, format_price
-from phases import is_phase_token
+try:
+    from study_config import RERANK_ENABLED
+except ImportError:
+    RERANK_ENABLED = False
 
 
 def _trigger_backup(token: str):
@@ -130,10 +133,12 @@ def render_completion_section():
         st.markdown("---")
 
         # ------------------------------------------------------------------
-        # 3a. CROSS-VALIDATION
+        # 3a. CROSS-VALIDATION (only when RERANK_ENABLED)
         # ------------------------------------------------------------------
-        if not st.session_state.get('cross_validation_completed'):
+        if RERANK_ENABLED and not st.session_state.get('cross_validation_completed'):
             _render_cross_validation(None)
+        elif not RERANK_ENABLED:
+            st.session_state.cross_validation_completed = True
 
         # ------------------------------------------------------------------
         # 3b. COMPLETION PAGE
@@ -212,80 +217,6 @@ def _render_cross_validation(_unused):
 
     st.markdown("---")
     _render_cv_flight_list(flights, rank_limit)
-    return
-
-    # Dead code below — kept for reference only
-    # Dim everything above this section
-    st.markdown("""
-    <style>
-        .stApp > header,
-        .main > div:not(:has(.cross-validation-section)) {
-            opacity: 0.1;
-            pointer-events: none;
-        }
-        [data-testid="stSidebar"] {
-            opacity: 1 !important;
-            pointer-events: auto !important;
-        }
-        .cross-validation-section {
-            background: white;
-            position: relative;
-            z-index: 1000;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown('<div class="cross-validation-section">', unsafe_allow_html=True)
-
-    if rerank_targets:
-        completed_reranks = st.session_state.get('completed_reranks', [])
-        remaining_targets = [t for t in rerank_targets if t not in completed_reranks]
-        current_rerank_num = len(completed_reranks) + 1
-        total_reranks = len(rerank_targets)
-
-        if not remaining_targets:
-            st.session_state.all_reranks_completed = True
-            st.session_state.cross_validation_completed = True
-            if not st.session_state.get('backup_triggered'):
-                st.session_state.backup_triggered = True
-                _trigger_backup(st.session_state.get('token', 'unknown'))
-            st.rerun()
-
-        st.progress(len(completed_reranks) / total_reranks)
-        st.markdown(f"### Re-ranking {current_rerank_num} of {total_reranks}")
-        st.markdown("*Help us by ranking flights for another user's search*")
-
-        current_target = remaining_targets[0]
-        if ('cross_val_data' not in st.session_state
-                or st.session_state.get('current_cv_target') != current_target):
-            st.session_state.cross_val_data = get_assigned_search_for_validation(
-                st.session_state.get('token'), current_target
-            )
-            st.session_state.current_cv_target = current_target
-            st.session_state.cross_val_selected_flights = []
-            st.session_state.cv_checkbox_version = st.session_state.get('cv_checkbox_version', 0) + 1
-    else:
-        st.markdown("### Help Validate Another Search")
-        st.markdown("*Before completing your session, please help us by ranking flights for another user's search*")
-        if 'cross_val_data' not in st.session_state:
-            st.session_state.cross_val_data = get_previous_search_for_validation(
-                st.session_state.session_id,
-                st.session_state.get('token')
-            )
-
-    if st.session_state.get('cross_val_data') is not None:
-        if not st.session_state.cross_val_data:
-            st.info("No previous searches available for validation. You're one of the first users!")
-            st.session_state.cross_validation_completed = True
-            if not st.session_state.get('backup_triggered'):
-                st.session_state.backup_triggered = True
-                _trigger_backup(st.session_state.get('token', 'unknown'))
-            st.rerun()
-        else:
-            _render_cv_flight_selection(rerank_targets)
-
-    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def _render_cv_flight_list(flights: list, rank_limit: int):
