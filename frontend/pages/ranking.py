@@ -634,18 +634,7 @@ def _render_ranking_column(rank_limit: int):
             try:
                 from backend.db import save_interaction_data
                 from datetime import datetime as _dt
-                active_filters = {
-                    k: st.session_state.get(k)
-                    for k in [
-                        'filter_airlines', 'filter_connections', 'filter_price_range',
-                        'filter_duration_range', 'filter_departure_time_range',
-                        'filter_arrival_time_range', 'filter_origins', 'filter_destinations',
-                        'filter_cabins', 'filter_checked_bags',
-                    ]
-                    if st.session_state.get(k) is not None
-                }
                 save_interaction_data(st.session_state.get('prolific_id', 'anonymous'), {
-                    'filters_json': active_filters if active_filters else None,
                     'selection_sequence_json': st.session_state.get('selection_sequence', []),
                     'ranking_submitted_at': _dt.utcnow(),
                 })

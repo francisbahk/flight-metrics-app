@@ -253,10 +253,32 @@ def _render_cross_validation(_unused):
     origin_airports = sorted(set(f['origin'] for f in all_flights))
     dest_airports = sorted(set(f['destination'] for f in all_flights))
     dates = sorted(set(f['departure_time'][:10] for f in all_flights))
+
+    # Look up city names for the IATA codes
+    def _iata_to_city(iata_codes):
+        try:
+            from backend.utils.airport_search import load_airports
+            ap_map = {a['iata']: a['city'] for a in load_airports()}
+            cities = sorted(set(ap_map[c] for c in iata_codes if c in ap_map and ap_map[c]))
+            return cities
+        except Exception:
+            return []
+
+    origin_cities = _iata_to_city(origin_airports)
+    dest_cities = _iata_to_city(dest_airports)
+
     context_lines = []
-    if origin_airports:
+    if origin_cities:
+        city_str = ', '.join(origin_cities)
+        ap_str = ', '.join(origin_airports)
+        context_lines.append(f"**From:** {city_str} ({ap_str})")
+    elif origin_airports:
         context_lines.append(f"**From:** {', '.join(origin_airports)}")
-    if dest_airports:
+    if dest_cities:
+        city_str = ', '.join(dest_cities)
+        ap_str = ', '.join(dest_airports)
+        context_lines.append(f"**To:** {city_str} ({ap_str})")
+    elif dest_airports:
         context_lines.append(f"**To:** {', '.join(dest_airports)}")
     if dates:
         context_lines.append(f"**Date(s):** {', '.join(dates)}")

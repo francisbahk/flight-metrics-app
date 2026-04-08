@@ -186,9 +186,7 @@ class InteractionData(Base):
     destination_airports_json = Column(Text, nullable=True)  # list of checked IATA codes
     search_dates_json        = Column(Text, nullable=True)   # list of date strings searched
     search_airports_added_json = Column(Text, nullable=True) # airports added via "Search again"
-    # Filters active at submission time (snapshot)
-    filters_json             = Column(Text, nullable=True)   # dict of active filters at submit
-    # (per-change filter log is in filter_events table)
+    # (filter changes are logged per-event in the filter_events table)
     # Flight selection sequence
     selection_sequence_json  = Column(Text, nullable=True)   # ordered list of {flight_key, action, rank_at_time}
     # Timestamps
