@@ -85,12 +85,17 @@ def remove_codeshares(flights):
             f.get('cabin'), f.get('checked_bags', 0), layovers,
         )
 
-    fn_counts = Counter(_flight_key(f) for f in flights)
-    itinerary_counts = Counter(_itinerary_key(f) for f in flights)
-    return [
-        f for f in flights
-        if fn_counts[_flight_key(f)] == 1 and itinerary_counts[_itinerary_key(f)] == 1
-    ]
+    seen_fn = set()
+    seen_itin = set()
+    unique = []
+    for f in flights:
+        fk = _flight_key(f)
+        ik = _itinerary_key(f)
+        if fk not in seen_fn and ik not in seen_itin:
+            seen_fn.add(fk)
+            seen_itin.add(ik)
+            unique.append(f)
+    return unique
 
 
 def apply_filters(flights, airlines=None, connections=None, price_range=None,
