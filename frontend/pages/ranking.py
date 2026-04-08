@@ -369,25 +369,36 @@ def render_ranking_section():
 
 
 def _record_filter_snapshot():
-    """Append a filter snapshot to filter_history if anything changed since the last snapshot."""
-    _FILTER_KEYS = [
-        'filter_airlines', 'filter_connections', 'filter_price_range',
-        'filter_duration_range', 'filter_departure_time_range', 'filter_arrival_time_range',
-        'filter_origins', 'filter_destinations', 'filter_cabins', 'filter_checked_bags',
-    ]
-    current = {k: st.session_state.get(k) for k in _FILTER_KEYS}
-    if 'filter_history' not in st.session_state:
-        st.session_state.filter_history = []
+    """Detect filter changes since last render and write one row per changed filter to DB."""
+    _FILTER_KEYS = {
+        'filter_airlines': 'airlines',
+        'filter_connections': 'connections',
+        'filter_price_range': 'price_range',
+        'filter_duration_range': 'duration_range',
+        'filter_departure_time_range': 'departure_time',
+        'filter_arrival_time_range': 'arrival_time',
+        'filter_origins': 'origins',
+        'filter_destinations': 'destinations',
+        'filter_cabins': 'cabins',
+        'filter_checked_bags': 'checked_bags',
+    }
+    if '_last_filter_snapshot' not in st.session_state:
         st.session_state._last_filter_snapshot = {}
-    if current != st.session_state._last_filter_snapshot:
-        active = {k: v for k, v in current.items() if v is not None}
-        if active or st.session_state.filter_history:  # skip recording initial empty state
-            from datetime import datetime as _dt
-            st.session_state.filter_history.append({
-                'filters': active,
-                'ts': _dt.utcnow().isoformat(),
-            })
-        st.session_state._last_filter_snapshot = current
+
+    prolific_id = st.session_state.get('prolific_id', 'anonymous')
+    for state_key, label in _FILTER_KEYS.items():
+        current_val = st.session_state.get(state_key)
+        prev_val = st.session_state._last_filter_snapshot.get(state_key)
+        if current_val != prev_val:
+            try:
+                from backend.db import save_filter_event
+                save_filter_event(prolific_id, label, current_val)
+            except Exception as _e:
+                print(f"[FILTER EVENT] {_e}")
+
+    st.session_state._last_filter_snapshot = {
+        k: st.session_state.get(k) for k in _FILTER_KEYS
+    }
 
 
 def _render_sidebar_filters():
@@ -635,7 +646,6 @@ def _render_ranking_column(rank_limit: int):
                 }
                 save_interaction_data(st.session_state.get('prolific_id', 'anonymous'), {
                     'filters_json': active_filters if active_filters else None,
-                    'filter_history_json': st.session_state.get('filter_history', []),
                     'selection_sequence_json': st.session_state.get('selection_sequence', []),
                     'ranking_submitted_at': _dt.utcnow(),
                 })

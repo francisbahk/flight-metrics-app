@@ -162,6 +162,17 @@ class CVRanking(Base):
     created_at           = Column(DateTime, default=datetime.utcnow)
 
 
+class FilterEvent(Base):
+    """One row per filter interaction — each time a participant changes a filter."""
+    __tablename__ = 'filter_events'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    prolific_id = Column(String(128), nullable=False, index=True)
+    filter_name = Column(String(64), nullable=False)   # e.g. "airlines", "price_range"
+    filter_value = Column(Text, nullable=True)          # JSON-serialized value
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+
 class InteractionData(Base):
     """Rich interaction data per participant session."""
     __tablename__ = 'interaction_data'
@@ -175,10 +186,9 @@ class InteractionData(Base):
     destination_airports_json = Column(Text, nullable=True)  # list of checked IATA codes
     search_dates_json        = Column(Text, nullable=True)   # list of date strings searched
     search_airports_added_json = Column(Text, nullable=True) # airports added via "Search again"
-    # Filters applied at submission time
-    filters_json             = Column(Text, nullable=True)   # dict of all active filters at submit
-    # Full filter change log (each entry: {filter, value, timestamp})
-    filter_history_json      = Column(Text, nullable=True)   # list of filter change events
+    # Filters active at submission time (snapshot)
+    filters_json             = Column(Text, nullable=True)   # dict of active filters at submit
+    # (per-change filter log is in filter_events table)
     # Flight selection sequence
     selection_sequence_json  = Column(Text, nullable=True)   # ordered list of {flight_key, action, rank_at_time}
     # Timestamps
@@ -205,7 +215,6 @@ def init_db():
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN chat_history_json MEDIUMTEXT"),
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN is_edit TINYINT(1) DEFAULT 0"),
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN edit_source VARCHAR(32)"),
-        ("interaction_data", "ALTER TABLE interaction_data ADD COLUMN filter_history_json TEXT"),
     ]
     for table, sql in migrations:
         try:
@@ -487,6 +496,25 @@ def save_interaction_data(prolific_id: str, data: dict) -> bool:
     except Exception as e:
         db.rollback()
         print(f"[DB] save_interaction_data error: {e}")
+        return False
+    finally:
+        db.close()
+
+
+def save_filter_event(prolific_id: str, filter_name: str, filter_value) -> bool:
+    """Record a single filter interaction (one row per filter change)."""
+    db = SessionLocal()
+    try:
+        db.add(FilterEvent(
+            prolific_id=prolific_id,
+            filter_name=filter_name,
+            filter_value=json.dumps(filter_value) if filter_value is not None else None,
+        ))
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"[DB] save_filter_event error: {e}")
         return False
     finally:
         db.close()
