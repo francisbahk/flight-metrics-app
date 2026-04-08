@@ -290,6 +290,27 @@ def _render_cross_validation(_unused):
 
     _render_cv_flight_list(filtered_cv, all_flights, rank_limit)
 
+    # Submit button outside the fragment so success triggers a clean full-page rerun
+    if len(st.session_state.cross_val_selected_flights) == rank_limit:
+        st.markdown("---")
+        if st.button("Submit Cross-Validation Rankings", key="cv_submit",
+                     type="primary", use_container_width=True):
+            from backend.db import save_cv_rankings
+            success = save_cv_rankings(
+                reviewer_prolific_id=st.session_state.get('token', ''),
+                seed_prompt_id=st.session_state.cv_seed_prompt_id,
+                selected_flights=st.session_state.cross_val_selected_flights,
+            )
+            if success:
+                st.session_state.cross_validation_completed = True
+                st.session_state.all_reranks_completed = True
+                if not st.session_state.get('backup_triggered'):
+                    st.session_state.backup_triggered = True
+                    _trigger_backup(st.session_state.get('token', 'unknown'))
+                st.rerun()
+            else:
+                st.error("Failed to save. Please try again.")
+
 
 def _render_cv_sidebar_filters(flights: list):
     """Sidebar filters for the CV flight list."""
@@ -493,13 +514,16 @@ def _render_cv_flight_list(filtered_cv: list, all_flights: list, rank_limit: int
                 if selected and not is_selected:
                     if len(st.session_state.cross_val_selected_flights) < rank_limit:
                         st.session_state.cross_val_selected_flights.append(flight)
-                        st.rerun()
+                        if len(st.session_state.cross_val_selected_flights) >= rank_limit:
+                            st.rerun()
                 elif not selected and is_selected:
+                    was_at_limit = len(st.session_state.cross_val_selected_flights) >= rank_limit
                     st.session_state.cross_val_selected_flights = [
                         f for f in st.session_state.cross_val_selected_flights
                         if _fkey(f) != flight_key
                     ]
-                    st.rerun()
+                    if was_at_limit:
+                        st.rerun()
 
             with c2:
                 dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
@@ -603,27 +627,8 @@ def _render_cv_ranking_column(rank_limit: int):
 
         st.markdown("<hr style='margin:2px 0;border-color:#eee;'>", unsafe_allow_html=True)
 
-    st.markdown("---")
-    if len(st.session_state.cross_val_selected_flights) == rank_limit:
-        if st.button("Submit Cross-Validation Rankings", key="cv_submit",
-                     type="primary", use_container_width=True):
-            from backend.db import save_cv_rankings
-            success = save_cv_rankings(
-                reviewer_prolific_id=st.session_state.get('token', ''),
-                seed_prompt_id=st.session_state.cv_seed_prompt_id,
-                selected_flights=st.session_state.cross_val_selected_flights,
-            )
-            if success:
-                st.session_state.cross_validation_completed = True
-                st.session_state.all_reranks_completed = True
-                if not st.session_state.get('backup_triggered'):
-                    st.session_state.backup_triggered = True
-                    _trigger_backup(st.session_state.get('token', 'unknown'))
-                st.rerun()
-            else:
-                st.error("Failed to save. Please try again.")
-    else:
-        remaining = rank_limit - len(st.session_state.cross_val_selected_flights)
+    remaining = rank_limit - len(st.session_state.cross_val_selected_flights)
+    if remaining > 0:
         st.info(f"Select {remaining} more flight{'s' if remaining != 1 else ''}")
 
 
@@ -1006,7 +1011,6 @@ def _render_completion_page():
     if submitted:
         _save_post_survey_feedback(feedback.strip())
         st.session_state.post_survey_completed = True
-        st.session_state.completion_page_dismissed = True
         st.rerun()
 
 

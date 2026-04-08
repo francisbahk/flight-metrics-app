@@ -206,13 +206,18 @@ def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
                 if selected and not is_selected:
                     if len(st.session_state.selected_flights) < rank_limit:
                         st.session_state.selected_flights.append(flight)
-                        st.rerun()
+                        # Rerun only when hitting the limit so all remaining checkboxes disable cleanly
+                        if len(st.session_state.selected_flights) >= rank_limit:
+                            st.rerun()
                 elif not selected and is_selected:
+                    was_at_limit = len(st.session_state.selected_flights) >= rank_limit
                     st.session_state.selected_flights = [
                         f for f in st.session_state.selected_flights
                         if _fkey(f) != flight_key
                     ]
-                    st.rerun()
+                    # Rerun only when dropping below limit so checkboxes re-enable cleanly
+                    if was_at_limit:
+                        st.rerun()
 
             with col2:
                 dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))

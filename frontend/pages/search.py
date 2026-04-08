@@ -323,8 +323,9 @@ def render_how_to_use():
 
     st.markdown("""
 3. **Review results** - Browse all available flights and use the filter sidebar on the left to narrow down options.
-4. **Select & rank 20 flights** - Check your top 20 flights, then drag to reorder them in the right panel from most to least preferred.
+4. **Select & rank 20 flights** - Check your top 20 flights, then use the ↑↓ buttons to reorder them in the right panel from most to least preferred.
 5. **Submit** - Click submit to save your rankings. If you run into any bugs or issues, please leave feedback in the submission form.
+6. *(Optional)* **Re-rank another search** - You may be asked to rank flights for one other participant's search prompt. This helps us validate results across participants.
 """)
 
 
@@ -622,13 +623,14 @@ def render_search_section(static_route_day_options, flight_client, static_flight
         )
     else:
         search_summary_exists = bool(st.session_state.get('airport_search_summary'))
+        airports_confirmed = st.session_state.get('airports_confirmed', False)
 
         # ── Date selection ────────────────────────────────────────────
         SEARCH_YEAR = 2026
         min_date = max(date(SEARCH_YEAR, 1, 1), date.today() + timedelta(days=1))
         max_date = date(SEARCH_YEAR, 12, 31)
 
-        locked = search_summary_exists
+        locked = airports_confirmed
         st.markdown("**Select departure date(s):**")
         if not locked:
             st.caption("Choose up to 3 departure dates to search — all days in between will be included.")
@@ -655,10 +657,11 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                 disabled=locked,
             )
 
-        if not locked and start_date and end_date and start_date <= end_date:
+        if start_date and end_date and start_date <= end_date:
             num_days = (end_date - start_date).days + 1
             travel_dates = [start_date + timedelta(days=i) for i in range(num_days)]
-            st.session_state["travel_dates"] = [d.isoformat() for d in travel_dates]
+            if not locked:
+                st.session_state["travel_dates"] = [d.isoformat() for d in travel_dates]
             date_strs = [d.strftime("%b %d") for d in travel_dates]
             st.caption(f"Searching {num_days} date{'s' if num_days > 1 else ''}: {', '.join(date_strs)}")
 
@@ -684,6 +687,7 @@ def render_search_section(static_route_day_options, flight_client, static_flight
 
             all_flights = []
             per_origin = {}
+            search_errors = []
             with st.spinner("Searching for flights..."):
                 for origin_code in origins:
                     for dest_code in dests:
@@ -699,17 +703,13 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                                     if fi:
                                         all_flights.append(fi)
                                         per_origin[origin_code] = per_origin.get(origin_code, 0) + 1
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                search_errors.append(f"{origin_code}→{dest_code} on {d}: {e}")
+                                print(f"[SEARCH ERROR] {origin_code}→{dest_code} on {d}: {e}")
+            if search_errors:
+                st.warning(f"Some searches failed: {'; '.join(search_errors[:3])}")
 
             all_flights = remove_codeshares(all_flights)
-
-            # Filter to only flights whose actual origin/dest match selected airports
-            # (Amadeus metro codes like LAX can return ONT, LGB etc. unexpectedly)
-            all_flights = [
-                f for f in all_flights
-                if f.get('origin') in origins and f.get('destination') in dests
-            ]
 
             # Recompute per origin/dest after dedup and filter
             per_origin_dedup = {}
@@ -798,6 +798,20 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                     st.session_state.selected_route = (
                         f"{' / '.join(search_summary['origins'])} → {' / '.join(search_summary['dests'])}"
                     )
+                    # Save search parameters
+                    from datetime import datetime as _dt
+                    try:
+                        from backend.db import save_interaction_data
+                        save_interaction_data(st.session_state.get('prolific_id', 'anonymous'), {
+                            'origin_airports_json': search_summary['origins'],
+                            'destination_airports_json': search_summary['dests'],
+                            'search_dates_json': st.session_state.get('travel_dates', []),
+                            'origin_city': st.session_state.get('origin_city_label', ''),
+                            'destination_city': st.session_state.get('dest_city_label', ''),
+                            'search_completed_at': _dt.utcnow(),
+                        })
+                    except Exception:
+                        pass
                     st.rerun()
             with col_no:
                 if st.button("New Search", use_container_width=True):
