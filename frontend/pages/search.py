@@ -698,18 +698,24 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                                     departure_date=d, adults=1, max_results=250
                                 )
                                 offers = results if isinstance(results, list) else results.get('data', [])
+                                parse_ok = 0
                                 for offer in offers:
                                     fi = flight_client.parse_flight_offer(offer)
                                     if fi:
                                         all_flights.append(fi)
                                         per_origin[origin_code] = per_origin.get(origin_code, 0) + 1
+                                        parse_ok += 1
+                                if offers and parse_ok == 0:
+                                    print(f"[PARSE WARN] All {len(offers)} offers from {origin_code}→{dest_code} on {d} failed to parse")
                             except Exception as e:
                                 search_errors.append(f"{origin_code}→{dest_code} on {d}: {e}")
                                 print(f"[SEARCH ERROR] {origin_code}→{dest_code} on {d}: {e}")
             if search_errors:
                 st.warning(f"Some searches failed: {'; '.join(search_errors[:3])}")
 
+            print(f"[SEARCH] Parsed {len(all_flights)} flights before dedup")
             all_flights = remove_codeshares(all_flights)
+            print(f"[SEARCH] {len(all_flights)} flights after dedup")
 
             # Recompute per origin/dest after dedup and filter
             per_origin_dedup = {}

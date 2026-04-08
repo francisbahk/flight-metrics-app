@@ -506,7 +506,9 @@ class AmadeusClient:
             }
 
         except Exception as e:
-            print(f"Error parsing flight offer: {str(e)}")
+            import traceback
+            print(f"[PARSE ERROR] {type(e).__name__}: {e}")
+            print(traceback.format_exc())
             return None
 
     def _parse_duration_to_minutes(self, duration_str: str) -> int:
