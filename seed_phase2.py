@@ -37,19 +37,24 @@ def run():
                 missing.append(prolific_id)
                 continue
 
-            # Get ranked flights ordered by rank
-            ranking_rows = (
-                db.query(Ranking)
-                .filter(Ranking.prolific_id == prolific_id)
-                .order_by(Ranking.rank)
-                .all()
-            )
-            if not ranking_rows:
-                print(f"  [!] No rankings found for {prolific_id} — skipping.")
-                missing.append(prolific_id)
-                continue
+            # Use all flights the participant saw (not just their top 20 ranked ones)
+            if participant.all_flights_json:
+                flights = json.loads(participant.all_flights_json)
+            else:
+                # Fallback to ranked flights if all_flights not stored
+                ranking_rows = (
+                    db.query(Ranking)
+                    .filter(Ranking.prolific_id == prolific_id)
+                    .order_by(Ranking.rank)
+                    .all()
+                )
+                if not ranking_rows:
+                    print(f"  [!] No flights found for {prolific_id} — skipping.")
+                    missing.append(prolific_id)
+                    continue
+                flights = [json.loads(r.flight_json) for r in ranking_rows]
+                print(f"  [!] No all_flights_json for {prolific_id} — using ranked flights only ({len(flights)})")
 
-            flights = [json.loads(r.flight_json) for r in ranking_rows]
             flights_json = json.dumps(flights)
 
             loaded = load_seed_prompt(
@@ -57,13 +62,14 @@ def run():
                 prolific_id=prolific_id,
                 prompt_text=participant.prompt,
                 flights_json=flights_json,
+                overwrite=True,
             )
 
             if loaded:
                 print(f"  [✓] Seeded slot {slot_number}: {prolific_id} ({len(flights)} flights)")
                 seeded += 1
             else:
-                print(f"  [~] Already seeded: {prolific_id}")
+                print(f"  [!] Failed to seed: {prolific_id}")
                 skipped += 1
 
     finally:

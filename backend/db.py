@@ -592,13 +592,19 @@ def save_cv_rankings(reviewer_prolific_id: str, seed_prompt_id: int, selected_fl
         db.close()
 
 
-def load_seed_prompt(slot_number: int, prolific_id: str, prompt_text: str, flights_json: str) -> bool:
-    """Insert a single seed prompt row. No-op if prolific_id already loaded."""
+def load_seed_prompt(slot_number: int, prolific_id: str, prompt_text: str, flights_json: str, overwrite: bool = False) -> bool:
+    """Insert (or overwrite) a seed prompt row. Returns True if inserted/updated, False if skipped."""
     db = SessionLocal()
     try:
         existing = db.query(SeedPrompt).filter_by(prolific_id=prolific_id).first()
         if existing:
-            return False  # already loaded
+            if not overwrite:
+                return False
+            existing.slot_number = slot_number
+            existing.prompt_text = prompt_text
+            existing.flights_json = flights_json
+            db.commit()
+            return True
         db.add(SeedPrompt(
             slot_number=slot_number,
             prolific_id=prolific_id,
