@@ -182,20 +182,18 @@ def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
                 st.rerun()
 
         for idx, flight in enumerate(filtered_outbound):
-            flight_key = f"{flight['id']}_{flight['departure_time']}"
-            is_selected = any(
-                f"{f['id']}_{f['departure_time']}" == flight_key
-                for f in st.session_state.selected_flights
-            )
+            # Use all distinguishing fields for matching — id+departure_time alone can collide
+            def _fkey(f):
+                return (f.get('flight_number',''), f.get('departure_time',''), f.get('origin',''),
+                        f.get('destination',''), f.get('cabin',''), f.get('checked_bags',0),
+                        f.get('price',0), tuple(f.get('layover_airports') or []))
+            flight_key = _fkey(flight)
+            is_selected = any(_fkey(f) == flight_key for f in st.session_state.selected_flights)
 
             col1, col2 = st.columns([1, 5])
 
             with col1:
-                # Build a unique key from all distinguishing fields — avoids collisions when Amadeus IDs are short ints
-                import hashlib
-                raw = f"{flight.get('flight_number','')}_{flight.get('departure_time','')}_{flight.get('origin','')}_{flight.get('destination','')}_{flight.get('cabin','')}_{flight.get('checked_bags',0)}_{','.join(flight.get('layover_airports') or [])}"
-                safe_id = hashlib.md5(raw.encode()).hexdigest()[:16]
-                chk_key = f"chk_{safe_id}_v{st.session_state.checkbox_version}"
+                chk_key = f"chk_{idx}_v{st.session_state.checkbox_version}"
                 if chk_key not in st.session_state:
                     st.session_state[chk_key] = is_selected
                 selected = st.checkbox(
@@ -208,13 +206,13 @@ def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
                 if selected and not is_selected:
                     if len(st.session_state.selected_flights) < rank_limit:
                         st.session_state.selected_flights.append(flight)
-                        # No st.rerun() — fragment auto-reruns on checkbox interaction
+                        st.rerun()
                 elif not selected and is_selected:
                     st.session_state.selected_flights = [
                         f for f in st.session_state.selected_flights
-                        if f"{f['id']}_{f['departure_time']}" != flight_key
+                        if _fkey(f) != flight_key
                     ]
-                    # No st.rerun() — fragment auto-reruns on checkbox interaction
+                    st.rerun()
 
             with col2:
                 dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))

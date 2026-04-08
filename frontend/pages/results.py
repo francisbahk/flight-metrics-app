@@ -493,11 +493,13 @@ def _render_cv_flight_list(filtered_cv: list, all_flights: list, rank_limit: int
                 if selected and not is_selected:
                     if len(st.session_state.cross_val_selected_flights) < rank_limit:
                         st.session_state.cross_val_selected_flights.append(flight)
+                        st.rerun()
                 elif not selected and is_selected:
                     st.session_state.cross_val_selected_flights = [
                         f for f in st.session_state.cross_val_selected_flights
                         if _fkey(f) != flight_key
                     ]
+                    st.rerun()
 
             with c2:
                 dept_dt = datetime.fromisoformat(flight['departure_time'].replace('Z', '+00:00'))
