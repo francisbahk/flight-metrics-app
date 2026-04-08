@@ -82,20 +82,17 @@ def remove_codeshares(flights):
         layovers = tuple(f.get('layover_airports') or []) or ('N/A',)
         return (
             f['departure_time'], f['arrival_time'], f['origin'], f['destination'],
-            f.get('cabin'), f.get('checked_bags', 0), layovers,
+            f.get('cabin'), f.get('checked_bags', 0), f.get('price', 0), layovers,
         )
 
-    seen_fn = set()
-    seen_itin = set()
-    unique = []
+    seen = set()
+    result = []
     for f in flights:
-        fk = _flight_key(f)
-        ik = _itinerary_key(f)
-        if fk not in seen_fn and ik not in seen_itin:
-            seen_fn.add(fk)
-            seen_itin.add(ik)
-            unique.append(f)
-    return unique
+        key = _itinerary_key(f)
+        if key not in seen:
+            seen.add(key)
+            result.append(f)
+    return result
 
 
 def apply_filters(flights, airlines=None, connections=None, price_range=None,

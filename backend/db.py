@@ -162,6 +162,32 @@ class CVRanking(Base):
     created_at           = Column(DateTime, default=datetime.utcnow)
 
 
+class InteractionData(Base):
+    """Rich interaction data per participant session."""
+    __tablename__ = 'interaction_data'
+
+    id                       = Column(Integer, primary_key=True, autoincrement=True)
+    prolific_id              = Column(String(128), nullable=False, index=True)
+    # Search parameters
+    origin_city              = Column(Text, nullable=True)
+    destination_city         = Column(Text, nullable=True)
+    origin_airports_json     = Column(Text, nullable=True)   # list of checked IATA codes
+    destination_airports_json = Column(Text, nullable=True)  # list of checked IATA codes
+    search_dates_json        = Column(Text, nullable=True)   # list of date strings searched
+    search_airports_added_json = Column(Text, nullable=True) # airports added via "Search again"
+    # Filters applied at submission time
+    filters_json             = Column(Text, nullable=True)   # dict of all active filters
+    # Flight selection sequence
+    selection_sequence_json  = Column(Text, nullable=True)   # ordered list of flight keys as user checked them
+    # Timestamps
+    search_completed_at      = Column(DateTime, nullable=True)
+    prompt_submitted_at      = Column(DateTime, nullable=True)
+    ranking_submitted_at     = Column(DateTime, nullable=True)
+    # Prompt edits
+    prompt_edits_json        = Column(Text, nullable=True)   # list of {before, after, source} dicts
+    created_at               = Column(DateTime, default=datetime.utcnow)
+
+
 
 
 # ============================================================================
@@ -178,6 +204,7 @@ def init_db():
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN is_edit TINYINT(1) DEFAULT 0"),
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN edit_source VARCHAR(32)"),
     ]
+    # interaction_data is created via create_all — no manual migration needed
     for table, sql in migrations:
         try:
             with engine.connect() as conn:
@@ -434,6 +461,30 @@ def save_post_survey(prolific_id: str, feedback: str) -> bool:
     except Exception as e:
         db.rollback()
         print(f"[DB] save_post_survey error: {e}")
+        return False
+    finally:
+        db.close()
+
+
+def save_interaction_data(prolific_id: str, data: dict) -> bool:
+    """Upsert interaction data for a participant. Merges with existing row if present."""
+    db = SessionLocal()
+    try:
+        row = db.query(InteractionData).filter_by(prolific_id=prolific_id).first()
+        if not row:
+            row = InteractionData(prolific_id=prolific_id)
+            db.add(row)
+        for field, value in data.items():
+            if value is not None and hasattr(row, field):
+                if isinstance(value, (list, dict)):
+                    setattr(row, field, json.dumps(value))
+                else:
+                    setattr(row, field, value)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"[DB] save_interaction_data error: {e}")
         return False
     finally:
         db.close()
