@@ -567,6 +567,9 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                 default_options=origin_defaults,
             )
             if origin_selection:
+                # Store human-readable label for interaction data recording
+                _parts = origin_selection.split("|")
+                st.session_state["origin_city_label"] = ", ".join(p for p in _parts if p)
                 airports = get_airports_for_city(origin_selection)
                 st.session_state["origin_airports"] = airports
                 st.markdown("**Origin airports:**")
@@ -591,6 +594,9 @@ def render_search_section(static_route_day_options, flight_client, static_flight
                 default_options=dest_defaults,
             )
             if dest_selection:
+                # Store human-readable label for interaction data recording
+                _parts = dest_selection.split("|")
+                st.session_state["dest_city_label"] = ", ".join(p for p in _parts if p)
                 airports = get_airports_for_city(dest_selection)
                 st.session_state["dest_airports"] = airports
                 st.markdown("**Destination airports:**")

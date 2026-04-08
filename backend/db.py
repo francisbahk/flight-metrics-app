@@ -176,9 +176,11 @@ class InteractionData(Base):
     search_dates_json        = Column(Text, nullable=True)   # list of date strings searched
     search_airports_added_json = Column(Text, nullable=True) # airports added via "Search again"
     # Filters applied at submission time
-    filters_json             = Column(Text, nullable=True)   # dict of all active filters
+    filters_json             = Column(Text, nullable=True)   # dict of all active filters at submit
+    # Full filter change log (each entry: {filter, value, timestamp})
+    filter_history_json      = Column(Text, nullable=True)   # list of filter change events
     # Flight selection sequence
-    selection_sequence_json  = Column(Text, nullable=True)   # ordered list of flight keys as user checked them
+    selection_sequence_json  = Column(Text, nullable=True)   # ordered list of {flight_key, action, rank_at_time}
     # Timestamps
     search_completed_at      = Column(DateTime, nullable=True)
     prompt_submitted_at      = Column(DateTime, nullable=True)
@@ -203,8 +205,8 @@ def init_db():
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN chat_history_json MEDIUMTEXT"),
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN is_edit TINYINT(1) DEFAULT 0"),
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN edit_source VARCHAR(32)"),
+        ("interaction_data", "ALTER TABLE interaction_data ADD COLUMN filter_history_json TEXT"),
     ]
-    # interaction_data is created via create_all — no manual migration needed
     for table, sql in migrations:
         try:
             with engine.connect() as conn:

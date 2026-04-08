@@ -206,6 +206,14 @@ def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
                 if selected and not is_selected:
                     if len(st.session_state.selected_flights) < rank_limit:
                         st.session_state.selected_flights.append(flight)
+                        # Track selection sequence
+                        if 'selection_sequence' not in st.session_state:
+                            st.session_state.selection_sequence = []
+                        st.session_state.selection_sequence.append({
+                            'flight_key': f"{flight.get('flight_number','')}_{flight.get('departure_time','')}",
+                            'action': 'select',
+                            'rank_at_time': len(st.session_state.selected_flights),
+                        })
                         # Rerun only when hitting the limit so all remaining checkboxes disable cleanly
                         if len(st.session_state.selected_flights) >= rank_limit:
                             st.rerun()
@@ -215,6 +223,13 @@ def _render_flight_selection_fragment(filtered_outbound: list, rank_limit: int):
                         f for f in st.session_state.selected_flights
                         if _fkey(f) != flight_key
                     ]
+                    # Track deselection
+                    if 'selection_sequence' not in st.session_state:
+                        st.session_state.selection_sequence = []
+                    st.session_state.selection_sequence.append({
+                        'flight_key': f"{flight.get('flight_number','')}_{flight.get('departure_time','')}",
+                        'action': 'deselect',
+                    })
                     # Rerun only when dropping below limit so checkboxes re-enable cleanly
                     if was_at_limit:
                         st.rerun()
@@ -342,6 +357,8 @@ def render_ranking_section():
         checked_bags=st.session_state.get('filter_checked_bags'),
     )
 
+    _record_filter_snapshot()
+
     st.markdown('<div id="top-of-page"></div>', unsafe_allow_html=True)
     st.markdown('<div id="outbound-flights"></div>', unsafe_allow_html=True)
     st.markdown("## Outbound Flights")
@@ -349,6 +366,28 @@ def render_ranking_section():
 
     # Fragment: checkboxes + ranking column rerun independently of the full app
     _render_flight_selection_fragment(filtered_outbound, rank_limit)
+
+
+def _record_filter_snapshot():
+    """Append a filter snapshot to filter_history if anything changed since the last snapshot."""
+    _FILTER_KEYS = [
+        'filter_airlines', 'filter_connections', 'filter_price_range',
+        'filter_duration_range', 'filter_departure_time_range', 'filter_arrival_time_range',
+        'filter_origins', 'filter_destinations', 'filter_cabins', 'filter_checked_bags',
+    ]
+    current = {k: st.session_state.get(k) for k in _FILTER_KEYS}
+    if 'filter_history' not in st.session_state:
+        st.session_state.filter_history = []
+        st.session_state._last_filter_snapshot = {}
+    if current != st.session_state._last_filter_snapshot:
+        active = {k: v for k, v in current.items() if v is not None}
+        if active or st.session_state.filter_history:  # skip recording initial empty state
+            from datetime import datetime as _dt
+            st.session_state.filter_history.append({
+                'filters': active,
+                'ts': _dt.utcnow().isoformat(),
+            })
+        st.session_state._last_filter_snapshot = current
 
 
 def _render_sidebar_filters():
@@ -580,6 +619,28 @@ def _render_ranking_column(rank_limit: int):
             st.session_state.csv_data_outbound = csv_data
             st.session_state.outbound_submitted = True
             st.session_state.csv_generated = True
+            # Save interaction data: filters applied + selection sequence + ranking timestamp
+            try:
+                from backend.db import save_interaction_data
+                from datetime import datetime as _dt
+                active_filters = {
+                    k: st.session_state.get(k)
+                    for k in [
+                        'filter_airlines', 'filter_connections', 'filter_price_range',
+                        'filter_duration_range', 'filter_departure_time_range',
+                        'filter_arrival_time_range', 'filter_origins', 'filter_destinations',
+                        'filter_cabins', 'filter_checked_bags',
+                    ]
+                    if st.session_state.get(k) is not None
+                }
+                save_interaction_data(st.session_state.get('prolific_id', 'anonymous'), {
+                    'filters_json': active_filters if active_filters else None,
+                    'filter_history_json': st.session_state.get('filter_history', []),
+                    'selection_sequence_json': st.session_state.get('selection_sequence', []),
+                    'ranking_submitted_at': _dt.utcnow(),
+                })
+            except Exception as _e:
+                print(f"[INTERACTION] save error: {_e}")
             st.rerun()
     elif st.session_state.outbound_submitted:
         st.success("Rankings submitted")
