@@ -144,7 +144,7 @@ class SeedPrompt(Base):
     slot_number  = Column(Integer, nullable=False)
     prolific_id  = Column(String(128), nullable=False)   # reference participant
     prompt_text  = Column(Text, nullable=False)
-    flights_json = Column(Text, nullable=False)           # all flights shown for this prompt
+    flights_json = Column(MEDIUMTEXT().with_variant(Text, 'sqlite'), nullable=False)  # all flights shown for this prompt
     rerank_count = Column(Integer, default=0)
     created_at   = Column(DateTime, default=datetime.utcnow)
 
@@ -213,6 +213,7 @@ def init_db():
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN chat_history_json MEDIUMTEXT"),
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN is_edit TINYINT(1) DEFAULT 0"),
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN edit_source VARCHAR(32)"),
+        ("seed_prompts", "ALTER TABLE seed_prompts MODIFY COLUMN flights_json MEDIUMTEXT NOT NULL"),
     ]
     for table, sql in migrations:
         try:
