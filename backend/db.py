@@ -156,6 +156,7 @@ class CVRanking(Base):
     id                   = Column(Integer, primary_key=True, autoincrement=True)
     reviewer_prolific_id = Column(String(128), nullable=False, index=True)
     seed_prompt_id       = Column(Integer, nullable=False, index=True)
+    source_prolific_id   = Column(String(128), nullable=True, index=True)
     rank                 = Column(Integer, nullable=False)
     flight_key           = Column(String(256), nullable=False)
     flight_json          = Column(Text, nullable=False)
@@ -214,6 +215,7 @@ def init_db():
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN is_edit TINYINT(1) DEFAULT 0"),
         ("prompt_attempts", "ALTER TABLE prompt_attempts ADD COLUMN edit_source VARCHAR(32)"),
         ("seed_prompts", "ALTER TABLE seed_prompts MODIFY COLUMN flights_json MEDIUMTEXT NOT NULL"),
+        ("participants", "ALTER TABLE participants MODIFY COLUMN all_flights_json MEDIUMTEXT"),
     ]
     for table, sql in migrations:
         try:
@@ -571,16 +573,18 @@ def save_cv_rankings(reviewer_prolific_id: str, seed_prompt_id: int, selected_fl
     """Save cross-validation rankings and increment the seed prompt's rerank_count."""
     db = SessionLocal()
     try:
+        seed = db.query(SeedPrompt).filter_by(id=seed_prompt_id).first()
+        source_pid = seed.prolific_id if seed else None
         for i, flight in enumerate(selected_flights):
             flight_key = f"{flight['id']}_{flight['departure_time']}"
             db.add(CVRanking(
                 reviewer_prolific_id=reviewer_prolific_id,
                 seed_prompt_id=seed_prompt_id,
+                source_prolific_id=source_pid,
                 rank=i + 1,
                 flight_key=flight_key,
                 flight_json=json.dumps(flight),
             ))
-        seed = db.query(SeedPrompt).filter_by(id=seed_prompt_id).first()
         if seed:
             seed.rerank_count += 1
         db.commit()
