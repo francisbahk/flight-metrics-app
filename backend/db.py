@@ -542,7 +542,7 @@ def get_rankings(prolific_id: str) -> list:
 def get_next_seed_prompt(reviewer_prolific_id: str):
     """Return the next seed prompt to assign to this reviewer.
 
-    Sequential allocation: lowest-id seed prompt that still has rerank_count < MAX_RERANKS_PER_SEED.
+    Picks the seed prompt with the fewest reranks so far (ties broken by lowest id).
     Returns None if all seed prompts are fully saturated.
     """
     try:
@@ -554,7 +554,7 @@ def get_next_seed_prompt(reviewer_prolific_id: str):
         seed = (
             db.query(SeedPrompt)
             .filter(SeedPrompt.rerank_count < MAX_RERANKS_PER_SEED)
-            .order_by(SeedPrompt.id)
+            .order_by(SeedPrompt.rerank_count, SeedPrompt.id)
             .first()
         )
         if not seed:
