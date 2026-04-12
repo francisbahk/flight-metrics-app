@@ -543,17 +543,11 @@ def get_next_seed_prompt(reviewer_prolific_id: str):
     """Return the next seed prompt to assign to this reviewer.
 
     Picks the seed prompt with the fewest reranks so far (ties broken by lowest id).
-    Returns None if all seed prompts are fully saturated.
     """
-    try:
-        from study_config import MAX_RERANKS_PER_SEED
-    except ImportError:
-        MAX_RERANKS_PER_SEED = 5
     db = SessionLocal()
     try:
         seed = (
             db.query(SeedPrompt)
-            .filter(SeedPrompt.rerank_count < MAX_RERANKS_PER_SEED)
             .order_by(SeedPrompt.rerank_count, SeedPrompt.id)
             .first()
         )
