@@ -174,6 +174,27 @@ class FilterEvent(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
 
 
+class BonusAward(Base):
+    """One row per Prolific bonus awarded for CV overlap.
+
+    `reviewer_prolific_id` is unique — a given reviewer is awarded at most
+    one bonus regardless of how many times they resubmit.
+    """
+    __tablename__ = 'bonus_awards'
+
+    id                   = Column(Integer, primary_key=True, autoincrement=True)
+    reviewer_prolific_id = Column(String(128), nullable=False, unique=True, index=True)
+    source_prolific_id   = Column(String(128), nullable=True)
+    seed_prompt_id       = Column(Integer, nullable=True)
+    overlap_count        = Column(Integer, nullable=False)
+    amount_usd           = Column(String(16), nullable=False)      # stored as string to avoid float rounding
+    study_id             = Column(String(128), nullable=True)
+    prolific_bonus_id    = Column(String(128), nullable=True)      # id returned by Prolific API
+    status               = Column(String(32), nullable=False)      # "created", "skipped", "failed"
+    error_message        = Column(Text, nullable=True)
+    created_at           = Column(DateTime, default=datetime.utcnow)
+
+
 class InteractionData(Base):
     """Rich interaction data per participant session."""
     __tablename__ = 'interaction_data'
@@ -587,6 +608,83 @@ def save_cv_rankings(reviewer_prolific_id: str, seed_prompt_id: int, selected_fl
         db.rollback()
         print(f"[DB] save_cv_rankings error: {e}")
         return False
+    finally:
+        db.close()
+
+
+def get_ranking_flight_keys(prolific_id: str) -> set:
+    """Return the set of flight_keys this participant ranked in their own top list."""
+    db = SessionLocal()
+    try:
+        rows = db.query(Ranking.flight_key).filter_by(prolific_id=prolific_id).all()
+        return {r[0] for r in rows}
+    finally:
+        db.close()
+
+
+def get_participant_study_id(prolific_id: str) -> str:
+    """Return the stored study_id for this participant, or empty string."""
+    db = SessionLocal()
+    try:
+        p = db.query(Participant).filter_by(prolific_id=prolific_id).first()
+        return (p.study_id or '') if p else ''
+    finally:
+        db.close()
+
+
+def get_seed_source_prolific_id(seed_prompt_id: int) -> str:
+    """Return the source participant's prolific_id for a given seed prompt, or ''."""
+    db = SessionLocal()
+    try:
+        seed = db.query(SeedPrompt).filter_by(id=seed_prompt_id).first()
+        return seed.prolific_id if seed else ''
+    finally:
+        db.close()
+
+
+def record_bonus_award(
+    reviewer_prolific_id: str,
+    source_prolific_id: str,
+    seed_prompt_id: int,
+    overlap_count: int,
+    amount_usd: str,
+    status: str,
+    study_id: str = None,
+    prolific_bonus_id: str = None,
+    error_message: str = None,
+) -> bool:
+    """Insert a BonusAward row. Returns False if a row already exists for this reviewer."""
+    db = SessionLocal()
+    try:
+        existing = db.query(BonusAward).filter_by(reviewer_prolific_id=reviewer_prolific_id).first()
+        if existing:
+            return False
+        db.add(BonusAward(
+            reviewer_prolific_id=reviewer_prolific_id,
+            source_prolific_id=source_prolific_id,
+            seed_prompt_id=seed_prompt_id,
+            overlap_count=overlap_count,
+            amount_usd=amount_usd,
+            status=status,
+            study_id=study_id,
+            prolific_bonus_id=prolific_bonus_id,
+            error_message=error_message,
+        ))
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"[DB] record_bonus_award error: {e}")
+        return False
+    finally:
+        db.close()
+
+
+def has_bonus_award(reviewer_prolific_id: str) -> bool:
+    """Return True if this reviewer already has a BonusAward row."""
+    db = SessionLocal()
+    try:
+        return db.query(BonusAward).filter_by(reviewer_prolific_id=reviewer_prolific_id).first() is not None
     finally:
         db.close()
 

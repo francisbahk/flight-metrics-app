@@ -28,6 +28,34 @@ def _trigger_backup(token: str):
         pass
 
 
+def _trigger_cv_overlap_bonus(reviewer_prolific_id: str, seed_prompt_id: int,
+                              reviewer_cv_flights: list, study_id: str = None):
+    """Run the overlap-bonus check in a background thread (non-blocking).
+
+    A CV reviewer earns a $2 Prolific bonus when ≥ PROLIFIC_BONUS_THRESHOLD
+    of their ranked flights match the source participant's original top
+    ranking. See backend/prolific_bonus.py for details.
+    """
+    import threading
+
+    # Snapshot inputs so the thread doesn't touch session_state.
+    flights_copy = list(reviewer_cv_flights) if reviewer_cv_flights else []
+
+    def _run():
+        try:
+            from backend.prolific_bonus import maybe_award_cv_overlap_bonus
+            maybe_award_cv_overlap_bonus(
+                reviewer_prolific_id=reviewer_prolific_id,
+                seed_prompt_id=seed_prompt_id,
+                reviewer_cv_flights=flights_copy,
+                study_id=study_id,
+            )
+        except Exception as e:
+            print(f"[BONUS] background check failed for {reviewer_prolific_id}: {e}")
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
 def render_completion_section():
     """
     Render the post-submission flow.  Must only be called when
@@ -318,12 +346,21 @@ def _render_cross_validation(_unused):
         if st.button("Submit Cross-Validation Rankings", key="cv_submit",
                      type="primary", use_container_width=True):
             from backend.db import save_cv_rankings
+            reviewer_pid = st.session_state.get('token', '')
+            seed_prompt_id = st.session_state.cv_seed_prompt_id
+            cv_flights = st.session_state.cross_val_selected_flights
             success = save_cv_rankings(
-                reviewer_prolific_id=st.session_state.get('token', ''),
-                seed_prompt_id=st.session_state.cv_seed_prompt_id,
-                selected_flights=st.session_state.cross_val_selected_flights,
+                reviewer_prolific_id=reviewer_pid,
+                seed_prompt_id=seed_prompt_id,
+                selected_flights=cv_flights,
             )
             if success:
+                _trigger_cv_overlap_bonus(
+                    reviewer_prolific_id=reviewer_pid,
+                    seed_prompt_id=seed_prompt_id,
+                    reviewer_cv_flights=cv_flights,
+                    study_id=st.session_state.get('study_id'),
+                )
                 st.session_state.cross_validation_completed = True
                 st.session_state.all_reranks_completed = True
                 if not st.session_state.get('backup_triggered'):
